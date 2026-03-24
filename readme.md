@@ -125,13 +125,13 @@ Right now, Wishing Room is primarily aimed at contributors and testers.
 
 The workspace currently leans on a small set of core crates:
 
-| Crate | Version | Role |
-|-------|---------|------|
-| [`dioxus`](https://crates.io/crates/dioxus) | `0.7.3` | app shell for web, desktop, and Android |
-| [`tiled`](https://crates.io/crates/tiled) | `0.15.0` | official TMX / TSX loading |
-| [`quick-xml`](https://crates.io/crates/quick-xml) | `0.38.4` | XML writing and supporting utilities |
-| [`roxmltree`](https://crates.io/crates/roxmltree) | `0.20.0` | XML inspection and preprocessing |
-| [`thiserror`](https://crates.io/crates/thiserror) | `2.0.17` | structured editor errors |
+| Crate | Role |
+|-------|------|
+| [`dioxus`](https://crates.io/crates/dioxus) | app shell for web, desktop, and Android |
+| [`tiled`](https://crates.io/crates/tiled) | official TMX / TSX loading |
+| [`quick-xml`](https://crates.io/crates/quick-xml) | XML writing and supporting utilities |
+| [`roxmltree`](https://crates.io/crates/roxmltree) | XML inspection and preprocessing |
+| [`thiserror`](https://crates.io/crates/thiserror) | structured editor errors |
 
 ## Project Structure
 

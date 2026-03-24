@@ -126,13 +126,13 @@ Wishing Room 的出发点其实很简单：我们希望 **Undertale / Deltarune*
 
 当前 workspace 主要依赖以下核心 crate：
 
-| Crate | Version | 作用 |
-|-------|---------|------|
-| [`dioxus`](https://crates.io/crates/dioxus) | `0.7.3` | Web / Desktop / Android 应用壳 |
-| [`tiled`](https://crates.io/crates/tiled) | `0.15.0` | 官方 TMX / TSX 读取 |
-| [`quick-xml`](https://crates.io/crates/quick-xml) | `0.38.4` | XML 写出与辅助处理 |
-| [`roxmltree`](https://crates.io/crates/roxmltree) | `0.20.0` | XML 检查与预处理 |
-| [`thiserror`](https://crates.io/crates/thiserror) | `2.0.17` | 结构化错误定义 |
+| Crate | 作用 |
+|-------|------|
+| [`dioxus`](https://crates.io/crates/dioxus) | Web / Desktop / Android 应用壳 |
+| [`tiled`](https://crates.io/crates/tiled) | 官方 TMX / TSX 读取 |
+| [`quick-xml`](https://crates.io/crates/quick-xml) | XML 写出与辅助处理 |
+| [`roxmltree`](https://crates.io/crates/roxmltree) | XML 检查与预处理 |
+| [`thiserror`](https://crates.io/crates/thiserror) | 结构化错误定义 |
 
 ## 项目结构
 
