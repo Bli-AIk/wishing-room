@@ -5,8 +5,6 @@
 
 > **状态**：🚧 初始开发阶段（当前已建立核心格式边界，Android 主界面仍在持续收紧）
 
-![Wishing Room Logo](./wishing_room_logo.svg)
-
 **Wishing Room** —— 一个面向 **Android** 的 **Tiled 地图编辑器第三方实现**，目标不是把桌面版强行压缩到手机里，而是认真做一套适合触控和竖屏使用的地图编辑工作流。
 
 | English | 简体中文 |

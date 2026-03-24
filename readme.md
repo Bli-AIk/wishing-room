@@ -5,8 +5,6 @@
 
 > Current Status: 🚧 Early Development (the core format boundary is in place, while the Android-first UI is still being refined)
 
-![Wishing Room Logo](./wishing_room_logo.svg)
-
 **Wishing Room** — an Android-first third-party implementation of the **Tiled** map editor, built for people who want a real mobile map editing workflow instead of a desktop UI squeezed into a phone screen.
 
 | English | 简体中文 |
