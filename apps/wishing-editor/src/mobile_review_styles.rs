@@ -362,11 +362,13 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
   .review-editor-toolbar {
     background: #1c1c1e;
     border-top: 1px solid #2c2c2e;
+    display: flex;
+    flex-direction: column;
   }
   .review-tool-row {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    padding: 16px 18px 10px;
+    padding: 14px 18px 8px;
   }
   .review-tool-row-live {
     grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -380,6 +382,7 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
     border: none;
     background: transparent;
     font: inherit;
+    min-height: 62px;
   }
   .review-tool.active {
     color: #0a84ff;
@@ -387,14 +390,26 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
   .review-tool-icon {
     width: 24px;
     height: 24px;
-    border-radius: 8px;
-    border: 2px solid currentColor;
+    display: grid;
+    place-items: center;
+  }
+  .review-tool-icon-svg {
+    width: 24px;
+    height: 24px;
+    display: block;
   }
   .review-tile-strip {
     display: flex;
     gap: 8px;
     overflow-x: auto;
     padding: 0 14px 12px;
+  }
+  .review-tile-strip-live {
+    min-height: 68px;
+    padding-top: 6px;
+    border-top: 1px solid #2c2c2e;
+    background: #18181a;
+    align-items: center;
   }
   .review-tile-chip {
     width: 52px;
@@ -404,6 +419,7 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
     border: 1px solid #2c2c2e;
     background: #486d35;
     background-repeat: no-repeat;
+    background-position: center;
   }
   .review-tile-chip.selected {
     border: 2px solid #0a84ff;

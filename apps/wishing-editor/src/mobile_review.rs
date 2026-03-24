@@ -767,9 +767,78 @@ fn review_tool_button(
         button {
             class: if snapshot.tool == tool { "review-tool active" } else { "review-tool" },
             onclick: move |_| state.write().tool = tool.clone(),
-            div { class: "review-tool-icon" }
+            div { class: "review-tool-icon", {review_tool_icon(&tool)} }
             span { "{label}" }
         }
+    }
+}
+
+fn review_tool_icon(tool: &Tool) -> Element {
+    match tool {
+        Tool::Select => rsx! {
+            svg {
+                class: "review-tool-icon-svg",
+                view_box: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                stroke_width: "1.8",
+                stroke_linecap: "round",
+                stroke_linejoin: "round",
+                path { d: "M5 4v14l4-4h6" }
+                path { d: "M13.5 13.5 18 20" }
+            }
+        },
+        Tool::Paint => rsx! {
+            svg {
+                class: "review-tool-icon-svg",
+                view_box: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                stroke_width: "1.8",
+                stroke_linecap: "round",
+                stroke_linejoin: "round",
+                path { d: "M14 4c3 2 5 4.5 5 7a4 4 0 0 1-4 4h-1l-4.5 4.5a1.8 1.8 0 0 1-2.5 0l-2-2a1.8 1.8 0 0 1 0-2.5L9.5 10V9a4 4 0 0 1 4-5z" }
+            }
+        },
+        Tool::Erase => rsx! {
+            svg {
+                class: "review-tool-icon-svg",
+                view_box: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                stroke_width: "1.8",
+                stroke_linecap: "round",
+                stroke_linejoin: "round",
+                path { d: "m7 14 6-8 7 7-8 6H7z" }
+                path { d: "M4 20h9" }
+            }
+        },
+        Tool::AddRectangle => rsx! {
+            svg {
+                class: "review-tool-icon-svg",
+                view_box: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                stroke_width: "1.8",
+                stroke_linecap: "round",
+                stroke_linejoin: "round",
+                rect { x: "5", y: "7", width: "14", height: "10", rx: "2" }
+            }
+        },
+        Tool::AddPoint => rsx! {
+            svg {
+                class: "review-tool-icon-svg",
+                view_box: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                stroke_width: "1.8",
+                stroke_linecap: "round",
+                stroke_linejoin: "round",
+                path { d: "M12 5v14" }
+                path { d: "M5 12h14" }
+                circle { cx: "12", cy: "12", r: "2.5" }
+            }
+        },
     }
 }
 
