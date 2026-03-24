@@ -202,7 +202,7 @@ fn render_editor(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
 fn render_tilesets(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
     let Some(session) = snapshot.session.as_ref() else {
         return render_missing_screen(
-            "Tileset Property Editor".to_string(),
+            "Tile Property Editor".to_string(),
             "Load an embedded TMX sample before opening tilesets.",
             state,
         );
@@ -210,29 +210,33 @@ fn render_tilesets(snapshot: &AppState, mut state: Signal<AppState>) -> Element 
 
     let palette = collect_palette(session.document());
     let selected_gid = snapshot.selected_gid;
-    let selected_summary = session
-        .document()
-        .map
-        .tile_reference_for_gid(selected_gid)
-        .map(|reference| {
-            format!(
-                "Tile ID {} from {}",
-                selected_gid, reference.tileset.tileset.name
-            )
-        })
-        .unwrap_or_else(|| "Choose a tile from the sheet below.".to_string());
+    let selected_reference = session.document().map.tile_reference_for_gid(selected_gid);
+    let sheet_style = tileset_sheet_style(session.document(), selected_gid);
+    let selected_label = selected_reference
+        .as_ref()
+        .map(|reference| format!("Selected Tile: ID {}", reference.local_id))
+        .unwrap_or_else(|| "Selected Tile: None".to_string());
+    let tile_name = selected_reference
+        .as_ref()
+        .map(|reference| format!("{} {}", reference.tileset.tileset.name, reference.local_id))
+        .unwrap_or_else(|| "None".to_string());
+    let tile_type = selected_reference
+        .as_ref()
+        .map(|reference| format!("{} Tileset", reference.tileset.tileset.name))
+        .unwrap_or_else(|| "Unknown".to_string());
+    let property_count = 0usize;
 
     rsx! {
         div { class: "review-page",
             {review_top_bar(
-                "Tileset Property Editor".to_string(),
+                "Tile Property Editor".to_string(),
                 Some(("Back", MobileScreen::Editor)),
                 Some(("Done", MobileScreen::Editor)),
                 state,
             )}
             div { class: "review-body review-section-stack",
                 div { class: "review-section-title", "Sprite Sheet View" }
-                div { class: "review-tileset-sheet review-tileset-sheet-live",
+                div { class: "review-tileset-sheet review-tileset-sheet-live", style: sheet_style,
                     for tile in palette {
                         button {
                             key: "tile-{tile.gid}",
@@ -250,26 +254,33 @@ fn render_tilesets(snapshot: &AppState, mut state: Signal<AppState>) -> Element 
                         }
                     }
                 }
-                div { class: "review-info-card review-selected-tile-card",
-                    div {
-                        class: "review-selected-tile-art",
-                        style: selected_tile_style(snapshot, session, selected_gid),
+                div { class: "review-selected-tile-summary", "{selected_label}" }
+                div { class: "review-property-field-card",
+                    div { class: "review-property-field-row",
+                        span { class: "review-property-field-label", "Name:" }
+                        div { class: "review-property-field-value", "{tile_name}" }
                     }
-                    div { class: "review-project-copy",
-                        div { class: "review-info-title", "{selected_summary}" }
-                        div { class: "review-info-meta", "Tile property editors and collision authoring stay on this page once implemented." }
+                    div { class: "review-property-field-row",
+                        span { class: "review-property-field-label", "Type:" }
+                        div { class: "review-property-field-value", "{tile_type}" }
                     }
                 }
                 div { class: "review-section-title with-gap", "Custom Properties" }
-                div { class: "review-settings-card",
-                    div { class: "review-setting-row",
-                        span { "Properties" }
-                        span { class: "muted", "Placeholder" }
+                div { class: "review-property-group-card",
+                    div { class: "review-setting-row review-property-empty-row",
+                        span { class: "muted", "No editable tile properties are available in the current Stage 1 data model." }
                     }
-                    div { class: "review-setting-row",
-                        span { "Collision Editor" }
-                        span { class: "muted", "Placeholder" }
+                    button {
+                        class: "review-link review-property-add-link",
+                        onclick: move |_| {
+                            state.write().status =
+                                format!("Tile properties are not implemented yet. Current selected gid: {selected_gid}.");
+                        },
+                        "+ Add Property"
                     }
+                }
+                div { class: "review-property-footer-note",
+                    "{property_count} custom properties available. Collision editing stays out of scope for this pass."
                 }
             }
             {review_nav(snapshot, state, false)}
@@ -1028,6 +1039,17 @@ fn editor_grid_style(snapshot: &AppState, session: &EditorSession) -> String {
     )
 }
 
+fn tileset_sheet_style(document: &wishing_core::EditorDocument, selected_gid: u32) -> String {
+    let columns = document
+        .map
+        .tile_reference_for_gid(selected_gid)
+        .map(|reference| reference.tileset.tileset.columns.max(1))
+        .or_else(|| document.map.tilesets.first().map(|tileset| tileset.tileset.columns.max(1)))
+        .unwrap_or(1);
+
+    format!("grid-template-columns:repeat({columns}, minmax(0, 1fr));")
+}
+
 fn layer_kind_label(layer: &Layer) -> &'static str {
     if layer.as_tile().is_some() {
         "Tile Layer"
@@ -1053,22 +1075,6 @@ fn layer_thumb_variant(index: usize, layer: &Layer) -> &'static str {
     } else {
         "foreground"
     }
-}
-
-fn selected_tile_style(snapshot: &AppState, session: &EditorSession, selected_gid: u32) -> String {
-    let Some(reference) = session.document().map.tile_reference_for_gid(selected_gid) else {
-        return String::new();
-    };
-
-    palette_tile_style(
-        session.document(),
-        &snapshot.image_cache,
-        &PaletteTile {
-            gid: selected_gid,
-            tileset_index: reference.tileset_index,
-            local_id: reference.local_id,
-        },
-    )
 }
 
 fn collect_objects(session: &EditorSession) -> Vec<MobileObjectSummary> {

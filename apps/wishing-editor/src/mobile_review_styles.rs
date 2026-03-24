@@ -498,18 +498,20 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
     display: grid;
     gap: 1px;
     padding: 1px;
-    border-radius: 16px;
+    border-radius: 14px;
     background: #2c2c2e;
   }
   .review-tileset-sheet {
     grid-template-columns: repeat(6, minmax(0, 1fr));
     overflow: hidden;
+    background: #3a3a3c;
   }
   .review-sheet-cell {
     aspect-ratio: 1;
-    background: linear-gradient(135deg, #4e3d2f, #161616);
+    background: #151517;
     border: none;
     background-repeat: no-repeat;
+    background-position: center;
   }
   .review-sheet-cell.active {
     box-shadow: inset 0 0 0 3px #0a84ff;
@@ -712,17 +714,67 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
   .review-settings-card.single {
     padding: 0 16px;
   }
-  .review-selected-tile-card {
-    align-items: center;
+  .review-selected-tile-summary {
+    font-size: 16px;
+    font-weight: 600;
+    color: #f5f5f7;
   }
-  .review-selected-tile-art {
-    width: 72px;
-    height: 72px;
-    border-radius: 16px;
-    background-color: #11161f;
-    background-repeat: no-repeat;
-    border: 1px solid rgba(255,255,255,0.08);
-    flex: none;
+  .review-property-field-card,
+  .review-property-group-card {
+    border-radius: 14px;
+    background: #1c1c1e;
+    border: 1px solid #2c2c2e;
+  }
+  .review-property-field-row {
+    display: grid;
+    grid-template-columns: 72px minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-top: 1px solid #2c2c2e;
+  }
+  .review-property-field-row:first-child {
+    border-top: none;
+  }
+  .review-property-field-label {
+    color: #f2f2f7;
+    font-size: 15px;
+  }
+  .review-property-field-value {
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    border-radius: 10px;
+    background: #2c2c2e;
+    color: #f2f2f7;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .review-property-empty-row {
+    justify-content: center;
+    min-height: 56px;
+    padding: 18px 16px 12px;
+  }
+  .review-property-empty-row .muted {
+    width: 100%;
+    padding: 0 8px;
+    text-align: center;
+    line-height: 1.4;
+  }
+  .review-property-add-link {
+    display: block;
+    width: 100%;
+    padding: 0 0 16px;
+    color: #0a84ff;
+    text-align: center;
+    font-size: 16px;
+  }
+  .review-property-footer-note {
+    color: #8e8e93;
+    font-size: 13px;
+    line-height: 1.35;
   }
   .review-actions-grid {
     display: grid;
