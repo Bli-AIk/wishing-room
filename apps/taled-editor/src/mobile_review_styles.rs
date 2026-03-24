@@ -341,79 +341,119 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
   .review-map-wall.left { left: 24%; top: 0; width: 10%; height: 72%; background: #7b7b82; }
   .review-map-wall.right { right: 24%; top: 0; width: 10%; height: 72%; background: #7b7b82; }
   .review-map-shadow { inset: auto 0 0 0; height: 40%; background: linear-gradient(180deg, transparent, rgba(0,0,0,0.18)); }
-  .review-dpad,
+  .review-pan-joystick,
+  .review-zoom-control,
   .review-layer-float {
     position: absolute;
     background: rgba(28, 28, 30, 0.86);
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.08);
   }
-  .review-dpad {
+  .review-pan-joystick {
     left: 18px;
     bottom: calc(
       var(--review-editor-nav-height) +
       var(--review-editor-toolbar-height) +
       var(--review-editor-float-gap)
     );
-    width: 104px;
-    height: 104px;
+    width: 92px;
+    height: 92px;
     border-radius: 999px;
     color: #d3d6dc;
     z-index: 12;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
   }
-  .review-dpad span {
-    border: none;
-    background: transparent;
-    color: inherit;
+  .review-pan-joystick-ring,
+  .review-pan-joystick-center-mark,
+  .review-pan-joystick-knob,
+  .review-zoom-control-track,
+  .review-zoom-control-knob,
+  .review-zoom-control-glyph {
+    pointer-events: none;
   }
-  .review-dpad button {
+  .review-pan-joystick-ring {
     position: absolute;
-    width: 32px;
-    height: 32px;
-    border: none;
-    background: transparent;
-    color: inherit;
+    inset: 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.12);
+    background:
+      radial-gradient(circle at center, rgba(255,255,255,0.04) 0, rgba(255,255,255,0.02) 42%, transparent 72%);
+  }
+  .review-pan-joystick-center-mark {
+    position: absolute;
+    inset: 31px;
     display: grid;
     place-items: center;
-  }
-  .review-dpad .up { top: 6px; left: 36px; }
-  .review-dpad .left { top: 36px; left: 6px; }
-  .review-dpad .center { inset: 36px auto auto 36px; width: 32px; height: 32px; border-radius: 999px; background: rgba(255,255,255,0.08); }
-  .review-dpad .right { top: 36px; right: 6px; }
-  .review-dpad .down { bottom: 6px; left: 36px; }
-  .review-dpad.review-dpad-zoom {
-    width: 172px;
-    height: 56px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 8px 10px;
     border-radius: 999px;
+    color: rgba(211, 214, 220, 0.85);
   }
-  .review-dpad.review-dpad-zoom button {
-    position: static;
-    width: 36px;
-    height: 36px;
+  .review-pan-joystick-knob {
+    position: absolute;
+    left: 30px;
+    top: 30px;
+    width: 32px;
+    height: 32px;
     border-radius: 999px;
-    background: rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.14);
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.28);
   }
-  .review-dpad.review-dpad-zoom .zoom-center {
-    flex: 1;
-    width: auto;
-    min-width: 0;
-    padding: 0 12px;
-    justify-content: center;
+  .review-zoom-control {
+    right: 18px;
+    bottom: calc(
+      var(--review-editor-nav-height) +
+      var(--review-editor-toolbar-height) +
+      var(--review-editor-float-gap)
+    );
+    width: 118px;
+    height: 42px;
+    border-radius: 999px;
+    z-index: 12;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
   }
-  .review-dpad-zoom-label {
-    font-size: 14px;
+  .review-zoom-control-track {
+    position: absolute;
+    inset: 9px 22px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.06);
+  }
+  .review-zoom-control-knob {
+    position: absolute;
+    left: 33px;
+    top: 6px;
+    width: 52px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.14);
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.24);
+  }
+  .review-zoom-control-label {
+    font-size: 12px;
     font-weight: 600;
     letter-spacing: -0.01em;
-  }
-  .review-dpad-zoom-glyph {
-    font-size: 22px;
-    font-weight: 400;
+    color: #d3d6dc;
     line-height: 1;
+  }
+  .review-zoom-control-glyph {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    color: rgba(211, 214, 220, 0.7);
+    font-size: 18px;
+    line-height: 1;
+  }
+  .review-zoom-control-glyph.minus {
+    left: 11px;
+  }
+  .review-zoom-control-glyph.plus {
+    right: 11px;
   }
   .review-dpad-icon-svg {
     width: 18px;
@@ -427,23 +467,25 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
   }
   .review-layer-float {
     right: 18px;
-    bottom: calc(
-      var(--review-editor-nav-height) +
-      var(--review-editor-toolbar-height) +
-      var(--review-editor-float-gap)
-    );
-    width: 198px;
-    border-radius: 18px;
-    padding: 10px 12px;
+    top: 18px;
+    width: 158px;
+    border-radius: 14px;
+    padding: 8px 10px 6px;
     z-index: 12;
   }
   .review-layer-float-title {
-    margin-bottom: 6px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    font-size: 15px;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font-size: 12px;
     font-weight: 600;
+    text-align: left;
   }
   .review-layer-float-title-icon,
   .review-eye,
@@ -451,12 +493,30 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
     display: grid;
     place-items: center;
   }
+  .review-layer-float-body {
+    max-height: 0;
+    opacity: 0;
+    margin-top: 0;
+    overflow: hidden;
+    transition:
+      max-height 220ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 160ms ease,
+      margin-top 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .review-layer-float-body.expanded {
+    max-height: 160px;
+    opacity: 1;
+    margin-top: 5px;
+  }
+  .review-layer-float-list {
+    min-height: 0;
+  }
   .review-layer-float-item {
     display: grid;
-    grid-template-columns: 18px minmax(0, 1fr) 16px;
-    gap: 8px;
+    grid-template-columns: 14px minmax(0, 1fr) 14px;
+    gap: 6px;
     align-items: center;
-    padding: 8px 0;
+    padding: 6px 0;
     border-top: 1px solid rgba(255,255,255,0.06);
   }
   .review-layer-float-item:first-of-type {
@@ -489,8 +549,8 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
     text-align: center;
   }
   .review-inline-icon-svg {
-    width: 18px;
-    height: 18px;
+    width: 14px;
+    height: 14px;
     display: block;
   }
   .review-layer-toggle {

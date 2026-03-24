@@ -236,6 +236,7 @@ fn install_session(state: &mut AppState, session: EditorSession) {
     state.selected_gid = selected_gid;
     state.selected_cell = None;
     state.selected_object = None;
+    state.layers_panel_expanded = false;
     state.zoom_percent = 100;
     let (default_pan_x, default_pan_y) = default_mobile_center_pan(&session, state.zoom_percent);
     state.pan_x = default_pan_x;
@@ -248,9 +249,6 @@ fn install_session(state: &mut AppState, session: EditorSession) {
     state.suppress_click_until = None;
     state.canvas_host_scroll_offset = (0.0, 0.0);
     state.canvas_host_size = None;
-    state.dpad_mode = crate::app_state::DpadMode::Pan;
-    state.dpad_center_pressed_at = None;
-    state.dpad_last_tap_at = None;
     state.image_cache = image_cache;
     state.session = Some(session);
 }

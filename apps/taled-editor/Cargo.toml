@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 base64.workspace = true
+futures-timer.workspace = true
 taled-core = { path = "../../crates/taled-core" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

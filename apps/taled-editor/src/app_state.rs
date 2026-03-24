@@ -45,12 +45,6 @@ pub(crate) enum MobileTransition {
     VerticalBackward,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum DpadMode {
-    Pan,
-    Zoom,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct ActiveTouchPointer {
     pub(crate) pointer_id: i32,
@@ -87,6 +81,7 @@ pub(crate) struct AppState {
     pub(crate) selected_cell: Option<(u32, u32)>,
     pub(crate) selected_object: Option<u32>,
     pub(crate) tool: Tool,
+    pub(crate) layers_panel_expanded: bool,
     pub(crate) mobile_screen: MobileScreen,
     pub(crate) mobile_transition: MobileTransition,
     pub(crate) mobile_transition_nonce: u64,
@@ -103,9 +98,6 @@ pub(crate) struct AppState {
     pub(crate) single_touch_gesture: Option<SingleTouchGesture>,
     pub(crate) pinch_gesture: Option<PinchGesture>,
     pub(crate) suppress_click_until: Option<Instant>,
-    pub(crate) dpad_mode: DpadMode,
-    pub(crate) dpad_center_pressed_at: Option<Instant>,
-    pub(crate) dpad_last_tap_at: Option<Instant>,
     pub(crate) camera_transition_active: bool,
     pub(crate) status: String,
 }
@@ -128,6 +120,7 @@ impl Default for AppState {
                 selected_cell: None,
                 selected_object: None,
                 tool: Tool::Paint,
+                layers_panel_expanded: false,
                 mobile_screen,
                 mobile_transition: MobileTransition::None,
                 mobile_transition_nonce: 0,
@@ -143,9 +136,6 @@ impl Default for AppState {
                 single_touch_gesture: None,
                 pinch_gesture: None,
                 suppress_click_until: None,
-                dpad_mode: DpadMode::Pan,
-                dpad_center_pressed_at: None,
-                dpad_last_tap_at: None,
                 camera_transition_active: false,
                 status: default_status_message(),
             };
@@ -167,6 +157,7 @@ impl Default for AppState {
                 selected_cell: None,
                 selected_object: None,
                 tool: Tool::Paint,
+                layers_panel_expanded: false,
                 mobile_screen: MobileScreen::Dashboard,
                 mobile_transition: MobileTransition::None,
                 mobile_transition_nonce: 0,
@@ -181,9 +172,6 @@ impl Default for AppState {
                 single_touch_gesture: None,
                 pinch_gesture: None,
                 suppress_click_until: None,
-                dpad_mode: DpadMode::Pan,
-                dpad_center_pressed_at: None,
-                dpad_last_tap_at: None,
                 camera_transition_active: false,
                 status: default_status_message(),
             };
@@ -210,6 +198,7 @@ impl Default for AppState {
                 selected_cell: None,
                 selected_object: None,
                 tool: Tool::Paint,
+                layers_panel_expanded: false,
                 mobile_screen: MobileScreen::Editor,
                 mobile_transition: MobileTransition::None,
                 mobile_transition_nonce: 0,
@@ -224,9 +213,6 @@ impl Default for AppState {
                 single_touch_gesture: None,
                 pinch_gesture: None,
                 suppress_click_until: None,
-                dpad_mode: DpadMode::Pan,
-                dpad_center_pressed_at: None,
-                dpad_last_tap_at: None,
                 camera_transition_active: false,
                 status: default_status_message(),
             }

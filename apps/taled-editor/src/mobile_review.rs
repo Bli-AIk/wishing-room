@@ -4,10 +4,11 @@ use std::{
 };
 
 use dioxus::prelude::*;
+use futures_timer::Delay;
 use taled_core::{EditorSession, Layer, ObjectShape};
 
 use crate::{
-    app_state::{AppState, DpadMode, MobileScreen, MobileTransition, PaletteTile, Tool},
+    app_state::{AppState, MobileScreen, MobileTransition, PaletteTile, Tool},
     edit_ops::{
         create_object, delete_selected_object, nudge_selected_object, rename_selected_object,
         selected_object_view, toggle_layer_lock, toggle_layer_visibility,
@@ -33,8 +34,12 @@ struct MobileObjectSummary {
     shape: ObjectShape,
 }
 
-const DPAD_DOUBLE_TAP_WINDOW: Duration = Duration::from_millis(320);
-const DPAD_LONG_PRESS_DURATION: Duration = Duration::from_millis(420);
+const CONTROL_DOUBLE_TAP_WINDOW: Duration = Duration::from_millis(320);
+const JOYSTICK_LOOP_INTERVAL: Duration = Duration::from_millis(16);
+const ZOOM_LOOP_INTERVAL: Duration = Duration::from_millis(28);
+const JOYSTICK_TAP_MAX_DISTANCE: f64 = 0.18;
+const JOYSTICK_STEP_PER_TICK: f64 = 7.0;
+const ZOOM_STEP_PER_TICK: f64 = 3.0;
 
 pub(crate) fn render_mobile_shell(snapshot: &AppState, state: Signal<AppState>) -> Element {
     rsx! {
@@ -202,31 +207,51 @@ fn render_editor(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
                 div { class: "review-map-surface review-map-live",
                     {render_canvas(snapshot, state)}
                 }
-                {render_review_dpad(snapshot, state)}
-                div { class: "review-layer-float",
-                    div { class: "review-layer-float-title",
+                ReviewPanJoystick { state }
+                ReviewZoomControl { zoom_percent: snapshot.zoom_percent, state }
+                div {
+                    class: if snapshot.layers_panel_expanded {
+                        "review-layer-float expanded"
+                    } else {
+                        "review-layer-float"
+                    },
+                    button {
+                        class: "review-layer-float-title",
+                        onclick: move |_| {
+                            let mut state = state.write();
+                            state.layers_panel_expanded = !state.layers_panel_expanded;
+                        },
                         span { "Layers" }
-                        span { class: "review-layer-float-title-icon", {review_stack_icon()} }
+                        span { class: "review-layer-float-title-icon", {review_layer_chevron_icon(snapshot.layers_panel_expanded)} }
                     }
-                    for (index, name, kind, visible) in layers {
-                        div {
-                            key: "review-float-layer-{index}",
-                            class: if snapshot.active_layer == index {
-                                "review-layer-float-item active"
-                            } else {
-                                "review-layer-float-item"
-                            },
-                            span { class: if visible { "review-eye on" } else { "review-eye off" }, {review_eye_icon(visible)} }
-                            button {
-                                onclick: move |_| {
-                                    let mut state = state.write();
-                                    state.active_layer = index;
-                                    state.selected_object = None;
-                                },
-                                span { "{name}" }
-                                span { class: "muted", "{kind}" }
+                    div {
+                        class: if snapshot.layers_panel_expanded {
+                            "review-layer-float-body expanded"
+                        } else {
+                            "review-layer-float-body"
+                        },
+                        div { class: "review-layer-float-list",
+                            for (index, name, kind, visible) in layers {
+                                div {
+                                    key: "review-float-layer-{index}",
+                                    class: if snapshot.active_layer == index {
+                                        "review-layer-float-item active"
+                                    } else {
+                                        "review-layer-float-item"
+                                    },
+                                    span { class: if visible { "review-eye on" } else { "review-eye off" }, {review_eye_icon(visible)} }
+                                    button {
+                                        onclick: move |_| {
+                                            let mut state = state.write();
+                                            state.active_layer = index;
+                                            state.selected_object = None;
+                                        },
+                                        span { "{name}" }
+                                        span { class: "muted", "{kind}" }
+                                    }
+                                    span { class: "review-menu-glyph", {review_menu_icon()} }
+                                }
                             }
-                            span { class: "review-menu-glyph", {review_menu_icon()} }
                         }
                     }
                 }
@@ -246,87 +271,309 @@ fn render_editor(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
     }
 }
 
-fn render_review_dpad(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
-    match snapshot.dpad_mode {
-        DpadMode::Pan => rsx! {
-            div { class: "review-dpad",
-                button { class: "up", onclick: move |_| state.write().pan_y -= 32, {review_direction_icon("up")} }
-                button { class: "left", onclick: move |_| state.write().pan_x -= 32, {review_direction_icon("left")} }
-                button {
-                    class: "center",
-                    onpointerdown: move |_| review_dpad_center_press_start(&mut state.write()),
-                    onpointerup: move |_| review_dpad_center_press_end(&mut state.write()),
-                    onpointercancel: move |_| review_dpad_center_press_cancel(&mut state.write()),
-                    {review_dpad_center_icon()}
+#[component]
+fn ReviewPanJoystick(state: Signal<AppState>) -> Element {
+    let mut active_pointer = use_signal(|| None::<i32>);
+    let mut joystick_vector = use_signal(|| (0.0_f64, 0.0_f64));
+    let mut knob_offset = use_signal(|| (0.0_f64, 0.0_f64));
+    let mut last_tap_at = use_signal(|| None::<Instant>);
+    let mut press_started_at = use_signal(|| None::<Instant>);
+    let mut tap_candidate = use_signal(|| false);
+    let mut loop_token = use_signal(|| 0_u64);
+
+    rsx! {
+        div {
+            class: "review-pan-joystick",
+            onpointerdown: move |event| {
+                if event.pointer_type() != "touch" {
+                    return;
                 }
-                button { class: "right", onclick: move |_| state.write().pan_x += 32, {review_direction_icon("right")} }
-                button { class: "down", onclick: move |_| state.write().pan_y += 32, {review_direction_icon("down")} }
+                event.prevent_default();
+                let (vector_x, vector_y, offset_x, offset_y) = pan_joystick_motion(&event);
+                active_pointer.set(Some(event.pointer_id()));
+                joystick_vector.set((vector_x, vector_y));
+                knob_offset.set((offset_x, offset_y));
+                press_started_at.set(Some(Instant::now()));
+                tap_candidate.set(true);
+                let token = {
+                    let next = *loop_token.read() + 1;
+                    loop_token.set(next);
+                    next
+                };
+                spawn_pan_joystick_loop(state, active_pointer, joystick_vector, loop_token, token);
+            },
+            onpointermove: move |event| {
+                if event.pointer_type() != "touch" {
+                    return;
+                }
+                let Some(pointer_id) = *active_pointer.read() else {
+                    return;
+                };
+                if pointer_id != event.pointer_id() {
+                    return;
+                }
+                event.prevent_default();
+                let (vector_x, vector_y, offset_x, offset_y) = pan_joystick_motion(&event);
+                joystick_vector.set((vector_x, vector_y));
+                knob_offset.set((offset_x, offset_y));
+                if vector_x.abs().max(vector_y.abs()) > JOYSTICK_TAP_MAX_DISTANCE {
+                    tap_candidate.set(false);
+                }
+            },
+            onpointerup: move |event| {
+                if event.pointer_type() != "touch" {
+                    return;
+                }
+                let Some(pointer_id) = *active_pointer.read() else {
+                    return;
+                };
+                if pointer_id != event.pointer_id() {
+                    return;
+                }
+                event.prevent_default();
+                active_pointer.set(None);
+                joystick_vector.set((0.0, 0.0));
+                knob_offset.set((0.0, 0.0));
+                let started_at = press_started_at.write().take();
+                let was_tap_candidate = *tap_candidate.read();
+                tap_candidate.set(false);
+                if is_control_tap(started_at, was_tap_candidate) {
+                    handle_pan_joystick_tap(state, &mut last_tap_at);
+                }
+            },
+            onpointercancel: move |event| {
+                if event.pointer_type() != "touch" {
+                    return;
+                }
+                active_pointer.set(None);
+                joystick_vector.set((0.0, 0.0));
+                knob_offset.set((0.0, 0.0));
+                press_started_at.set(None);
+                tap_candidate.set(false);
+            },
+            div { class: "review-pan-joystick-ring" }
+            div { class: "review-pan-joystick-center-mark", {review_dpad_center_icon()} }
+            div {
+                class: "review-pan-joystick-knob",
+                style: joystick_knob_style(*knob_offset.read()),
             }
-        },
-        DpadMode::Zoom => rsx! {
-            div { class: "review-dpad review-dpad-zoom",
-                button {
-                    class: "zoom-minus",
-                    onclick: move |_| adjust_zoom_around_view_center(&mut state.write(), -25),
-                    {review_zoom_glyph("-")}
-                }
-                button {
-                    class: "zoom-center",
-                    onpointerdown: move |_| review_dpad_center_press_start(&mut state.write()),
-                    onpointerup: move |_| review_dpad_center_press_end(&mut state.write()),
-                    onpointercancel: move |_| review_dpad_center_press_cancel(&mut state.write()),
-                    span { class: "review-dpad-zoom-label", "{snapshot.zoom_percent}%" }
-                }
-                button {
-                    class: "zoom-plus",
-                    onclick: move |_| adjust_zoom_around_view_center(&mut state.write(), 25),
-                    {review_zoom_glyph("+")}
-                }
-            }
-        },
-    }
-}
-
-fn review_dpad_center_press_start(state: &mut AppState) {
-    state.dpad_center_pressed_at = Some(Instant::now());
-}
-
-fn review_dpad_center_press_cancel(state: &mut AppState) {
-    state.dpad_center_pressed_at = None;
-}
-
-fn review_dpad_center_press_end(state: &mut AppState) {
-    let Some(pressed_at) = state.dpad_center_pressed_at.take() else {
-        return;
-    };
-
-    if pressed_at.elapsed() >= DPAD_LONG_PRESS_DURATION {
-        state.dpad_mode = match state.dpad_mode {
-            DpadMode::Pan => DpadMode::Zoom,
-            DpadMode::Zoom => DpadMode::Pan,
-        };
-        state.dpad_last_tap_at = None;
-        state.status = match state.dpad_mode {
-            DpadMode::Pan => "D-pad switched to pan mode.".to_string(),
-            DpadMode::Zoom => "D-pad switched to zoom mode.".to_string(),
-        };
-        return;
-    }
-
-    let now = Instant::now();
-    let is_double_tap = state
-        .dpad_last_tap_at
-        .is_some_and(|last_tap| now.duration_since(last_tap) <= DPAD_DOUBLE_TAP_WINDOW);
-
-    if is_double_tap {
-        match state.dpad_mode {
-            DpadMode::Pan => animate_camera_to_center(state),
-            DpadMode::Zoom => animate_camera_to_fit_map(state),
         }
-        state.dpad_last_tap_at = None;
-    } else {
-        state.dpad_last_tap_at = Some(now);
     }
+}
+
+#[component]
+fn ReviewZoomControl(zoom_percent: i32, state: Signal<AppState>) -> Element {
+    let mut active_pointer = use_signal(|| None::<i32>);
+    let mut zoom_vector = use_signal(|| 0.0_f64);
+    let mut knob_offset_x = use_signal(|| 0.0_f64);
+    let mut last_tap_at = use_signal(|| None::<Instant>);
+    let mut press_started_at = use_signal(|| None::<Instant>);
+    let mut tap_candidate = use_signal(|| false);
+    let mut loop_token = use_signal(|| 0_u64);
+
+    rsx! {
+        div {
+            class: "review-zoom-control",
+            onpointerdown: move |event| {
+                if event.pointer_type() != "touch" {
+                    return;
+                }
+                event.prevent_default();
+                let (value, offset_x) = zoom_control_motion(&event);
+                active_pointer.set(Some(event.pointer_id()));
+                zoom_vector.set(value);
+                knob_offset_x.set(offset_x);
+                press_started_at.set(Some(Instant::now()));
+                tap_candidate.set(true);
+                let token = {
+                    let next = *loop_token.read() + 1;
+                    loop_token.set(next);
+                    next
+                };
+                spawn_zoom_control_loop(state, active_pointer, zoom_vector, loop_token, token);
+            },
+            onpointermove: move |event| {
+                if event.pointer_type() != "touch" {
+                    return;
+                }
+                let Some(pointer_id) = *active_pointer.read() else {
+                    return;
+                };
+                if pointer_id != event.pointer_id() {
+                    return;
+                }
+                event.prevent_default();
+                let (value, offset_x) = zoom_control_motion(&event);
+                zoom_vector.set(value);
+                knob_offset_x.set(offset_x);
+                if value.abs() > JOYSTICK_TAP_MAX_DISTANCE {
+                    tap_candidate.set(false);
+                }
+            },
+            onpointerup: move |event| {
+                if event.pointer_type() != "touch" {
+                    return;
+                }
+                let Some(pointer_id) = *active_pointer.read() else {
+                    return;
+                };
+                if pointer_id != event.pointer_id() {
+                    return;
+                }
+                event.prevent_default();
+                active_pointer.set(None);
+                zoom_vector.set(0.0);
+                knob_offset_x.set(0.0);
+                let started_at = press_started_at.write().take();
+                let was_tap_candidate = *tap_candidate.read();
+                tap_candidate.set(false);
+                if is_control_tap(started_at, was_tap_candidate) {
+                    handle_zoom_control_tap(state, &mut last_tap_at);
+                }
+            },
+            onpointercancel: move |event| {
+                if event.pointer_type() != "touch" {
+                    return;
+                }
+                active_pointer.set(None);
+                zoom_vector.set(0.0);
+                knob_offset_x.set(0.0);
+                press_started_at.set(None);
+                tap_candidate.set(false);
+            },
+            div { class: "review-zoom-control-glyph minus", "-" }
+            div { class: "review-zoom-control-glyph plus", "+" }
+            div { class: "review-zoom-control-track" }
+            div {
+                class: "review-zoom-control-knob",
+                style: zoom_knob_style(*knob_offset_x.read()),
+                span { class: "review-zoom-control-label", "{zoom_percent}%" }
+            }
+        }
+    }
+}
+
+fn spawn_pan_joystick_loop(
+    mut state: Signal<AppState>,
+    active_pointer: Signal<Option<i32>>,
+    joystick_vector: Signal<(f64, f64)>,
+    loop_token: Signal<u64>,
+    token: u64,
+) {
+    spawn(async move {
+        loop {
+            Delay::new(JOYSTICK_LOOP_INTERVAL).await;
+            if active_pointer.read().is_none() || *loop_token.read() != token {
+                break;
+            }
+            let (vector_x, vector_y) = *joystick_vector.read();
+            let step_x = (vector_x * JOYSTICK_STEP_PER_TICK).round() as i32;
+            let step_y = (vector_y * JOYSTICK_STEP_PER_TICK).round() as i32;
+            if step_x == 0 && step_y == 0 {
+                continue;
+            }
+            let mut app = state.write();
+            app.pan_x -= step_x;
+            app.pan_y -= step_y;
+        }
+    });
+}
+
+fn spawn_zoom_control_loop(
+    mut state: Signal<AppState>,
+    active_pointer: Signal<Option<i32>>,
+    zoom_vector: Signal<f64>,
+    loop_token: Signal<u64>,
+    token: u64,
+) {
+    spawn(async move {
+        loop {
+            Delay::new(ZOOM_LOOP_INTERVAL).await;
+            if active_pointer.read().is_none() || *loop_token.read() != token {
+                break;
+            }
+            let value = *zoom_vector.read();
+            let delta = (value * ZOOM_STEP_PER_TICK).round() as i32;
+            if delta == 0 {
+                continue;
+            }
+            adjust_zoom_around_view_center(&mut state.write(), delta);
+        }
+    });
+}
+
+fn handle_pan_joystick_tap(mut state: Signal<AppState>, last_tap_at: &mut Signal<Option<Instant>>) {
+    let now = Instant::now();
+    let is_double_tap = last_tap_at
+        .read()
+        .is_some_and(|last_tap| now.duration_since(last_tap) <= CONTROL_DOUBLE_TAP_WINDOW);
+    if is_double_tap {
+        animate_camera_to_center(&mut state.write());
+        last_tap_at.set(None);
+    } else {
+        last_tap_at.set(Some(now));
+    }
+}
+
+fn handle_zoom_control_tap(mut state: Signal<AppState>, last_tap_at: &mut Signal<Option<Instant>>) {
+    let now = Instant::now();
+    let is_double_tap = last_tap_at
+        .read()
+        .is_some_and(|last_tap| now.duration_since(last_tap) <= CONTROL_DOUBLE_TAP_WINDOW);
+    if is_double_tap {
+        animate_camera_to_fit_map(&mut state.write());
+        last_tap_at.set(None);
+    } else {
+        last_tap_at.set(Some(now));
+    }
+}
+
+fn is_control_tap(started_at: Option<Instant>, was_tap_candidate: bool) -> bool {
+    was_tap_candidate
+        && started_at.is_some_and(|started_at| started_at.elapsed() <= Duration::from_millis(260))
+}
+
+fn pan_joystick_motion(event: &Event<PointerData>) -> (f64, f64, f64, f64) {
+    const CONTROL_SIZE: f64 = 92.0;
+    const INPUT_RADIUS: f64 = 28.0;
+    const KNOB_TRAVEL: f64 = 22.0;
+
+    let point = event.element_coordinates();
+    let center = CONTROL_SIZE * 0.5;
+    let raw_x = point.x - center;
+    let raw_y = point.y - center;
+    let distance = (raw_x * raw_x + raw_y * raw_y).sqrt();
+    let clamped = if distance > INPUT_RADIUS {
+        INPUT_RADIUS / distance
+    } else {
+        1.0
+    };
+    let vector_x = (raw_x * clamped) / INPUT_RADIUS;
+    let vector_y = (raw_y * clamped) / INPUT_RADIUS;
+    let offset_x = vector_x * KNOB_TRAVEL;
+    let offset_y = vector_y * KNOB_TRAVEL;
+    (vector_x, vector_y, offset_x, offset_y)
+}
+
+fn zoom_control_motion(event: &Event<PointerData>) -> (f64, f64) {
+    const CONTROL_WIDTH: f64 = 118.0;
+    const INPUT_HALF_WIDTH: f64 = 34.0;
+    const KNOB_TRAVEL: f64 = 26.0;
+
+    let point = event.element_coordinates();
+    let center_x = CONTROL_WIDTH * 0.5;
+    let raw_x = point.x - center_x;
+    let vector_x = (raw_x / INPUT_HALF_WIDTH).clamp(-1.0, 1.0);
+    let offset_x = vector_x * KNOB_TRAVEL;
+    (vector_x, offset_x)
+}
+
+fn joystick_knob_style((offset_x, offset_y): (f64, f64)) -> String {
+    format!("transform: translate({offset_x:.1}px, {offset_y:.1}px);")
+}
+
+fn zoom_knob_style(offset_x: f64) -> String {
+    format!("transform: translateX({offset_x:.1}px);")
 }
 
 fn render_tilesets(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
@@ -1009,31 +1256,6 @@ fn review_plus_icon(class: &'static str) -> Element {
     }
 }
 
-fn review_direction_icon(direction: &'static str) -> Element {
-    let rotation = match direction {
-        "up" => "0",
-        "right" => "90",
-        "down" => "180",
-        "left" => "270",
-        _ => "0",
-    };
-
-    rsx! {
-        svg {
-            class: "review-dpad-icon-svg",
-            view_box: "0 0 24 24",
-            fill: "none",
-            stroke: "currentColor",
-            stroke_width: "2.2",
-            stroke_linecap: "round",
-            stroke_linejoin: "round",
-            style: "transform:rotate({rotation}deg);",
-            path { d: "M12 5 6 11" }
-            path { d: "M12 5 18 11" }
-        }
-    }
-}
-
 fn review_dpad_center_icon() -> Element {
     rsx! {
         svg {
@@ -1053,24 +1275,19 @@ fn review_dpad_center_icon() -> Element {
     }
 }
 
-fn review_zoom_glyph(label: &'static str) -> Element {
-    rsx! {
-        span { class: "review-dpad-zoom-glyph", "{label}" }
-    }
-}
-
-fn review_stack_icon() -> Element {
+fn review_layer_chevron_icon(expanded: bool) -> Element {
+    let rotation = if expanded { "180" } else { "0" };
     rsx! {
         svg {
             class: "review-inline-icon-svg",
             view_box: "0 0 24 24",
             fill: "none",
             stroke: "currentColor",
-            stroke_width: "1.9",
+            stroke_width: "2.1",
             stroke_linecap: "round",
             stroke_linejoin: "round",
-            path { d: "M12 5 4 9l8 4 8-4-8-4z" }
-            path { d: "m4 13 8 4 8-4" }
+            style: "transform: rotate({rotation}deg); transition: transform 180ms ease;",
+            path { d: "m6 9 6 6 6-6" }
         }
     }
 }
