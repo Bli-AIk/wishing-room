@@ -1,21 +1,33 @@
+use std::path::Path;
+
 use dioxus::prelude::*;
-use std::sync::LazyLock;
+use wishing_core::{EditorSession, Layer, ObjectShape};
 
-use crate::app_state::{AppState, MobileScreen};
-use base64::Engine;
+use crate::{
+    app_state::{AppState, MobileScreen, PaletteTile, Tool},
+    embedded_samples::{embedded_sample, embedded_sample_thumb, embedded_samples},
+    edit_ops::{
+        create_object, delete_selected_object, nudge_selected_object, rename_selected_object,
+        selected_object_view, toggle_layer_lock, toggle_layer_visibility,
+    },
+    session_ops::{adjust_zoom, load_embedded_sample, load_sample, save_document},
+    ui_canvas::render_canvas,
+    ui_inspector::collect_palette,
+    ui_visuals::{object_icon_style, palette_tile_style},
+};
 
-static DASHBOARD_FOREST: LazyLock<String> =
-    LazyLock::new(|| review_data_url(include_bytes!("../../../assets/review/dashboard-forest.png")));
-static DASHBOARD_DUNGEON: LazyLock<String> =
-    LazyLock::new(|| review_data_url(include_bytes!("../../../assets/review/dashboard-dungeon.png")));
-static DASHBOARD_CASTLE: LazyLock<String> =
-    LazyLock::new(|| review_data_url(include_bytes!("../../../assets/review/dashboard-castle.png")));
-static DASHBOARD_DESERT: LazyLock<String> =
-    LazyLock::new(|| review_data_url(include_bytes!("../../../assets/review/dashboard-desert.png")));
-static DASHBOARD_WINTER: LazyLock<String> =
-    LazyLock::new(|| review_data_url(include_bytes!("../../../assets/review/dashboard-winter.png")));
+#[cfg(target_os = "android")]
+use crate::platform::log_path;
 
-pub(crate) fn render_review_shell(snapshot: &AppState, state: Signal<AppState>) -> Element {
+#[derive(Clone)]
+struct MobileObjectSummary {
+    layer_index: usize,
+    object_id: u32,
+    name: String,
+    shape: ObjectShape,
+}
+
+pub(crate) fn render_mobile_shell(snapshot: &AppState, state: Signal<AppState>) -> Element {
     rsx! {
         div { class: "mobile-shell review-shell",
             match snapshot.mobile_screen {
@@ -31,38 +43,41 @@ pub(crate) fn render_review_shell(snapshot: &AppState, state: Signal<AppState>) 
 }
 
 fn render_dashboard(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
-    let projects = [
-        ("forest", "Green Forest Level 1", "Last edited: Oct 26, 2023 • 1.2 MB"),
-        ("dungeon", "Dungeon Interior", "Last edited: Oct 25, 2023 • 850 KB"),
-        ("castle", "Castle Tileset", "Last edited: Oct 24, 2023 • 2.5 MB"),
-        ("desert", "Desert Outpost", "Last edited: Oct 23, 2023 • 980 KB"),
-        ("winter", "Winter Village", "Last edited: Oct 22, 2023 • 1.5 MB"),
-    ];
-
     rsx! {
         div { class: "review-page",
-            {review_top_bar("Project Dashboard", None, Some("+ New Project"), state)}
+            {review_top_bar("Project Dashboard".to_string(), None, None, state)}
             div { class: "review-body",
-                button {
-                    class: "review-create-project",
-                    onclick: move |_| state.write().mobile_screen = MobileScreen::Editor,
-                    {review_plus_icon("review-plus-icon")}
-                    span { "Create New Project" }
-                }
                 div { class: "review-project-list-panel",
-                    for (kind, title, meta) in projects {
+                    for sample in embedded_samples().iter() {
                         button {
-                            key: "{kind}",
-                            class: "review-project-row",
-                            onclick: move |_| state.write().mobile_screen = MobileScreen::Editor,
+                            key: "{sample.path}",
+                            class: if snapshot.path_input == sample.path {
+                                "review-project-row active"
+                            } else {
+                                "review-project-row"
+                            },
+                            onclick: {
+                                let sample_path = sample.path;
+                                move |_| {
+                                    let mut state = state.write();
+                                    load_embedded_sample(&mut state, sample_path);
+                                    state.mobile_screen = MobileScreen::Editor;
+                                }
+                            },
                             img {
                                 class: "review-project-thumb",
-                                src: dashboard_thumb_src(kind),
-                                alt: "{title} thumbnail",
+                                src: embedded_sample_thumb(sample.path),
+                                alt: "{sample.title} thumbnail",
                             }
                             div { class: "review-project-copy",
-                                div { class: "review-project-title", "{title}" }
-                                div { class: "review-project-meta", "{meta}" }
+                                div { class: "review-project-title-row",
+                                    div { class: "review-project-title", "{sample.title}" }
+                                    if snapshot.path_input == sample.path {
+                                        span { class: "review-project-badge", "Loaded" }
+                                    }
+                                }
+                                div { class: "review-project-meta", "{sample.subtitle}" }
+                                div { class: "review-project-meta", "{sample.meta}" }
                             }
                         }
                     }
@@ -73,89 +88,106 @@ fn render_dashboard(snapshot: &AppState, mut state: Signal<AppState>) -> Element
     }
 }
 
-fn dashboard_thumb_src(kind: &str) -> &'static str {
-    match kind {
-        "forest" => DASHBOARD_FOREST.as_str(),
-        "dungeon" => DASHBOARD_DUNGEON.as_str(),
-        "castle" => DASHBOARD_CASTLE.as_str(),
-        "desert" => DASHBOARD_DESERT.as_str(),
-        "winter" => DASHBOARD_WINTER.as_str(),
-        _ => "",
-    }
-}
+fn render_editor(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
+    let Some(session) = snapshot.session.as_ref() else {
+        return render_missing_screen(
+            "Tile Map Editor".to_string(),
+            "Pick an embedded TMX sample from Projects before editing.",
+            state,
+        );
+    };
 
-fn review_data_url(bytes: &[u8]) -> String {
-    format!(
-        "data:image/png;base64,{}",
-        base64::engine::general_purpose::STANDARD.encode(bytes)
-    )
-}
-
-fn render_editor(snapshot: &AppState, state: Signal<AppState>) -> Element {
-    let tools = [
-        ("Select", MobileScreen::Editor, true),
-        ("Brush", MobileScreen::Editor, false),
-        ("Eraser", MobileScreen::Editor, false),
-        ("Bucket Fill", MobileScreen::Editor, false),
-    ];
+    let layers: Vec<(usize, String, &'static str, bool)> = session
+        .document()
+        .map
+        .layers
+        .iter()
+        .enumerate()
+        .take(3)
+        .map(|(index, layer)| {
+            (
+                index,
+                layer.name().to_string(),
+                layer_kind_label(layer),
+                layer.visible(),
+            )
+        })
+        .collect();
+    let palette: Vec<PaletteTile> = collect_palette(session.document()).into_iter().take(24).collect();
 
     rsx! {
         div { class: "review-page review-editor-page",
-            {review_top_bar("Tile Map Editor Main Canvas", None, None, state)}
+            {review_top_bar(
+                document_title(snapshot),
+                Some(("Projects", MobileScreen::Dashboard)),
+                Some(("Layers", MobileScreen::Layers)),
+                state,
+            )}
             div { class: "review-editor-canvas",
-                div { class: "review-map-surface",
-                    div { class: "review-map-grass a" }
-                    div { class: "review-map-grass b" }
-                    div { class: "review-map-path" }
-                    div { class: "review-map-wall left" }
-                    div { class: "review-map-wall right" }
-                    div { class: "review-map-shadow" }
+                div { class: "review-map-surface review-map-live",
+                    {render_canvas(snapshot, state)}
                 }
                 div { class: "review-dpad",
-                    span { class: "up", "^" }
-                    span { class: "left", "<" }
-                    span { class: "center", "Q" }
-                    span { class: "right", ">" }
-                    span { class: "down", "v" }
+                    button { class: "up", onclick: move |_| state.write().pan_y -= 32, "^" }
+                    button { class: "left", onclick: move |_| state.write().pan_x -= 32, "<" }
+                    button {
+                        class: "center",
+                        onclick: move |_| state.write().mobile_screen = MobileScreen::Tilesets,
+                        "{snapshot.zoom_percent}%"
+                    }
+                    button { class: "right", onclick: move |_| state.write().pan_x += 32, ">" }
+                    button { class: "down", onclick: move |_| state.write().pan_y += 32, "v" }
                 }
                 div { class: "review-layer-float",
                     div { class: "review-layer-float-title", "Layers" }
-                    div { class: "review-layer-float-item",
-                        span { class: "review-eye on", "o" }
-                        span { "Foreground" }
-                        span { class: "review-menu-glyph", "≡" }
-                    }
-                    div { class: "review-layer-float-item",
-                        span { class: "review-eye on", "o" }
-                        span { "Obstacles" }
-                        span { class: "review-menu-glyph", "≡" }
-                    }
-                    div { class: "review-layer-float-item muted",
-                        span { class: "review-eye off", "o" }
-                        span { "Background" }
-                        span { class: "review-menu-glyph", "≡" }
+                    for (index, name, kind, visible) in layers {
+                        div {
+                            key: "review-float-layer-{index}",
+                            class: if snapshot.active_layer == index {
+                                "review-layer-float-item active"
+                            } else {
+                                "review-layer-float-item"
+                            },
+                            button {
+                                onclick: move |_| {
+                                    let mut state = state.write();
+                                    state.active_layer = index;
+                                    state.selected_object = None;
+                                },
+                                span { "{name}" }
+                                span { class: "muted", "{kind}" }
+                            }
+                            span { class: if visible { "review-eye on" } else { "review-eye off" }, "o" }
+                            span { class: "review-menu-glyph", "≡" }
+                        }
                     }
                 }
             }
             div { class: "review-editor-toolbar",
-                div { class: "review-tool-row",
-                    for (label, _screen, active) in tools {
-                        div {
-                            key: "{label}",
-                            class: if active { "review-tool active" } else { "review-tool" },
-                            div { class: "review-tool-icon" }
-                            span { "{label}" }
+                div { class: "review-tool-row review-tool-row-live",
+                    {review_tool_button(snapshot, state, Tool::Select, "Select")}
+                    {review_tool_button(snapshot, state, Tool::Paint, "Brush")}
+                    {review_tool_button(snapshot, state, Tool::Erase, "Eraser")}
+                    {review_tool_button(snapshot, state, Tool::AddRectangle, "Rect")}
+                    {review_tool_button(snapshot, state, Tool::AddPoint, "Point")}
+                }
+                div { class: "review-tile-strip review-tile-strip-live",
+                    for tile in palette {
+                        button {
+                            key: "review-tile-{tile.gid}",
+                            class: if snapshot.selected_gid == tile.gid {
+                                "review-tile-chip selected live"
+                            } else {
+                                "review-tile-chip live"
+                            },
+                            style: palette_tile_style(session.document(), &snapshot.image_cache, &tile),
+                            onclick: move |_| {
+                                let mut state = state.write();
+                                state.selected_gid = tile.gid;
+                                state.status = format!("Selected gid {}.", tile.gid);
+                            },
                         }
                     }
-                }
-                div { class: "review-tile-strip",
-                    div { class: "review-tile-chip selected grass" }
-                    div { class: "review-tile-chip path" }
-                    div { class: "review-tile-chip sand" }
-                    div { class: "review-tile-chip stone" }
-                    div { class: "review-tile-chip fence" }
-                    div { class: "review-tile-chip tree" }
-                    div { class: "review-tile-chip tree2" }
                 }
             }
             {review_nav(snapshot, state, false)}
@@ -163,46 +195,76 @@ fn render_editor(snapshot: &AppState, state: Signal<AppState>) -> Element {
     }
 }
 
-fn render_tilesets(snapshot: &AppState, state: Signal<AppState>) -> Element {
+fn render_tilesets(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
+    let Some(session) = snapshot.session.as_ref() else {
+        return render_missing_screen(
+            "Tileset Property Editor".to_string(),
+            "Load an embedded TMX sample before opening tilesets.",
+            state,
+        );
+    };
+
+    let palette = collect_palette(session.document());
+    let selected_gid = snapshot.selected_gid;
+    let selected_summary = session
+        .document()
+        .map
+        .tile_reference_for_gid(selected_gid)
+        .map(|reference| {
+            format!(
+                "Tile ID {} from {}",
+                selected_gid, reference.tileset.tileset.name
+            )
+        })
+        .unwrap_or_else(|| "Choose a tile from the sheet below.".to_string());
+
     rsx! {
         div { class: "review-page",
-            {review_top_bar("Tileset Property Editor", Some("Back"), Some("Done"), state)}
+            {review_top_bar(
+                "Tileset Property Editor".to_string(),
+                Some(("Back", MobileScreen::Editor)),
+                Some(("Done", MobileScreen::Editor)),
+                state,
+            )}
             div { class: "review-body review-section-stack",
                 div { class: "review-section-title", "Sprite Sheet View" }
-                div { class: "review-tileset-sheet",
-                    for index in 0..24 {
-                        div {
-                            key: "tile-{index}",
-                            class: if index == 14 { "review-sheet-cell active" } else { "review-sheet-cell" },
+                div { class: "review-tileset-sheet review-tileset-sheet-live",
+                    for tile in palette {
+                        button {
+                            key: "tile-{tile.gid}",
+                            class: if selected_gid == tile.gid {
+                                "review-sheet-cell active live"
+                            } else {
+                                "review-sheet-cell live"
+                            },
+                            style: palette_tile_style(session.document(), &snapshot.image_cache, &tile),
+                            onclick: move |_| {
+                                let mut state = state.write();
+                                state.selected_gid = tile.gid;
+                                state.status = format!("Selected gid {}.", tile.gid);
+                            },
                         }
                     }
                 }
-                div { class: "review-section-title with-gap", "Selected Tile: ID 14" }
-                {review_input_row("Name:", "Wooden Chest")}
-                {review_input_row("Type:", "Object")}
+                div { class: "review-info-card review-selected-tile-card",
+                    div {
+                        class: "review-selected-tile-art",
+                        style: selected_tile_style(snapshot, session, selected_gid),
+                    }
+                    div { class: "review-project-copy",
+                        div { class: "review-info-title", "{selected_summary}" }
+                        div { class: "review-info-meta", "Tile property editors and collision authoring stay on this page once implemented." }
+                    }
+                }
                 div { class: "review-section-title with-gap", "Custom Properties" }
-                div { class: "review-setting-row",
-                    span { "isSolid" }
-                    div { class: "review-toggle on", div { class: "knob" } }
-                }
-                div { class: "review-setting-row",
-                    span { "damage" }
-                    div { class: "review-stepper",
-                        button { "-" }
-                        span { "10" }
-                        button { "+" }
+                div { class: "review-settings-card",
+                    div { class: "review-setting-row",
+                        span { "Properties" }
+                        span { class: "muted", "Placeholder" }
                     }
-                }
-                button { class: "review-link-button", "+ Add Property" }
-                div { class: "review-section-title with-gap", "Collision Editor" }
-                div { class: "review-collision-row",
-                    div { class: "review-collision-tools",
-                        div { class: "review-collision-tool active", "Box" }
-                        div { class: "review-collision-tool", "Polygon" }
-                    }
-                    div { class: "review-collision-actions",
-                        div { class: "review-trash", "Clear" }
-                        div { class: "review-collision-preview" }
+                    div { class: "review-setting-row",
+                        span { "Collision Editor" }
+                        span { class: "muted", "Placeholder" }
                     }
                 }
             }
@@ -211,40 +273,74 @@ fn render_tilesets(snapshot: &AppState, state: Signal<AppState>) -> Element {
     }
 }
 
-fn render_layers(snapshot: &AppState, state: Signal<AppState>) -> Element {
-    let layers = [
-        ("ui", "UI", "100%", true, true),
-        ("decor", "Top Decorations", "85%", true, true),
-        ("foreground", "Foreground", "100%", true, true),
-        ("obstacles", "Obstacles", "50%", false, true),
-        ("ground", "Ground", "85%", true, true),
-        ("background", "Background", "30%", false, true),
-    ];
+fn render_layers(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
+    let Some(session) = snapshot.session.as_ref() else {
+        return render_missing_screen(
+            "Layer Manager".to_string(),
+            "Load an embedded TMX sample before managing layers.",
+            state,
+        );
+    };
 
     rsx! {
         div { class: "review-page",
-            {review_top_bar("Layer Manager", Some("Back"), Some("Done"), state)}
+            {review_top_bar(
+                "Layer Manager".to_string(),
+                Some(("Back", MobileScreen::Editor)),
+                Some(("Done", MobileScreen::Editor)),
+                state,
+            )}
             div { class: "review-body review-list",
-                for (kind, name, opacity, visible, locked) in layers {
+                for (index, layer) in session.document().map.layers.iter().enumerate() {
                     div {
-                        key: "{name}",
-                        class: "review-layer-row",
+                        key: "{index}",
+                        class: if snapshot.active_layer == index {
+                            "review-layer-row active"
+                        } else {
+                            "review-layer-row"
+                        },
                         span { class: "review-menu-glyph", "≡" }
-                        div { class: "review-layer-thumb {kind}" }
-                        div { class: "review-layer-name", "{name}" }
-                        span { class: if visible { "review-eye on" } else { "review-eye off" }, "o" }
-                        span { class: if locked { "review-lock on" } else { "review-lock off" }, "u" }
+                        div { class: "review-layer-thumb {layer_thumb_variant(index, layer)}" }
+                        button {
+                            class: "review-layer-name-button",
+                            onclick: move |_| {
+                                let mut state = state.write();
+                                state.active_layer = index;
+                                state.selected_object = None;
+                            },
+                            span { class: "review-layer-title-stack",
+                                span { class: "review-layer-name", "{layer.name()}" }
+                                span { class: "muted", "{layer_kind_label(layer)}" }
+                            }
+                        }
+                        button {
+                            class: if layer.visible() {
+                                "review-eye on review-layer-toggle"
+                            } else {
+                                "review-eye off review-layer-toggle"
+                            },
+                            onclick: move |_| toggle_layer_visibility(&mut state.write(), index),
+                            "o"
+                        }
+                        button {
+                            class: if layer.locked() {
+                                "review-lock on review-layer-toggle"
+                            } else {
+                                "review-lock off review-layer-toggle"
+                            },
+                            onclick: move |_| toggle_layer_lock(&mut state.write(), index),
+                            "u"
+                        }
                         div { class: "review-opacity",
-                            span { "Opacity" }
-                            span { "{opacity}" }
+                            span { "{layer_kind_label(layer)}" }
+                            span { "100%" }
                             div { class: "review-slider-track",
-                                div { class: "review-slider-fill", style: "width:{opacity};" }
-                                div { class: "review-slider-knob", style: "left:calc({opacity} - 10px);" }
+                                div { class: "review-slider-fill", style: "width:100%;" }
+                                div { class: "review-slider-knob", style: "left:calc(100% - 10px);" }
                             }
                         }
                     }
                 }
-                div { class: "review-empty-row" }
                 button { class: "review-secondary-button", "Add Layer" }
             }
             {review_nav(snapshot, state, false)}
@@ -252,44 +348,103 @@ fn render_layers(snapshot: &AppState, state: Signal<AppState>) -> Element {
     }
 }
 
-fn render_objects(snapshot: &AppState, state: Signal<AppState>) -> Element {
-    let objects = [
-        ("villager", "NPC: Villager", false),
-        ("chest", "Object: Wooden Chest", true),
-        ("portal", "Portal: Dungeon Entrance", false),
-        ("slime", "Enemy: Slime", false),
-        ("potion", "Item: Potion", false),
-        ("flag", "Trigger: Event Marker", false),
-    ];
+fn render_objects(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
+    let Some(session) = snapshot.session.as_ref() else {
+        return render_missing_screen(
+            "Object Library".to_string(),
+            "Load an embedded TMX sample before browsing objects.",
+            state,
+        );
+    };
+
+    let objects = collect_objects(session);
 
     rsx! {
         div { class: "review-page",
-            {review_top_bar("Object Library", None, None, state)}
+            {review_top_bar(
+                "Object Library".to_string(),
+                Some(("Back", MobileScreen::Editor)),
+                Some(("Done", MobileScreen::Editor)),
+                state,
+            )}
             div { class: "review-body review-section-stack",
                 div { class: "review-search-bar",
                     span { class: "review-search-icon", "o" }
                     span { class: "muted", "Search objects..." }
                 }
-                div { class: "review-object-grid",
-                    for (kind, label, active) in objects {
-                        div {
-                            key: "{kind}",
-                            class: if active { "review-object-card active" } else { "review-object-card" },
-                            div { class: "review-object-art {kind}" }
-                            div { class: "review-object-card-label", "{label}" }
+                div { class: "review-object-grid" ,
+                    for entry in objects.iter() {
+                        button {
+                            key: "{entry.object_id}",
+                            class: if snapshot.selected_object == Some(entry.object_id) {
+                                "review-object-card active"
+                            } else {
+                                "review-object-card"
+                            },
+                            onclick: {
+                                let entry = entry.clone();
+                                move |_| {
+                                    let mut state = state.write();
+                                    state.active_layer = entry.layer_index;
+                                    state.selected_object = Some(entry.object_id);
+                                }
+                            },
+                            span {
+                                class: "review-object-art live",
+                                style: object_icon_style(&entry.shape),
+                            }
+                            div { class: "review-object-card-label", "{entry.name}" }
                         }
                     }
-                    div { class: "review-object-card ghost" }
-                    div { class: "review-object-card ghost" }
+                }
+                div { class: "review-actions-grid" ,
+                    button {
+                        class: "review-secondary-button compact",
+                        onclick: move |_| create_object_on_first_object_layer(&mut state.write(), ObjectShape::Rectangle),
+                        "Add Rect"
+                    }
+                    button {
+                        class: "review-secondary-button compact",
+                        onclick: move |_| create_object_on_first_object_layer(&mut state.write(), ObjectShape::Point),
+                        "Add Point"
+                    }
+                    button {
+                        class: "review-secondary-button compact",
+                        onclick: move |_| delete_selected_object(&mut state.write()),
+                        "Delete"
+                    }
+                    button {
+                        class: "review-secondary-button compact",
+                        onclick: move |_| state.write().mobile_screen = MobileScreen::Editor,
+                        "Canvas"
+                    }
+                }
+                if let Some((object, _layer_index)) =
+                    selected_object_view(session, snapshot.selected_object, snapshot.active_layer)
+                {
+                    div { class: "review-info-card",
+                        div { class: "review-project-copy",
+                            div { class: "review-info-title", "Selected Object: {object.name} (ID {object.id})" }
+                            div { class: "review-info-meta", "Global Coordinates: (X: {object.x:.0}, Y: {object.y:.0})" }
+                        }
+                    }
+                    div { class: "review-actions-grid",
+                        button { class: "review-secondary-button compact", onclick: move |_| nudge_selected_object(&mut state.write(), -16.0, 0.0), "Left" }
+                        button { class: "review-secondary-button compact", onclick: move |_| nudge_selected_object(&mut state.write(), 16.0, 0.0), "Right" }
+                        button { class: "review-secondary-button compact", onclick: move |_| nudge_selected_object(&mut state.write(), 0.0, -16.0), "Up" }
+                        button { class: "review-secondary-button compact", onclick: move |_| nudge_selected_object(&mut state.write(), 0.0, 16.0), "Down" }
+                    }
+                    label { class: "review-field",
+                        span { "Name" }
+                        input {
+                            value: object.name.clone(),
+                            onchange: move |event| rename_selected_object(&mut state.write(), event.value()),
+                        }
+                    }
                 }
                 div { class: "review-info-card",
-                    div { class: "review-info-title", "Selected Object: Wooden Chest (ID 45)" }
-                    div { class: "review-info-meta", "Global Coordinates: (X: 52, Y: 18)" }
-                }
-                div { class: "review-info-card" ,
                     div { class: "review-info-title", "Attached Scripts & Events" }
-                    div { class: "review-script-row", "OnInteract: open_chest.lua" }
-                    div { class: "review-script-row", "OnDestroy: loot_table.lua" }
+                    div { class: "review-script-row", "UI placeholder for script bindings, triggers, and event metadata." }
                 }
             }
             {review_nav(snapshot, state, false)}
@@ -297,81 +452,154 @@ fn render_objects(snapshot: &AppState, state: Signal<AppState>) -> Element {
     }
 }
 
-fn render_settings(_snapshot: &AppState, state: Signal<AppState>) -> Element {
+fn render_settings(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
     rsx! {
         div { class: "review-page",
-            {review_top_bar("App Settings", Some("Back"), Some("Done"), state)}
+            {review_top_bar(
+                "App Settings".to_string(),
+                Some(("Back", MobileScreen::Editor)),
+                Some(("Done", MobileScreen::Editor)),
+                state,
+            )}
             div { class: "review-body review-section-stack",
-                div { class: "review-caption", "Grid Settings" }
-                div { class: "review-settings-card",
-                    {review_setting_with_chip("Grid Color", "#CCCCCC")}
-                    {review_slider_row("Grid Size", "32x32 px")}
+                div { class: "review-caption", "Session Actions" }
+                div { class: "review-settings-card" ,
                     div { class: "review-setting-row",
-                        span { "Snapping" }
-                        div { class: "review-toggle on", div { class: "knob" } }
+                        span { "Embedded Sample" }
+                        button {
+                            class: "review-link-button",
+                            onclick: move |_| {
+                                let mut state = state.write();
+                                load_sample(&mut state);
+                                state.mobile_screen = MobileScreen::Editor;
+                            },
+                            "Reload Default"
+                        }
+                    }
+                    div { class: "review-setting-row",
+                        span { "Save" }
+                        button {
+                            class: "review-link-button",
+                            onclick: move |_| save_document(&mut state.write()),
+                            "Run"
+                        }
+                    }
+                    div { class: "review-setting-row",
+                        span { "Undo" }
+                        button {
+                            class: "review-link-button",
+                            onclick: move |_| {
+                                let mut state = state.write();
+                                if state.session.as_mut().is_some_and(EditorSession::undo) {
+                                    state.status = "Undo applied.".to_string();
+                                } else {
+                                    state.status = "Nothing to undo.".to_string();
+                                }
+                            },
+                            "Run"
+                        }
+                    }
+                    div { class: "review-setting-row",
+                        span { "Redo" }
+                        button {
+                            class: "review-link-button",
+                            onclick: move |_| {
+                                let mut state = state.write();
+                                if state.session.as_mut().is_some_and(EditorSession::redo) {
+                                    state.status = "Redo applied.".to_string();
+                                } else {
+                                    state.status = "Nothing to redo.".to_string();
+                                }
+                            },
+                            "Run"
+                        }
                     }
                 }
-                div { class: "review-caption", "Theme" }
-                div { class: "review-segmented",
-                    button { class: "active", "Dark" }
-                    button { "Light" }
-                    button { "System" }
-                }
-                div { class: "review-caption", "Auto-save" }
-                div { class: "review-settings-card single",
+                div { class: "review-caption", "View" }
+                div { class: "review-settings-card" ,
+                    {review_slider_row("Zoom", &format!("{}%", snapshot.zoom_percent))}
                     div { class: "review-setting-row",
-                        span { "Frequency" }
-                        span { class: "muted", "Every 5 mins" }
+                        span { "Zoom -" }
+                        button {
+                            class: "review-link-button",
+                            onclick: move |_| adjust_zoom(&mut state.write(), -25),
+                            "Apply"
+                        }
+                    }
+                    div { class: "review-setting-row",
+                        span { "Zoom +" }
+                        button {
+                            class: "review-link-button",
+                            onclick: move |_| adjust_zoom(&mut state.write(), 25),
+                            "Apply"
+                        }
+                    }
+                    div { class: "review-setting-row",
+                        span { "Theme" }
+                        span { class: "muted", "Dark" }
                     }
                 }
+                div { class: "review-caption", "Diagnostics" }
+                div { class: "review-info-card review-note-card",
+                    div { class: "review-info-title", "Status" }
+                    div { class: "review-info-meta", "{snapshot.status}" }
+                }
+                {render_log_path_card()}
                 div { class: "review-caption", "Export Settings" }
                 div { class: "review-settings-card",
                     div { class: "review-setting-row", span { "JSON" } div { class: "review-toggle on", div { class: "knob" } } }
                     div { class: "review-setting-row", span { "XML" } div { class: "review-toggle on", div { class: "knob" } } }
                     div { class: "review-setting-row", span { "PNG" } div { class: "review-toggle on", div { class: "knob" } } }
                 }
-                div { class: "review-caption", "Cloud Sync" }
-                button { class: "review-sync-button", "Sync Now" }
-                div { class: "review-sync-meta", "Last synced: Today, 4:30 PM" }
-                div { class: "review-settings-card single",
-                    div { class: "review-setting-row",
-                        span { "Automatic Sync" }
-                        div { class: "review-toggle on", div { class: "knob" } }
-                    }
+            }
+            {review_nav(snapshot, state, false)}
+        }
+    }
+}
+
+fn render_missing_screen(title: String, message: &'static str, mut state: Signal<AppState>) -> Element {
+    rsx! {
+        div { class: "review-page",
+            {review_top_bar(title, Some(("Back", MobileScreen::Dashboard)), None, state)}
+            div { class: "review-body review-section-stack",
+                div { class: "review-info-card review-note-card",
+                    div { class: "review-info-title", "No map loaded" }
+                    div { class: "review-info-meta", "{message}" }
+                }
+                button {
+                    class: "review-secondary-button",
+                    onclick: move |_| state.write().mobile_screen = MobileScreen::Dashboard,
+                    "Open Projects"
                 }
             }
+            {review_nav(&state.read().clone(), state, false)}
         }
     }
 }
 
 fn review_top_bar(
-    title: &'static str,
-    left: Option<&'static str>,
-    right: Option<&'static str>,
+    title: String,
+    left: Option<(&'static str, MobileScreen)>,
+    right: Option<(&'static str, MobileScreen)>,
     mut state: Signal<AppState>,
 ) -> Element {
     rsx! {
         div { class: "review-header",
-            if let Some(label) = left {
+            if let Some((label, screen)) = left {
                 button {
                     class: "review-header-action left",
-                    onclick: move |_| state.write().mobile_screen = MobileScreen::Editor,
+                    onclick: move |_| state.write().mobile_screen = screen.clone(),
                     "{label}"
                 }
             } else {
                 div { class: "review-header-spacer" }
             }
             h1 { "{title}" }
-            if let Some(label) = right {
+            if let Some((label, screen)) = right {
                 button {
                     class: "review-header-action right",
-                    onclick: move |_| state.write().mobile_screen = MobileScreen::Editor,
-                    if label.starts_with("+ ") {
-                        {review_plus_icon("review-header-plus")}
-                        span { class: "review-header-link-label", "{label.trim_start_matches(\"+ \")}" }
-                    } else {
-                        "{label}"
-                    }
+                    onclick: move |_| state.write().mobile_screen = screen.clone(),
+                    "{label}"
                 }
             } else {
                 div { class: "review-header-spacer" }
@@ -385,7 +613,7 @@ fn review_nav(snapshot: &AppState, state: Signal<AppState>, dashboard_variant: b
         div { class: if dashboard_variant { "review-bottom-nav dashboard" } else { "review-bottom-nav editor" },
             if dashboard_variant {
                 {review_nav_button(snapshot, state, MobileScreen::Dashboard, "Projects")}
-                div { class: "review-nav-item muted", "Assets" }
+                {review_static_nav_item("Assets")}
                 {review_nav_button(snapshot, state, MobileScreen::Settings, "Settings")}
             } else {
                 {review_nav_button(snapshot, state, MobileScreen::Tilesets, "Tilesets")}
@@ -403,38 +631,21 @@ fn review_nav_button(
     screen: MobileScreen,
     label: &'static str,
 ) -> Element {
-    let icon_class = match label {
-        "Projects" => "review-nav-icon projects",
-        "Assets" => "review-nav-icon assets",
-        "Tilesets" => "review-nav-icon tilesets",
-        "Layers" => "review-nav-icon layers",
-        "Objects" => "review-nav-icon objects",
-        "Settings" => "review-nav-icon settings",
-        _ => "review-nav-icon",
-    };
-
     rsx! {
         button {
             class: if snapshot.mobile_screen == screen { "review-nav-item active" } else { "review-nav-item" },
             onclick: move |_| state.write().mobile_screen = screen.clone(),
-            div { class: "{icon_class}" , {review_nav_icon(label)} }
+            div { class: "review-nav-icon", {review_nav_icon(label)} }
             span { "{label}" }
         }
     }
 }
 
-fn review_plus_icon(class: &'static str) -> Element {
+fn review_static_nav_item(label: &'static str) -> Element {
     rsx! {
-        svg {
-            class: "{class}",
-            view_box: "0 0 24 24",
-            fill: "none",
-            stroke: "currentColor",
-            stroke_width: "2",
-            stroke_linecap: "round",
-            stroke_linejoin: "round",
-            path { d: "M12 5v14" }
-            path { d: "M5 12h14" }
+        div { class: "review-nav-item review-nav-static",
+            div { class: "review-nav-icon", {review_nav_icon(label)} }
+            span { "{label}" }
         }
     }
 }
@@ -530,28 +741,23 @@ fn review_nav_icon(label: &'static str) -> Element {
     }
 }
 
-fn review_input_row(label: &'static str, value: &'static str) -> Element {
+fn review_tool_button(
+    snapshot: &AppState,
+    mut state: Signal<AppState>,
+    tool: Tool,
+    label: &'static str,
+) -> Element {
     rsx! {
-        div { class: "review-input-row",
-            span { class: "label", "{label}" }
-            div { class: "review-input-box", "{value}" }
-        }
-    }
-}
-
-fn review_setting_with_chip(label: &'static str, value: &'static str) -> Element {
-    rsx! {
-        div { class: "review-setting-row",
+        button {
+            class: if snapshot.tool == tool { "review-tool active" } else { "review-tool" },
+            onclick: move |_| state.write().tool = tool.clone(),
+            div { class: "review-tool-icon" }
             span { "{label}" }
-            div { class: "review-color-chip",
-                div { class: "swatch" }
-                span { "{value}" }
-            }
         }
     }
 }
 
-fn review_slider_row(label: &'static str, value: &'static str) -> Element {
+fn review_slider_row(label: &'static str, value: &str) -> Element {
     rsx! {
         div { class: "review-setting-row slider",
             span { "{label}" }
@@ -562,4 +768,117 @@ fn review_slider_row(label: &'static str, value: &'static str) -> Element {
             span { class: "muted", "{value}" }
         }
     }
+}
+
+#[cfg(target_os = "android")]
+fn render_log_path_card() -> Element {
+    let path = log_path().unwrap_or_default();
+    rsx! {
+        div { class: "review-info-card review-note-card",
+            div { class: "review-info-title", "Log Path" }
+            div { class: "review-info-meta", "{path}" }
+        }
+    }
+}
+
+#[cfg(not(target_os = "android"))]
+fn render_log_path_card() -> Element {
+    rsx! {}
+}
+
+fn document_title(snapshot: &AppState) -> String {
+    if let Some(sample) = embedded_sample(&snapshot.path_input) {
+        return sample.title.to_string();
+    }
+    Path::new(&snapshot.path_input)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.is_empty())
+        .unwrap_or("Embedded Demo")
+        .to_string()
+}
+
+fn layer_kind_label(layer: &Layer) -> &'static str {
+    if layer.as_tile().is_some() {
+        "Tile Layer"
+    } else {
+        "Object Layer"
+    }
+}
+
+fn layer_thumb_variant(index: usize, layer: &Layer) -> &'static str {
+    let lower = layer.name().to_ascii_lowercase();
+    if lower.contains("ui") || lower.contains("object") {
+        "ui"
+    } else if lower.contains("decor") || lower.contains("fringe") || lower.contains("over") {
+        "decor"
+    } else if lower.contains("foreground") {
+        "foreground"
+    } else if lower.contains("obstacle") || lower.contains("collision") {
+        "obstacles"
+    } else if lower.contains("background") {
+        "background"
+    } else if index == 0 {
+        "ground"
+    } else {
+        "foreground"
+    }
+}
+
+fn selected_tile_style(snapshot: &AppState, session: &EditorSession, selected_gid: u32) -> String {
+    let Some(reference) = session.document().map.tile_reference_for_gid(selected_gid) else {
+        return String::new();
+    };
+
+    palette_tile_style(
+        session.document(),
+        &snapshot.image_cache,
+        &PaletteTile {
+            gid: selected_gid,
+            tileset_index: reference.tileset_index,
+            local_id: reference.local_id,
+        },
+    )
+}
+
+fn collect_objects(session: &EditorSession) -> Vec<MobileObjectSummary> {
+    let mut objects = Vec::new();
+    for (layer_index, layer) in session.document().map.layers.iter().enumerate() {
+        if let Some(object_layer) = layer.as_object() {
+            for object in &object_layer.objects {
+                objects.push(MobileObjectSummary {
+                    layer_index,
+                    object_id: object.id,
+                    name: object.name.clone(),
+                    shape: object.shape.clone(),
+                });
+            }
+        }
+    }
+    objects
+}
+
+fn create_object_on_first_object_layer(state: &mut AppState, shape: ObjectShape) {
+    let object_layer_index = match state.session.as_ref() {
+        Some(session) => session
+            .document()
+            .map
+            .layers
+            .iter()
+            .enumerate()
+            .find(|(_, layer)| layer.as_object().is_some())
+            .map(|(index, _)| index),
+        None => {
+            state.status = "Load a map first.".to_string();
+            return;
+        }
+    };
+
+    let Some(object_layer_index) = object_layer_index else {
+        state.status = "No object layer is available yet.".to_string();
+        return;
+    };
+
+    state.active_layer = object_layer_index;
+    create_object(state, shape);
 }

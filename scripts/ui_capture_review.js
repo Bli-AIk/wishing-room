@@ -16,17 +16,17 @@ if (!baseUrl || !screen || !outPath) {
   process.exit(2);
 }
 
-const expectedTitles = {
-  dashboard: 'Project Dashboard',
-  editor: 'Tile Map Editor Main Canvas',
-  tilesets: 'Tileset Property Editor',
-  layers: 'Layer Manager',
-  objects: 'Object Library',
-  settings: 'App Settings',
+const readySelectors = {
+  dashboard: '.review-project-list-panel',
+  editor: '.review-editor-canvas',
+  tilesets: '.review-tileset-sheet',
+  layers: '.review-layer-row',
+  objects: '.review-object-grid',
+  settings: '.review-settings-card',
 };
 
-const expectedTitle = expectedTitles[screen];
-if (!expectedTitle) {
+const readySelector = readySelectors[screen];
+if (!readySelector) {
   console.error(`unknown screen: ${screen}`);
   process.exit(2);
 }
@@ -44,6 +44,8 @@ if (!expectedTitle) {
     deviceScaleFactor: 2,
     isMobile: true,
     hasTouch: true,
+    userAgent:
+      'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36',
   });
   const page = await context.newPage();
 
@@ -53,13 +55,9 @@ if (!expectedTitle) {
     console.error(`[requestfailed:${screen}] ${req.url()} ${req.failure()?.errorText ?? ''}`);
   });
 
-  const url = `${baseUrl}/?review=1&screen=${screen}`;
+  const url = `${baseUrl}/?screen=${screen}`;
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-  await page.waitForFunction(
-    (title) => document.body.innerText.includes(title),
-    expectedTitle,
-    { timeout: 30000 }
-  );
+  await page.waitForSelector(readySelector, { timeout: 30000 });
   await page.waitForFunction(
     () => Array.from(document.images).every((img) => img.complete && img.naturalWidth > 0),
     { timeout: 30000 }

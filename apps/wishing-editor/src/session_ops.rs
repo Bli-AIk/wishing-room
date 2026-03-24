@@ -6,6 +6,8 @@ use wishing_core::EditorSession;
 use crate::platform::log_path;
 use crate::{app_state::AppState, platform::log};
 #[cfg(any(target_arch = "wasm32", target_os = "android"))]
+use crate::embedded_samples::{embedded_sample, embedded_samples};
+#[cfg(any(target_arch = "wasm32", target_os = "android"))]
 use crate::{demo::load_embedded_demo_session, platform::EMBEDDED_DEMO_MAP_PATH};
 #[cfg(any(target_arch = "wasm32", target_os = "android"))]
 use wishing_core::Layer;
@@ -24,10 +26,14 @@ pub(crate) fn open_document(state: &mut AppState) {
 
 #[cfg(target_arch = "wasm32")]
 pub(crate) fn open_document(state: &mut AppState) {
-    let requested = state.path_input.trim();
-    if requested.is_empty() || requested == EMBEDDED_DEMO_MAP_PATH {
-        log("boot: requested embedded demo map from web preview");
+    let requested = state.path_input.trim().to_string();
+    if requested.is_empty() {
         load_sample(state);
+        return;
+    }
+    if embedded_sample(&requested).is_some() {
+        log(format!("boot: requested embedded demo map from web preview: {requested}"));
+        load_embedded_sample(state, &requested);
         return;
     }
 
@@ -35,16 +41,21 @@ pub(crate) fn open_document(state: &mut AppState) {
         "boot: rejected web open request for unsupported path {requested}"
     ));
     state.status = format!(
-        "Web preview currently only ships the embedded demo map ({EMBEDDED_DEMO_MAP_PATH})."
+        "Web preview only ships embedded samples: {}.",
+        embedded_sample_paths()
     );
 }
 
 #[cfg(target_os = "android")]
 pub(crate) fn open_document(state: &mut AppState) {
-    let requested = state.path_input.trim();
-    if requested.is_empty() || requested == EMBEDDED_DEMO_MAP_PATH {
-        log("boot: requested embedded demo map from android app");
+    let requested = state.path_input.trim().to_string();
+    if requested.is_empty() {
         load_sample(state);
+        return;
+    }
+    if embedded_sample(&requested).is_some() {
+        log(format!("boot: requested embedded demo map from android app: {requested}"));
+        load_embedded_sample(state, &requested);
         return;
     }
 
@@ -52,7 +63,8 @@ pub(crate) fn open_document(state: &mut AppState) {
         "boot: rejected android open request for unsupported path {requested}"
     ));
     state.status = format!(
-        "Android build currently only ships the embedded demo map ({EMBEDDED_DEMO_MAP_PATH})."
+        "Android build only ships embedded samples: {}.",
+        embedded_sample_paths()
     );
 }
 
@@ -68,13 +80,23 @@ pub(crate) fn load_sample(state: &mut AppState) {
 
 #[cfg(target_arch = "wasm32")]
 pub(crate) fn load_sample(state: &mut AppState) {
-    state.path_input = EMBEDDED_DEMO_MAP_PATH.to_string();
-    state.save_as_input = EMBEDDED_DEMO_MAP_PATH.to_string();
+    load_embedded_sample(state, EMBEDDED_DEMO_MAP_PATH);
+}
+
+#[cfg(target_os = "android")]
+pub(crate) fn load_sample(state: &mut AppState) {
+    load_embedded_sample(state, EMBEDDED_DEMO_MAP_PATH);
+}
+
+#[cfg(any(target_arch = "wasm32", target_os = "android"))]
+pub(crate) fn load_embedded_sample(state: &mut AppState, path: &str) {
+    state.path_input = path.to_string();
+    state.save_as_input = path.to_string();
     log("boot: starting embedded demo load");
-    match load_embedded_demo_session() {
+    match load_embedded_demo_session(path) {
         Ok(session) => {
             install_session(state, session);
-            state.status = format!("Loaded embedded TMWA demo map ({EMBEDDED_DEMO_MAP_PATH}).");
+            state.status = embedded_loaded_status(path);
             log("boot: embedded demo load completed");
         }
         Err(error) => {
@@ -84,25 +106,32 @@ pub(crate) fn load_sample(state: &mut AppState) {
     }
 }
 
+#[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
+pub(crate) fn load_embedded_sample(state: &mut AppState, path: &str) {
+    state.path_input = path.to_string();
+    state.status = "Embedded sample loading is only wired for web/android previews.".to_string();
+}
+
+#[cfg(target_arch = "wasm32")]
+fn embedded_loaded_status(path: &str) -> String {
+    let label = embedded_sample(path).map_or(path, |sample| sample.title);
+    format!("Loaded embedded sample {label} ({path}).")
+}
+
 #[cfg(target_os = "android")]
-pub(crate) fn load_sample(state: &mut AppState) {
-    state.path_input = EMBEDDED_DEMO_MAP_PATH.to_string();
-    state.save_as_input = EMBEDDED_DEMO_MAP_PATH.to_string();
-    log("boot: starting embedded demo load");
-    match load_embedded_demo_session() {
-        Ok(session) => {
-            install_session(state, session);
-            let log_path = log_path().unwrap_or_default();
-            state.status = format!(
-                "Loaded embedded TMWA demo map ({EMBEDDED_DEMO_MAP_PATH}). Logs: {log_path}"
-            );
-            log("boot: embedded demo load completed");
-        }
-        Err(error) => {
-            state.status = format!("Embedded demo load failed: {error}");
-            log(format!("boot: embedded demo load failed: {error}"));
-        }
-    }
+fn embedded_loaded_status(path: &str) -> String {
+    let label = embedded_sample(path).map_or(path, |sample| sample.title);
+    let log_path = log_path().unwrap_or_default();
+    format!("Loaded embedded sample {label} ({path}). Logs: {log_path}")
+}
+
+#[cfg(any(target_arch = "wasm32", target_os = "android"))]
+fn embedded_sample_paths() -> String {
+    embedded_samples()
+        .iter()
+        .map(|sample| sample.path)
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 pub(crate) fn adjust_zoom(state: &mut AppState, delta: i32) {

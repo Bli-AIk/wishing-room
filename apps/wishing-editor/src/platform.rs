@@ -1,8 +1,5 @@
-#[cfg(target_arch = "wasm32")]
-pub(crate) const EMBEDDED_DEMO_MAP_PATH: &str = "maps/017-2.tmx";
-
-#[cfg(target_os = "android")]
-pub(crate) const EMBEDDED_DEMO_MAP_PATH: &str = "stage1-basic/map.tmx";
+#[allow(dead_code)]
+pub(crate) const EMBEDDED_DEMO_MAP_PATH: &str = crate::embedded_samples::DEFAULT_EMBEDDED_SAMPLE_PATH;
 
 #[cfg(target_arch = "wasm32")]
 pub(crate) fn install() {

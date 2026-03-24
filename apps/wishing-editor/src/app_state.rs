@@ -5,7 +5,10 @@ use wishing_core::EditorSession;
 #[cfg(target_os = "android")]
 use crate::platform::log_path;
 #[cfg(any(target_arch = "wasm32", target_os = "android"))]
-use crate::platform::{EMBEDDED_DEMO_MAP_PATH, log};
+use crate::{
+    embedded_samples::embedded_samples,
+    platform::{EMBEDDED_DEMO_MAP_PATH, log},
+};
 #[cfg(target_arch = "wasm32")]
 use crate::session_ops::load_sample;
 #[cfg(target_arch = "wasm32")]
@@ -42,7 +45,6 @@ pub(crate) struct AppState {
     pub(crate) selected_object: Option<u32>,
     pub(crate) tool: Tool,
     pub(crate) mobile_screen: MobileScreen,
-    pub(crate) review_mode: bool,
     #[cfg(target_arch = "wasm32")]
     pub(crate) show_web_logs: bool,
     pub(crate) zoom_percent: i32,
@@ -55,8 +57,6 @@ impl Default for AppState {
     fn default() -> Self {
         #[cfg(target_arch = "wasm32")]
         {
-            let review_mode = web_query_param("review")
-                .is_some_and(|value| matches!(value.as_str(), "1" | "true" | "yes" | "ui"));
             let mobile_screen = web_query_param("screen")
                 .map(|value| parse_mobile_screen(&value))
                 .unwrap_or(MobileScreen::Dashboard);
@@ -72,7 +72,6 @@ impl Default for AppState {
                 selected_object: None,
                 tool: Tool::Paint,
                 mobile_screen,
-                review_mode,
                 show_web_logs: false,
                 zoom_percent: 100,
                 pan_x: 0,
@@ -80,12 +79,7 @@ impl Default for AppState {
                 status: default_status_message(),
             };
             log("boot: constructing default web state");
-            if review_mode {
-                log("boot: web review mode enabled");
-                state.status = "Web UI review mode is active.".to_string();
-            } else {
-                load_sample(&mut state);
-            }
+            load_sample(&mut state);
             return state;
         }
 
@@ -103,7 +97,6 @@ impl Default for AppState {
                 selected_object: None,
                 tool: Tool::Paint,
                 mobile_screen: MobileScreen::Dashboard,
-                review_mode: false,
                 zoom_percent: 100,
                 pan_x: 0,
                 pan_y: 0,
@@ -133,7 +126,6 @@ impl Default for AppState {
                 selected_object: None,
                 tool: Tool::Paint,
                 mobile_screen: MobileScreen::Editor,
-                review_mode: false,
                 zoom_percent: 100,
                 pan_x: 0,
                 pan_y: 0,
@@ -146,14 +138,18 @@ impl Default for AppState {
 fn default_status_message() -> String {
     #[cfg(target_arch = "wasm32")]
     {
-        return format!("Web preview uses the embedded TMWA demo map ({EMBEDDED_DEMO_MAP_PATH}).");
+        return format!(
+            "Web preview ships {} embedded TMX samples. Default: {EMBEDDED_DEMO_MAP_PATH}.",
+            embedded_samples().len()
+        );
     }
 
     #[cfg(target_os = "android")]
     {
         let log_path = log_path().unwrap_or_default();
         return format!(
-            "Android booted. Tap Demo to load the embedded sample ({EMBEDDED_DEMO_MAP_PATH}). Logs: {log_path}"
+            "Android booted. Pick one of {} embedded TMX samples from Dashboard. Default: {EMBEDDED_DEMO_MAP_PATH}. Logs: {log_path}",
+            embedded_samples().len()
         );
     }
 

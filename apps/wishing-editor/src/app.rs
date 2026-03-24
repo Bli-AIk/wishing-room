@@ -4,11 +4,8 @@ use wishing_core::{EditorSession, Layer};
 use crate::{
     app_state::{AppState, Tool},
     edit_ops::{toggle_layer_lock, toggle_layer_visibility},
-    mobile_page_styles::MOBILE_PAGE_STYLES,
-    mobile_review::render_review_shell,
     mobile_review_styles::MOBILE_REVIEW_STYLES,
-    mobile_shell::render_mobile_shell,
-    mobile_styles::MOBILE_STYLES,
+    mobile_review::render_mobile_shell,
     session_ops::{adjust_zoom, load_sample, open_document, save_as_document, save_document},
     styles::STYLES,
     ui_canvas::render_canvas,
@@ -29,7 +26,7 @@ pub(crate) fn App() -> Element {
     });
 
     rsx! {
-        style { "{STYLES}{MOBILE_STYLES}{MOBILE_PAGE_STYLES}{MOBILE_REVIEW_STYLES}" }
+        style { "{STYLES}{MOBILE_REVIEW_STYLES}" }
         div { class: "app-shell",
             {render_topbar(&snapshot, state)}
             div { class: "workspace",
@@ -40,11 +37,7 @@ pub(crate) fn App() -> Element {
                     {render_inspector(&snapshot, state)}
                 }
             }
-            if snapshot.review_mode {
-                {render_review_shell(&snapshot, state)}
-            } else {
-                {render_mobile_shell(&snapshot, state)}
-            }
+            {render_mobile_shell(&snapshot, state)}
             {render_web_log_panel(&snapshot, state)}
         }
     }
