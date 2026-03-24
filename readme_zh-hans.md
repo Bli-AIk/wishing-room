@@ -1,5 +1,9 @@
 # Taled
 
+<p align="center">
+  <img src="./assets/branding/taled-app-icon.svg" width="96" alt="Taled app icon" />
+</p>
+
 [![version](https://img.shields.io/badge/version-0.0.1-blue)]() <img src="https://img.shields.io/badge/status-early%20development-orange"/> <img src="https://img.shields.io/badge/focus-Android%20first-1f6feb"/> <img src="https://img.shields.io/badge/Tiled-latest%20orthogonal%20subset-2ea44f"/> <br>
 <img src="https://img.shields.io/badge/Rust-2024-000000?style=for-the-badge&logo=rust&logoColor=white" /> <img src="https://img.shields.io/badge/Dioxus-0.7.3-6f42c1?style=for-the-badge" />
 

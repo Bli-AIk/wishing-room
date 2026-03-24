@@ -51,6 +51,11 @@ ssh-preview:
 dioxus-build:
     dx build
 
+android-build:
+    dx build --android --target aarch64-linux-android -r -p taled-editor
+    python3 ./scripts/patch_android_icons.py
+    cd target/dx/taled-editor/release/android/app && ./gradlew :app:assembleDebug
+
 dioxus-bundle:
     dx bundle
 
