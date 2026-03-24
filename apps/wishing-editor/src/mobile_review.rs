@@ -47,15 +47,20 @@ fn render_dashboard(snapshot: &AppState, mut state: Signal<AppState>) -> Element
         div { class: "review-page",
             {review_top_bar("Project Dashboard".to_string(), None, None, state)}
             div { class: "review-body",
+                button {
+                    class: "review-create-project",
+                    onclick: move |_| {
+                        state.write().status =
+                            "Create New Project is not implemented yet. Dashboard placeholder only.".to_string();
+                    },
+                    {review_plus_icon("review-plus-icon")}
+                    span { "Create New Project" }
+                }
                 div { class: "review-project-list-panel",
                     for sample in embedded_samples().iter() {
                         button {
                             key: "{sample.path}",
-                            class: if snapshot.path_input == sample.path {
-                                "review-project-row active"
-                            } else {
-                                "review-project-row"
-                            },
+                            class: "review-project-row",
                             onclick: {
                                 let sample_path = sample.path;
                                 move |_| {
@@ -70,12 +75,7 @@ fn render_dashboard(snapshot: &AppState, mut state: Signal<AppState>) -> Element
                                 alt: "{sample.title} thumbnail",
                             }
                             div { class: "review-project-copy",
-                                div { class: "review-project-title-row",
-                                    div { class: "review-project-title", "{sample.title}" }
-                                    if snapshot.path_input == sample.path {
-                                        span { class: "review-project-badge", "Loaded" }
-                                    }
-                                }
+                                div { class: "review-project-title", "{sample.title}" }
                                 div { class: "review-project-meta", "{sample.subtitle}" }
                                 div { class: "review-project-meta", "{sample.meta}" }
                             }
@@ -738,6 +738,22 @@ fn review_nav_icon(label: &'static str) -> Element {
             }
         },
         _ => rsx! { span {} },
+    }
+}
+
+fn review_plus_icon(class: &'static str) -> Element {
+    rsx! {
+        svg {
+            class: "{class}",
+            view_box: "0 0 24 24",
+            fill: "none",
+            stroke: "currentColor",
+            stroke_width: "2",
+            stroke_linecap: "round",
+            stroke_linejoin: "round",
+            path { d: "M12 5v14" }
+            path { d: "M5 12h14" }
+        }
     }
 }
 

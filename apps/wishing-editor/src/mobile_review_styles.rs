@@ -173,27 +173,8 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
     color: inherit;
     text-align: left;
   }
-  .review-project-row.active {
-    background: rgba(10, 132, 255, 0.08);
-  }
   .review-project-row:first-child {
     border-top: none;
-  }
-  .review-project-title-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
-  }
-  .review-project-badge {
-    flex: none;
-    padding: 4px 8px;
-    border-radius: 999px;
-    background: rgba(10, 132, 255, 0.12);
-    border: 1px solid rgba(10, 132, 255, 0.18);
-    color: #73b4ff;
-    font-size: 11px;
-    font-weight: 700;
   }
   .review-project-copy {
     display: flex;
