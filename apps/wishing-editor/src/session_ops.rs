@@ -193,6 +193,11 @@ fn install_session(state: &mut AppState, session: EditorSession) {
     state.selected_gid = selected_gid;
     state.selected_cell = None;
     state.selected_object = None;
+    state.zoom_percent = 100;
+    let (default_pan_x, default_pan_y) = default_mobile_center_pan(&session, state.zoom_percent);
+    state.pan_x = default_pan_x;
+    state.pan_y = default_pan_y;
+    state.pending_canvas_center = true;
     state.active_touch_points.clear();
     state.single_touch_gesture = None;
     state.pinch_gesture = None;
@@ -200,6 +205,28 @@ fn install_session(state: &mut AppState, session: EditorSession) {
     state.canvas_host_scroll_offset = (0.0, 0.0);
     state.image_cache = image_cache;
     state.session = Some(session);
+}
+
+fn default_mobile_center_pan(session: &EditorSession, zoom_percent: i32) -> (i32, i32) {
+    #[cfg(any(target_arch = "wasm32", target_os = "android"))]
+    {
+        const DEFAULT_HOST_WIDTH: f64 = 384.0;
+        const DEFAULT_HOST_HEIGHT: f64 = 241.0;
+
+        let map = &session.document().map;
+        let zoom = f64::from(zoom_percent) / 100.0;
+        let map_width = f64::from(map.total_pixel_width()) * zoom;
+        let map_height = f64::from(map.total_pixel_height()) * zoom;
+        let pan_x = ((DEFAULT_HOST_WIDTH - map_width) * 0.5).round() as i32;
+        let pan_y = ((DEFAULT_HOST_HEIGHT - map_height) * 0.5).round() as i32;
+        return (pan_x, pan_y);
+    }
+
+    #[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
+    {
+        let _ = (session, zoom_percent);
+        (0, 0)
+    }
 }
 
 #[cfg(any(target_arch = "wasm32", target_os = "android"))]

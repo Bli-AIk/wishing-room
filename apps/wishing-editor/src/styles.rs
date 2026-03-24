@@ -181,8 +181,9 @@ pub(crate) const STYLES: &str = r#"
     cursor: crosshair;
   }
   .cell-hitbox.selected {
-    outline: 2px solid #ffbf66;
-    outline-offset: -2px;
+    outline: 1px solid rgba(168, 174, 182, 0.78);
+    outline-offset: -1px;
+    background: rgba(168, 174, 182, 0.08);
   }
   .object-overlay {
     z-index: 3;
@@ -190,7 +191,7 @@ pub(crate) const STYLES: &str = r#"
     background-repeat: no-repeat;
   }
   .object-overlay.selected {
-    filter: drop-shadow(0 0 4px rgba(255, 226, 133, 0.96));
+    filter: drop-shadow(0 0 1px rgba(168, 174, 182, 0.46));
   }
   @media (pointer: coarse) {
     .tile-sprite,

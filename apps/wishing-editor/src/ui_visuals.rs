@@ -7,7 +7,8 @@ use crate::app_state::PaletteTile;
 const OBJECT_MAIN_HEX: &str = "#808080";
 const OBJECT_FILL_RGBA: &str = "rgba(128,128,128,0.196)";
 const OBJECT_SHADOW_RGBA: &str = "rgba(0,0,0,0.92)";
-const OBJECT_SELECTED_RGBA: &str = "rgba(255,226,133,0.96)";
+const OBJECT_SELECTED_RGBA: &str = "rgba(162,168,176,0.42)";
+const OBJECT_SELECTED_STROKE_RGBA: &str = "rgba(168,174,182,0.78)";
 const PALETTE_PREVIEW_SIZE: f32 = 44.0;
 const PALETTE_INSET: f32 = 4.0;
 const POINT_MARKER_WIDTH: f32 = 20.0;
@@ -86,15 +87,17 @@ pub(crate) fn object_icon_style(shape: &ObjectShape) -> String {
 
 fn rectangle_overlay_style(object: &MapObject, pointer_events: &str, selected: bool) -> String {
     let selected_outline = if selected {
-        "outline:2px solid rgba(255,226,133,0.96);outline-offset:1px;"
+        format!(
+            "outline:1px solid {OBJECT_SELECTED_STROKE_RGBA};outline-offset:0;box-shadow:0 0 0 1px rgba(255,255,255,0.08);"
+        )
     } else {
-        ""
+        String::new()
     };
 
     format!(
         concat!(
             "left:{}px;top:{}px;width:{}px;height:{}px;pointer-events:{};",
-            "border:1.5px solid {};background:{};box-shadow:1px 1px 0 {};",
+            "border:1px solid {};background:{};box-shadow:0.5px 0.5px 0 {};",
             "{}"
         ),
         object.x,

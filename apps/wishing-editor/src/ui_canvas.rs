@@ -48,8 +48,9 @@ pub(crate) fn render_canvas(snapshot: &AppState, mut state: Signal<AppState>) ->
                             rect.size.width,
                             rect.size.height,
                         ));
-                        state.write().canvas_stage_client_origin =
-                            Some((rect.origin.x, rect.origin.y));
+                        let mut state = state.write();
+                        state.canvas_stage_client_origin = Some((rect.origin.x, rect.origin.y));
+                        center_canvas_if_needed(&mut state, rect.size.width, rect.size.height);
                     }
                     if let Ok(scroll) = event.get_scroll_offset().await {
                         log(format!(
@@ -75,6 +76,21 @@ pub(crate) fn render_canvas(snapshot: &AppState, mut state: Signal<AppState>) ->
             },
             div {
                 class: "canvas-stage",
+                onmounted: move |event| {
+                    let mut state = state;
+                    async move {
+                        if let Ok(rect) = event.get_client_rect().await {
+                            log(format!(
+                                "touch:stage-rect origin=({:.1},{:.1}) size=({:.1},{:.1})",
+                                rect.origin.x,
+                                rect.origin.y,
+                                rect.size.width,
+                                rect.size.height,
+                            ));
+                            center_canvas_if_needed(&mut state.write(), rect.size.width, rect.size.height);
+                        }
+                    }
+                },
                 onpointerdown: move |event| handle_touch_pointer_down(&mut state.write(), event),
                 onpointermove: move |event| handle_touch_pointer_move(&mut state.write(), event),
                 onpointerup: move |event| handle_touch_pointer_up(&mut state.write(), event),
@@ -158,6 +174,29 @@ pub(crate) fn render_canvas(snapshot: &AppState, mut state: Signal<AppState>) ->
             }
         }
     }
+}
+
+fn center_canvas_if_needed(state: &mut AppState, host_width: f64, host_height: f64) {
+    if !state.pending_canvas_center || host_width <= 0.0 || host_height <= 0.0 {
+        return;
+    }
+
+    let Some(session) = state.session.as_ref() else {
+        return;
+    };
+
+    let map = &session.document().map;
+    let zoom = f64::from(state.zoom_percent) / 100.0;
+    let map_width = f64::from(map.total_pixel_width()) * zoom;
+    let map_height = f64::from(map.total_pixel_height()) * zoom;
+
+    state.pan_x = ((host_width - map_width) * 0.5).round() as i32;
+    state.pan_y = ((host_height - map_height) * 0.5).round() as i32;
+    state.pending_canvas_center = false;
+    log(format!(
+        "touch:center-map host=({host_width:.1},{host_height:.1}) map=({map_width:.1},{map_height:.1}) pan=({}, {}) zoom={}",
+        state.pan_x, state.pan_y, state.zoom_percent,
+    ));
 }
 
 fn sprite_style(
