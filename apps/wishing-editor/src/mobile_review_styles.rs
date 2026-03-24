@@ -246,11 +246,16 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
     flex: 1;
     min-height: 720px;
     overflow: hidden;
+    --grid-size-x: 16px;
+    --grid-size-y: 16px;
+    --grid-offset-x: 0px;
+    --grid-offset-y: 0px;
     background:
       linear-gradient(#333 1px, transparent 1px),
       linear-gradient(90deg, #333 1px, transparent 1px),
       #2a2a2a;
-    background-size: 40px 40px;
+    background-size: var(--grid-size-x) var(--grid-size-y);
+    background-position: var(--grid-offset-x) var(--grid-offset-y);
   }
   .review-map-surface {
     position: absolute;

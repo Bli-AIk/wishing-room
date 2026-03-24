@@ -114,6 +114,7 @@ fn render_editor(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
         })
         .collect();
     let palette: Vec<PaletteTile> = collect_palette(session.document()).into_iter().take(24).collect();
+    let grid_style = editor_grid_style(snapshot, session);
 
     rsx! {
         div { class: "review-page review-editor-page",
@@ -141,7 +142,7 @@ fn render_editor(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
                     }
                 }
             }
-            div { class: "review-editor-canvas",
+            div { class: "review-editor-canvas", style: grid_style,
                 div { class: "review-map-surface review-map-live",
                     {render_canvas(snapshot, state)}
                 }
@@ -995,6 +996,19 @@ fn document_title(snapshot: &AppState) -> String {
         .filter(|name| !name.is_empty())
         .unwrap_or("Embedded Demo")
         .to_string()
+}
+
+fn editor_grid_style(snapshot: &AppState, session: &EditorSession) -> String {
+    let map = &session.document().map;
+    let zoom = snapshot.zoom_percent as f32 / 100.0;
+    let grid_width = (map.tile_width as f32 * zoom).max(1.0);
+    let grid_height = (map.tile_height as f32 * zoom).max(1.0);
+    let offset_x = snapshot.pan_x as f32;
+    let offset_y = snapshot.pan_y as f32;
+
+    format!(
+        "--grid-size-x:{grid_width}px;--grid-size-y:{grid_height}px;--grid-offset-x:{offset_x}px;--grid-offset-y:{offset_y}px;"
+    )
 }
 
 fn layer_kind_label(layer: &Layer) -> &'static str {
