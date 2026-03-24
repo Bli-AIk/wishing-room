@@ -290,7 +290,7 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
     position: relative;
     --review-editor-nav-height: calc(78px + env(safe-area-inset-bottom, 0px));
     --review-editor-toolbar-height: 86px;
-    --review-editor-float-gap: 12px;
+    --review-editor-float-gap: 3px;
   }
   .review-editor-canvas {
     position: relative;
@@ -467,7 +467,7 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
   }
   .review-layer-float {
     right: 18px;
-    top: 18px;
+    top: 4.5px;
     width: 158px;
     border-radius: 14px;
     padding: 8px 10px 6px;
