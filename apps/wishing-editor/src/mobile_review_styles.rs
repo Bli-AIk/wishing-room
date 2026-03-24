@@ -287,6 +287,10 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
   }
   .review-editor-page {
     height: 100dvh;
+    position: relative;
+    --review-editor-nav-height: calc(78px + env(safe-area-inset-bottom, 0px));
+    --review-editor-toolbar-height: 121px;
+    --review-editor-float-gap: 12px;
   }
   .review-editor-canvas {
     position: relative;
@@ -303,6 +307,20 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
       #2a2a2a;
     background-size: var(--grid-size-x) var(--grid-size-y);
     background-position: var(--grid-offset-x) var(--grid-offset-y);
+  }
+  .review-editor-page > .review-editor-toolbar,
+  .review-editor-page > .review-bottom-nav.editor {
+    position: absolute;
+    left: 0;
+    right: 0;
+    z-index: 20;
+  }
+  .review-editor-page > .review-editor-toolbar {
+    bottom: var(--review-editor-nav-height);
+  }
+  .review-editor-page > .review-bottom-nav.editor {
+    bottom: 0;
+    z-index: 21;
   }
   .review-map-surface {
     position: absolute;
@@ -332,11 +350,16 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
   }
   .review-dpad {
     left: 18px;
-    bottom: 18px;
-    width: 118px;
-    height: 118px;
+    bottom: calc(
+      var(--review-editor-nav-height) +
+      var(--review-editor-toolbar-height) +
+      var(--review-editor-float-gap)
+    );
+    width: 104px;
+    height: 104px;
     border-radius: 999px;
     color: #d3d6dc;
+    z-index: 12;
   }
   .review-dpad span {
     border: none;
@@ -345,19 +368,19 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
   }
   .review-dpad button {
     position: absolute;
-    width: 36px;
-    height: 36px;
+    width: 32px;
+    height: 32px;
     border: none;
     background: transparent;
     color: inherit;
     display: grid;
     place-items: center;
   }
-  .review-dpad .up { top: 6px; left: 41px; }
-  .review-dpad .left { top: 41px; left: 6px; }
-  .review-dpad .center { inset: 41px auto auto 41px; width: 36px; height: 36px; border-radius: 999px; background: rgba(255,255,255,0.08); }
-  .review-dpad .right { top: 41px; right: 6px; }
-  .review-dpad .down { bottom: 6px; left: 41px; }
+  .review-dpad .up { top: 6px; left: 36px; }
+  .review-dpad .left { top: 36px; left: 6px; }
+  .review-dpad .center { inset: 36px auto auto 36px; width: 32px; height: 32px; border-radius: 999px; background: rgba(255,255,255,0.08); }
+  .review-dpad .right { top: 36px; right: 6px; }
+  .review-dpad .down { bottom: 6px; left: 36px; }
   .review-dpad-icon-svg {
     width: 18px;
     height: 18px;
@@ -370,17 +393,22 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
   }
   .review-layer-float {
     right: 18px;
-    bottom: 18px;
-    width: 214px;
-    border-radius: 20px;
-    padding: 12px 14px;
+    bottom: calc(
+      var(--review-editor-nav-height) +
+      var(--review-editor-toolbar-height) +
+      var(--review-editor-float-gap)
+    );
+    width: 198px;
+    border-radius: 18px;
+    padding: 10px 12px;
+    z-index: 12;
   }
   .review-layer-float-title {
-    margin-bottom: 8px;
+    margin-bottom: 6px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 600;
   }
   .review-layer-float-title-icon,
@@ -394,7 +422,7 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
     grid-template-columns: 18px minmax(0, 1fr) 16px;
     gap: 8px;
     align-items: center;
-    padding: 10px 0;
+    padding: 8px 0;
     border-top: 1px solid rgba(255,255,255,0.06);
   }
   .review-layer-float-item:first-of-type {
@@ -445,7 +473,8 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
   }
   .review-editor-toolbar {
     flex: none;
-    background: #1c1c1e;
+    background: rgba(28, 28, 30, 0.94);
+    backdrop-filter: blur(14px);
     border-top: 1px solid #2c2c2e;
     display: flex;
     flex-direction: column;
@@ -453,7 +482,7 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
   .review-tool-row {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    padding: 14px 18px 8px;
+    padding: 10px 14px 6px;
   }
   .review-tool-row-live {
     grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -462,12 +491,12 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     color: #8e8e93;
     border: none;
     background: transparent;
     font: inherit;
-    min-height: 62px;
+    min-height: 52px;
   }
   .review-tool.active {
     color: #0a84ff;
@@ -486,13 +515,13 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
   .review-tile-strip {
     flex: none;
     display: grid;
-    grid-template-rows: repeat(2, 52px);
+    grid-template-rows: repeat(2, 44px);
     grid-auto-flow: column;
-    grid-auto-columns: 52px;
-    gap: 8px;
+    grid-auto-columns: 44px;
+    gap: 6px;
     overflow-x: auto;
     overflow-y: hidden;
-    padding: 0 14px 12px;
+    padding: 0 14px 10px;
   }
   .review-tile-strip-live {
     min-height: 68px;
@@ -502,18 +531,18 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
     align-items: center;
   }
   .review-tile-strip-top {
-    min-height: 128px;
-    padding: 12px 14px 14px;
+    min-height: 108px;
+    padding: 10px 14px 12px;
     border-bottom: 1px solid #2c2c2e;
     background: #18181a;
     align-items: start;
     justify-items: stretch;
   }
   .review-tile-chip {
-    width: 52px;
-    height: 52px;
+    width: 44px;
+    height: 44px;
     flex: none;
-    border-radius: 10px;
+    border-radius: 8px;
     border: 1px solid #2c2c2e;
     background: #486d35;
     background-repeat: no-repeat;
