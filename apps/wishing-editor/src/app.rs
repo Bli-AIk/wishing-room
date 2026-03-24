@@ -241,7 +241,7 @@ fn tool_button(
     rsx! {
         button {
             class: class,
-            onclick: move |_| state.write().tool = tool.clone(),
+            onclick: move |_| state.write().tool = tool,
             "{label}"
         }
     }

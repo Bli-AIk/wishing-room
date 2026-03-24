@@ -4,7 +4,7 @@ use dioxus::prelude::*;
 use wishing_core::{EditorSession, Layer, ObjectShape};
 
 use crate::{
-    app_state::{AppState, MobileScreen, PaletteTile, Tool},
+    app_state::{AppState, MobileScreen, MobileTransition, PaletteTile, Tool},
     embedded_samples::{embedded_sample, embedded_sample_thumb, embedded_samples},
     edit_ops::{
         create_object, delete_selected_object, nudge_selected_object, rename_selected_object,
@@ -43,9 +43,50 @@ pub(crate) fn render_mobile_shell(snapshot: &AppState, state: Signal<AppState>) 
     }
 }
 
+fn review_page_class(snapshot: &AppState, base: &'static str) -> String {
+    let transition_class = match snapshot.mobile_transition {
+        MobileTransition::None => "",
+        MobileTransition::HorizontalForward => " review-transition-horizontal-forward",
+        MobileTransition::HorizontalBackward => " review-transition-horizontal-backward",
+        MobileTransition::VerticalForward => " review-transition-vertical-forward",
+        MobileTransition::VerticalBackward => " review-transition-vertical-backward",
+    };
+
+    format!("{base}{transition_class}")
+}
+
+fn review_page_key(snapshot: &AppState, label: &'static str) -> String {
+    format!("{label}-{}", snapshot.mobile_transition_nonce)
+}
+
+fn navigate_mobile_screen(state: &mut AppState, next: MobileScreen) {
+    let current = state.mobile_screen;
+    if current == next {
+        return;
+    }
+
+    state.mobile_transition = match (current, next) {
+        (MobileScreen::Dashboard, MobileScreen::Editor) => MobileTransition::HorizontalForward,
+        (MobileScreen::Editor, MobileScreen::Dashboard) => MobileTransition::HorizontalBackward,
+        (MobileScreen::Editor, MobileScreen::Tilesets)
+        | (MobileScreen::Editor, MobileScreen::Layers)
+        | (MobileScreen::Editor, MobileScreen::Objects)
+        | (MobileScreen::Editor, MobileScreen::Properties) => MobileTransition::VerticalForward,
+        (MobileScreen::Tilesets, MobileScreen::Editor)
+        | (MobileScreen::Layers, MobileScreen::Editor)
+        | (MobileScreen::Objects, MobileScreen::Editor)
+        | (MobileScreen::Properties, MobileScreen::Editor) => MobileTransition::VerticalBackward,
+        _ => MobileTransition::None,
+    };
+    state.mobile_transition_nonce = state.mobile_transition_nonce.wrapping_add(1);
+    state.mobile_screen = next;
+}
+
 fn render_dashboard(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
+    let page_key = review_page_key(snapshot, "dashboard");
+    let page_class = review_page_class(snapshot, "review-page");
     rsx! {
-        div { class: "review-page",
+        div { key: "{page_key}", class: "{page_class}",
             {review_top_bar("Project Dashboard".to_string(), None, None, state)}
             div { class: "review-body",
                 button {
@@ -67,7 +108,7 @@ fn render_dashboard(snapshot: &AppState, mut state: Signal<AppState>) -> Element
                                 move |_| {
                                     let mut state = state.write();
                                     load_embedded_sample(&mut state, sample_path);
-                                    state.mobile_screen = MobileScreen::Editor;
+                                    navigate_mobile_screen(&mut state, MobileScreen::Editor);
                                 }
                             },
                             img {
@@ -116,9 +157,11 @@ fn render_editor(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
         .collect();
     let palette: Vec<PaletteTile> = collect_palette(session.document()).into_iter().take(24).collect();
     let grid_style = editor_grid_style(snapshot, session);
+    let page_key = review_page_key(snapshot, "editor");
+    let page_class = review_page_class(snapshot, "review-page review-editor-page");
 
     rsx! {
-        div { class: "review-page review-editor-page",
+        div { key: "{page_key}", class: "{page_class}",
             {review_top_bar_inactive_right(
                 document_title(snapshot),
                 ("Back", MobileScreen::Dashboard),
@@ -152,7 +195,7 @@ fn render_editor(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
                     button { class: "left", onclick: move |_| state.write().pan_x -= 32, {review_direction_icon("left")} }
                     button {
                         class: "center",
-                        onclick: move |_| state.write().mobile_screen = MobileScreen::Tilesets,
+                        onclick: move |_| navigate_mobile_screen(&mut state.write(), MobileScreen::Tilesets),
                         {review_dpad_center_icon()}
                     }
                     button { class: "right", onclick: move |_| state.write().pan_x += 32, {review_direction_icon("right")} }
@@ -226,9 +269,11 @@ fn render_tilesets(snapshot: &AppState, mut state: Signal<AppState>) -> Element 
         .map(|reference| format!("{} Tileset", reference.tileset.tileset.name))
         .unwrap_or_else(|| "Unknown".to_string());
     let property_count = 0usize;
+    let page_key = review_page_key(snapshot, "tilesets");
+    let page_class = review_page_class(snapshot, "review-page");
 
     rsx! {
-        div { class: "review-page",
+        div { key: "{page_key}", class: "{page_class}",
             {review_top_bar(
                 "Tile Property Editor".to_string(),
                 Some(("Back", MobileScreen::Editor)),
@@ -298,8 +343,11 @@ fn render_layers(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
         );
     };
 
+    let page_key = review_page_key(snapshot, "layers");
+    let page_class = review_page_class(snapshot, "review-page");
+
     rsx! {
-        div { class: "review-page",
+        div { key: "{page_key}", class: "{page_class}",
             {review_top_bar(
                 "Layer Manager".to_string(),
                 Some(("Back", MobileScreen::Editor)),
@@ -374,9 +422,11 @@ fn render_objects(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
     };
 
     let objects = collect_objects(session);
+    let page_key = review_page_key(snapshot, "objects");
+    let page_class = review_page_class(snapshot, "review-page");
 
     rsx! {
-        div { class: "review-page",
+        div { key: "{page_key}", class: "{page_class}",
             {review_top_bar(
                 "Object Library".to_string(),
                 Some(("Back", MobileScreen::Editor)),
@@ -431,7 +481,7 @@ fn render_objects(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
                     }
                     button {
                         class: "review-secondary-button compact",
-                        onclick: move |_| state.write().mobile_screen = MobileScreen::Editor,
+                        onclick: move |_| navigate_mobile_screen(&mut state.write(), MobileScreen::Editor),
                         "Canvas"
                     }
                 }
@@ -469,8 +519,10 @@ fn render_objects(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
 }
 
 fn render_properties(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
+    let page_key = review_page_key(snapshot, "properties");
+    let page_class = review_page_class(snapshot, "review-page");
     rsx! {
-        div { class: "review-page",
+        div { key: "{page_key}", class: "{page_class}",
             {review_top_bar(
                 "Properties".to_string(),
                 Some(("Back", MobileScreen::Editor)),
@@ -487,7 +539,7 @@ fn render_properties(snapshot: &AppState, mut state: Signal<AppState>) -> Elemen
                             onclick: move |_| {
                                 let mut state = state.write();
                                 load_sample(&mut state);
-                                state.mobile_screen = MobileScreen::Editor;
+                                navigate_mobile_screen(&mut state, MobileScreen::Editor);
                             },
                             "Reload Default"
                         }
@@ -574,8 +626,10 @@ fn render_properties(snapshot: &AppState, mut state: Signal<AppState>) -> Elemen
 }
 
 fn render_settings(snapshot: &AppState, state: Signal<AppState>) -> Element {
+    let page_key = review_page_key(snapshot, "settings");
+    let page_class = review_page_class(snapshot, "review-page");
     rsx! {
-        div { class: "review-page",
+        div { key: "{page_key}", class: "{page_class}",
             {review_title_only_bar("App Settings".to_string())}
             div { class: "review-body review-section-stack",
                 div { class: "review-caption", "Grid Settings" }
@@ -623,7 +677,7 @@ fn render_missing_screen(title: String, message: &'static str, mut state: Signal
                 }
                 button {
                     class: "review-secondary-button",
-                    onclick: move |_| state.write().mobile_screen = MobileScreen::Dashboard,
+                    onclick: move |_| navigate_mobile_screen(&mut state.write(), MobileScreen::Dashboard),
                     "Open Projects"
                 }
             }
@@ -643,7 +697,7 @@ fn review_top_bar(
             if let Some((label, screen)) = left {
                 button {
                     class: "review-header-action left",
-                    onclick: move |_| state.write().mobile_screen = screen.clone(),
+                    onclick: move |_| navigate_mobile_screen(&mut state.write(), screen),
                     "{label}"
                 }
             } else {
@@ -653,7 +707,7 @@ fn review_top_bar(
             if let Some((label, screen)) = right {
                 button {
                     class: "review-header-action right",
-                    onclick: move |_| state.write().mobile_screen = screen.clone(),
+                    onclick: move |_| navigate_mobile_screen(&mut state.write(), screen),
                     "{label}"
                 }
             } else {
@@ -673,7 +727,7 @@ fn review_top_bar_inactive_right(
         div { class: "review-header",
             button {
                 class: "review-header-action left",
-                onclick: move |_| state.write().mobile_screen = left.1.clone(),
+                onclick: move |_| navigate_mobile_screen(&mut state.write(), left.1),
                 "{left.0}"
             }
             h1 { "{title}" }
@@ -725,7 +779,7 @@ fn review_nav_button(
     rsx! {
         button {
             class: if snapshot.mobile_screen == screen { "review-nav-item active" } else { "review-nav-item" },
-            onclick: move |_| state.write().mobile_screen = screen.clone(),
+            onclick: move |_| navigate_mobile_screen(&mut state.write(), screen),
             div { class: "review-nav-icon", {review_nav_icon(label)} }
             span { "{label}" }
         }
@@ -984,7 +1038,7 @@ fn review_tool_button(
     rsx! {
         button {
             class: if snapshot.tool == tool { "review-tool active" } else { "review-tool" },
-            onclick: move |_| state.write().tool = tool.clone(),
+            onclick: move |_| state.write().tool = tool,
             div { class: "review-tool-icon", {review_tool_icon(&tool)} }
             span { "{label}" }
         }

@@ -16,6 +16,43 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
     overflow: hidden;
     background: #121212;
   }
+  .review-transition-horizontal-forward,
+  .review-transition-horizontal-backward,
+  .review-transition-vertical-forward,
+  .review-transition-vertical-backward {
+    will-change: transform, opacity;
+    animation-duration: 240ms;
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    animation-fill-mode: both;
+  }
+  .review-transition-horizontal-forward {
+    animation-name: review-slide-in-from-right;
+  }
+  .review-transition-horizontal-backward {
+    animation-name: review-slide-in-from-left;
+  }
+  .review-transition-vertical-forward {
+    animation-name: review-slide-in-from-bottom;
+  }
+  .review-transition-vertical-backward {
+    animation-name: review-slide-in-from-top;
+  }
+  @keyframes review-slide-in-from-right {
+    from { opacity: 0.7; transform: translate3d(36px, 0, 0); }
+    to { opacity: 1; transform: translate3d(0, 0, 0); }
+  }
+  @keyframes review-slide-in-from-left {
+    from { opacity: 0.7; transform: translate3d(-36px, 0, 0); }
+    to { opacity: 1; transform: translate3d(0, 0, 0); }
+  }
+  @keyframes review-slide-in-from-bottom {
+    from { opacity: 0.7; transform: translate3d(0, 42px, 0); }
+    to { opacity: 1; transform: translate3d(0, 0, 0); }
+  }
+  @keyframes review-slide-in-from-top {
+    from { opacity: 0.7; transform: translate3d(0, -42px, 0); }
+    to { opacity: 1; transform: translate3d(0, 0, 0); }
+  }
   .review-header {
     display: grid;
     grid-template-columns: 92px minmax(0, 1fr) 92px;
