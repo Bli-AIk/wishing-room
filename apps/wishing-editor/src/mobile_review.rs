@@ -155,7 +155,6 @@ fn render_editor(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
                     }
                     button { class: "right", onclick: move |_| state.write().pan_x += 32, {review_direction_icon("right")} }
                     button { class: "down", onclick: move |_| state.write().pan_y += 32, {review_direction_icon("down")} }
-                    div { class: "review-dpad-zoom", "{snapshot.zoom_percent}%" }
                 }
                 div { class: "review-layer-float",
                     div { class: "review-layer-float-title",
@@ -170,6 +169,7 @@ fn render_editor(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
                             } else {
                                 "review-layer-float-item"
                             },
+                            span { class: if visible { "review-eye on" } else { "review-eye off" }, {review_eye_icon(visible)} }
                             button {
                                 onclick: move |_| {
                                     let mut state = state.write();
@@ -179,7 +179,6 @@ fn render_editor(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
                                 span { "{name}" }
                                 span { class: "muted", "{kind}" }
                             }
-                            span { class: if visible { "review-eye on" } else { "review-eye off" }, {review_eye_icon(visible)} }
                             span { class: "review-menu-glyph", {review_menu_icon()} }
                         }
                     }

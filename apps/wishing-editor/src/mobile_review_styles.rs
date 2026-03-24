@@ -316,14 +316,6 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
     height: 18px;
     display: block;
   }
-  .review-dpad-zoom {
-    position: absolute;
-    inset: auto 0 11px 0;
-    text-align: center;
-    font-size: 11px;
-    font-weight: 600;
-    color: #9b9ea5;
-  }
   .review-layer-float {
     right: 18px;
     bottom: 18px;
@@ -347,7 +339,7 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
   }
   .review-layer-float-item {
     display: grid;
-    grid-template-columns: 18px 1fr 16px;
+    grid-template-columns: 18px minmax(0, 1fr) 16px;
     gap: 8px;
     align-items: center;
     padding: 10px 0;
@@ -361,11 +353,17 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
     flex-direction: column;
     align-items: flex-start;
     gap: 2px;
+    min-width: 0;
     border: none;
     background: transparent;
     color: inherit;
     padding: 0;
     text-align: left;
+  }
+  .review-layer-float-item .muted {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .review-layer-float-item.active {
     color: #fff;
