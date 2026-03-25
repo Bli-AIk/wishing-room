@@ -34,6 +34,12 @@ struct MobileObjectSummary {
     shape: ObjectShape,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ReviewToolbarKind {
+    Tile,
+    Object,
+}
+
 const CONTROL_DOUBLE_TAP_WINDOW: Duration = Duration::from_millis(320);
 const JOYSTICK_LOOP_INTERVAL: Duration = Duration::from_millis(16);
 const ZOOM_LOOP_INTERVAL: Duration = Duration::from_millis(28);
@@ -175,6 +181,7 @@ fn render_editor(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
         .layer(snapshot.active_layer)
         .map(|layer| (layer.name().to_string(), layer_kind_label(layer)))
         .unwrap_or_else(|| ("No layer".to_string(), "Unavailable"));
+    let toolbar_kind = active_toolbar_kind(session, snapshot.active_layer);
     let can_undo = session.can_undo();
     let can_redo = session.can_redo();
     let palette: Vec<PaletteTile> = collect_palette(session.document())
@@ -279,8 +286,15 @@ fn render_editor(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
                                         class: "review-layer-float-switch",
                                         onclick: move |_| {
                                             let mut state = state.write();
-                                            state.active_layer = index;
-                                            state.selected_object = None;
+                                            set_review_active_layer_kind(
+                                                &mut state,
+                                                index,
+                                                if is_tile_layer {
+                                                    ReviewToolbarKind::Tile
+                                                } else {
+                                                    ReviewToolbarKind::Object
+                                                },
+                                            );
                                         },
                                         span { class: "review-layer-float-kind", {review_layer_kind_icon(is_tile_layer)} }
                                         span { class: "review-layer-float-name", "{name}" }
@@ -300,14 +314,7 @@ fn render_editor(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
                 }
             }
             div { class: "review-editor-toolbar",
-                div { class: "review-tool-row review-tool-row-live",
-                    {review_tool_button(snapshot, state, Tool::Hand, "Hand")}
-                    {review_tool_button(snapshot, state, Tool::Select, "Select")}
-                    {review_tool_button(snapshot, state, Tool::Paint, "Brush")}
-                    {review_tool_button(snapshot, state, Tool::Erase, "Eraser")}
-                    {review_tool_button(snapshot, state, Tool::AddRectangle, "Rect")}
-                    {review_tool_button(snapshot, state, Tool::AddPoint, "Point")}
-                }
+                {review_tool_row(snapshot, state, toolbar_kind)}
             }
             {review_nav(snapshot, state, false)}
         }
@@ -719,6 +726,23 @@ fn render_layers(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
         );
     };
 
+    let layer_rows: Vec<(usize, String, bool, bool, bool, &'static str)> = session
+        .document()
+        .map
+        .layers
+        .iter()
+        .enumerate()
+        .map(|(index, layer)| {
+            (
+                index,
+                layer.name().to_string(),
+                layer.visible(),
+                layer.locked(),
+                layer.as_object().is_some(),
+                layer_thumb_variant(index, layer),
+            )
+        })
+        .collect();
     let page_key = review_page_key(snapshot, "layers");
     let page_class = review_page_class(snapshot, "review-page");
 
@@ -731,7 +755,7 @@ fn render_layers(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
                 state,
             )}
             div { class: "review-body review-list",
-                for (index, layer) in session.document().map.layers.iter().enumerate() {
+                for (index, layer_name, visible, locked, is_object_layer, thumb_variant) in layer_rows {
                     div {
                         key: "{index}",
                         class: if snapshot.active_layer == index {
@@ -740,21 +764,28 @@ fn render_layers(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
                             "review-layer-row"
                         },
                         span { class: "review-menu-glyph", "≡" }
-                        div { class: "review-layer-thumb {layer_thumb_variant(index, layer)}" }
+                        div { class: "review-layer-thumb {thumb_variant}" }
                         button {
                             class: "review-layer-name-button",
                             onclick: move |_| {
                                 let mut state = state.write();
-                                state.active_layer = index;
-                                state.selected_object = None;
+                                set_review_active_layer_kind(
+                                    &mut state,
+                                    index,
+                                    if is_object_layer {
+                                        ReviewToolbarKind::Object
+                                    } else {
+                                        ReviewToolbarKind::Tile
+                                    },
+                                );
                             },
                             span { class: "review-layer-title-stack",
-                                span { class: "review-layer-name", "{layer.name()}" }
-                                span { class: "muted", "{layer_kind_label(layer)}" }
+                                span { class: "review-layer-name", "{layer_name}" }
+                                span { class: "muted", if is_object_layer { "Object Layer" } else { "Tile Layer" } }
                             }
                         }
                         button {
-                            class: if layer.visible() {
+                            class: if visible {
                                 "review-eye on review-layer-toggle"
                             } else {
                                 "review-eye off review-layer-toggle"
@@ -763,7 +794,7 @@ fn render_layers(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
                             "o"
                         }
                         button {
-                            class: if layer.locked() {
+                            class: if locked {
                                 "review-lock on review-layer-toggle"
                             } else {
                                 "review-lock off review-layer-toggle"
@@ -772,7 +803,7 @@ fn render_layers(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
                             "u"
                         }
                         div { class: "review-opacity",
-                            span { "{layer_kind_label(layer)}" }
+                            span { if is_object_layer { "Object Layer" } else { "Tile Layer" } }
                             span { "100%" }
                             div { class: "review-slider-track",
                                 div { class: "review-slider-fill", style: "width:100%;" }
@@ -827,7 +858,11 @@ fn render_objects(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
                                 let entry = entry.clone();
                                 move |_| {
                                     let mut state = state.write();
-                                    state.active_layer = entry.layer_index;
+                                    set_review_active_layer_kind(
+                                        &mut state,
+                                        entry.layer_index,
+                                        ReviewToolbarKind::Object,
+                                    );
                                     state.selected_object = Some(entry.object_id);
                                 }
                             },
@@ -1455,21 +1490,192 @@ fn review_tool_button(
     snapshot: &AppState,
     mut state: Signal<AppState>,
     tool: Tool,
+    glyph: ReviewToolGlyph,
     label: &'static str,
 ) -> Element {
     rsx! {
         button {
             class: if snapshot.tool == tool { "review-tool active" } else { "review-tool" },
             onclick: move |_| state.write().tool = tool,
-            div { class: "review-tool-icon", {review_tool_icon(&tool)} }
+            div { class: "review-tool-icon", {review_tool_icon(&glyph)} }
             span { "{label}" }
         }
     }
 }
 
-fn review_tool_icon(tool: &Tool) -> Element {
+fn review_tool_row(
+    snapshot: &AppState,
+    state: Signal<AppState>,
+    kind: ReviewToolbarKind,
+) -> Element {
+    let toolbar_key = match kind {
+        ReviewToolbarKind::Tile => "tile-toolbar",
+        ReviewToolbarKind::Object => "object-toolbar",
+    };
+    let toolbar_class = match kind {
+        ReviewToolbarKind::Tile => "review-tool-row review-tool-row-live review-tool-row-swap",
+        ReviewToolbarKind::Object => {
+            "review-tool-row review-tool-row-live review-tool-row-object review-tool-row-swap"
+        }
+    };
+
+    rsx! {
+        div { key: "{toolbar_key}", class: "{toolbar_class}",
+            match kind {
+                ReviewToolbarKind::Tile => rsx! {
+                    {review_tool_button(snapshot, state, Tool::Hand, ReviewToolGlyph::Hand, "Hand")}
+                    {review_tool_button(snapshot, state, Tool::Paint, ReviewToolGlyph::StampBrush, "Stamp")}
+                    {review_placeholder_tool_button(
+                        state,
+                        ReviewToolGlyph::TerrainBrush,
+                        "Terrain",
+                        "Terrain Brush is not implemented yet."
+                    )}
+                    {review_placeholder_tool_button(
+                        state,
+                        ReviewToolGlyph::Fill,
+                        "Fill",
+                        "Bucket Fill is not implemented yet."
+                    )}
+                    {review_placeholder_tool_button(
+                        state,
+                        ReviewToolGlyph::ShapeFill,
+                        "Shape Fill",
+                        "Shape Fill is not implemented yet."
+                    )}
+                    {review_tool_button(snapshot, state, Tool::Erase, ReviewToolGlyph::Erase, "Eraser")}
+                    {review_tool_button(
+                        snapshot,
+                        state,
+                        Tool::Select,
+                        ReviewToolGlyph::RectangularSelect,
+                        "Rect Select"
+                    )}
+                    {review_placeholder_tool_button(
+                        state,
+                        ReviewToolGlyph::MagicWand,
+                        "Magic Wand",
+                        "Magic Wand is not implemented yet."
+                    )}
+                    {review_placeholder_tool_button(
+                        state,
+                        ReviewToolGlyph::SelectSameTile,
+                        "Same Tile",
+                        "Select Same Tile is not implemented yet."
+                    )}
+                },
+                ReviewToolbarKind::Object => rsx! {
+                    {review_tool_button(
+                        snapshot,
+                        state,
+                        Tool::Select,
+                        ReviewToolGlyph::SelectObject,
+                        "Select Object"
+                    )}
+                    {review_placeholder_tool_button(
+                        state,
+                        ReviewToolGlyph::InsertTile,
+                        "Insert Tile",
+                        "Insert Tile Object is not implemented yet."
+                    )}
+                    {review_placeholder_tool_button(
+                        state,
+                        ReviewToolGlyph::EditPolygons,
+                        "Edit Polygon",
+                        "Edit Polygon is not implemented yet."
+                    )}
+                    {review_tool_button(
+                        snapshot,
+                        state,
+                        Tool::AddRectangle,
+                        ReviewToolGlyph::InsertRectangle,
+                        "Insert Rect"
+                    )}
+                    {review_tool_button(
+                        snapshot,
+                        state,
+                        Tool::AddPoint,
+                        ReviewToolGlyph::InsertPoint,
+                        "Insert Point"
+                    )}
+                    {review_placeholder_tool_button(
+                        state,
+                        ReviewToolGlyph::InsertEllipse,
+                        "Insert Ellipse",
+                        "Insert Ellipse is not implemented yet."
+                    )}
+                    {review_placeholder_tool_button(
+                        state,
+                        ReviewToolGlyph::InsertCapsule,
+                        "Insert Capsule",
+                        "Insert Capsule is not implemented yet."
+                    )}
+                    {review_placeholder_tool_button(
+                        state,
+                        ReviewToolGlyph::InsertPolygon,
+                        "Insert Polygon",
+                        "Insert Polygon is not implemented yet."
+                    )}
+                    {review_placeholder_tool_button(
+                        state,
+                        ReviewToolGlyph::InsertTemplate,
+                        "Insert Template",
+                        "Insert Template is not implemented yet."
+                    )}
+                    {review_placeholder_tool_button(
+                        state,
+                        ReviewToolGlyph::InsertText,
+                        "Insert Text",
+                        "Insert Text is not implemented yet."
+                    )}
+                },
+            }
+        }
+    }
+}
+
+fn review_placeholder_tool_button(
+    mut state: Signal<AppState>,
+    glyph: ReviewToolGlyph,
+    label: &'static str,
+    status: &'static str,
+) -> Element {
+    rsx! {
+        button {
+            class: "review-tool placeholder",
+            onclick: move |_| state.write().status = status.to_string(),
+            div { class: "review-tool-icon", {review_tool_icon(&glyph)} }
+            span { "{label}" }
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum ReviewToolGlyph {
+    Hand,
+    StampBrush,
+    TerrainBrush,
+    Fill,
+    ShapeFill,
+    Erase,
+    RectangularSelect,
+    MagicWand,
+    SelectSameTile,
+    SelectObject,
+    InsertTile,
+    EditPolygons,
+    InsertRectangle,
+    InsertPoint,
+    InsertEllipse,
+    InsertCapsule,
+    InsertPolygon,
+    InsertTemplate,
+    InsertText,
+}
+
+fn review_tool_icon(tool: &ReviewToolGlyph) -> Element {
     match tool {
-        Tool::Hand => rsx! {
+        ReviewToolGlyph::Hand => rsx! {
             svg {
                 class: "review-tool-icon-svg",
                 view_box: "0 0 24 24",
@@ -1485,7 +1691,7 @@ fn review_tool_icon(tool: &Tool) -> Element {
                 path { d: "M7 11 5.7 9.8A1.6 1.6 0 0 0 3 11v.5c0 1.8.6 3.5 1.8 4.8l1.9 2.2c.8.9 2 1.5 3.2 1.5H14c1.7 0 3.2-.8 4.2-2.1l1.2-1.8c.4-.6.6-1.3.6-2V13" }
             }
         },
-        Tool::Select => rsx! {
+        ReviewToolGlyph::StampBrush => rsx! {
             svg {
                 class: "review-tool-icon-svg",
                 view_box: "0 0 24 24",
@@ -1494,10 +1700,17 @@ fn review_tool_icon(tool: &Tool) -> Element {
                 stroke_width: "1.9",
                 stroke_linecap: "round",
                 stroke_linejoin: "round",
-                path { d: "M5 3.5v13.5h4.4L7.6 20.5l2.1 1 1.9-4.5H16L5 3.5z" }
+                path { d: "M9 6.4c0-1.3 1.2-2.4 3-2.4s3 1.1 3 2.4c0 1-.7 1.8-1.7 2.2v1.2H10.7V8.6C9.7 8.2 9 7.4 9 6.4z" }
+                path { d: "M8.4 11.2h7.2" }
+                path { d: "M7.2 13.2h9.6" }
+                path { d: "M8.6 15.2h6.8" }
+                path { d: "M6 18.3h12" }
+                path { d: "M7.6 18.3v1.7" }
+                path { d: "M12 18.3v1.7" }
+                path { d: "M16.4 18.3v1.7" }
             }
         },
-        Tool::Paint => rsx! {
+        ReviewToolGlyph::TerrainBrush => rsx! {
             svg {
                 class: "review-tool-icon-svg",
                 view_box: "0 0 24 24",
@@ -1506,12 +1719,44 @@ fn review_tool_icon(tool: &Tool) -> Element {
                 stroke_width: "1.9",
                 stroke_linecap: "round",
                 stroke_linejoin: "round",
-                path { d: "M15.5 4.5 19.5 8.5" }
-                path { d: "M13.5 6.5 17.5 10.5" }
-                path { d: "M5 19.5c1.8-.2 3.3-.9 4.5-2.1l7.5-7.5-4.5-4.5-7.5 7.5C3.8 14.1 3.1 15.7 3 17.5c0 1.1.9 2 2 2z" }
+                rect { x: "4.5", y: "12.5", width: "4", height: "4", rx: "0.6" }
+                rect { x: "9.8", y: "12.5", width: "4", height: "4", rx: "0.6" }
+                rect { x: "4.5", y: "17.3", width: "4", height: "4", rx: "0.6" }
+                path { d: "M13.5 5.2 18.8 10.5" }
+                path { d: "M11.6 7.1 16.9 12.4" }
+                path { d: "M10.2 18.2c1.2-.1 2.2-.6 3-1.4l5.2-5.2-3.8-3.8-5.2 5.2c-.8.8-1.3 1.9-1.4 3z" }
             }
         },
-        Tool::Erase => rsx! {
+        ReviewToolGlyph::Fill => rsx! {
+            svg {
+                class: "review-tool-icon-svg",
+                view_box: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                stroke_width: "1.9",
+                stroke_linecap: "round",
+                stroke_linejoin: "round",
+                path { d: "M7.5 10.5 12.2 5.8l5.4 5.4-4.7 4.7a2.1 2.1 0 0 1-3 0z" }
+                path { d: "M12.2 5.8 17.6 11.2" }
+                path { d: "M5.4 17.6h8.6" }
+                path { d: "M16.7 18.7c0 1-.8 1.8-1.8 1.8s-1.8-.8-1.8-1.8c0-.9.8-1.8 1.8-3.2 1 1.4 1.8 2.3 1.8 3.2z" }
+            }
+        },
+        ReviewToolGlyph::ShapeFill => rsx! {
+            svg {
+                class: "review-tool-icon-svg",
+                view_box: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                stroke_width: "1.9",
+                stroke_linecap: "round",
+                stroke_linejoin: "round",
+                path { d: "m8 10 5-5 5 5-4.2 4.2H12" }
+                path { d: "M13 5 18 10" }
+                rect { x: "5", y: "13.2", width: "14", height: "5.8", rx: "1.4", stroke_dasharray: "2.5 2" }
+            }
+        },
+        ReviewToolGlyph::Erase => rsx! {
             svg {
                 class: "review-tool-icon-svg",
                 view_box: "0 0 24 24",
@@ -1525,7 +1770,7 @@ fn review_tool_icon(tool: &Tool) -> Element {
                 path { d: "M4 19.5h15" }
             }
         },
-        Tool::AddRectangle => rsx! {
+        ReviewToolGlyph::RectangularSelect => rsx! {
             svg {
                 class: "review-tool-icon-svg",
                 view_box: "0 0 24 24",
@@ -1534,10 +1779,10 @@ fn review_tool_icon(tool: &Tool) -> Element {
                 stroke_width: "1.9",
                 stroke_linecap: "round",
                 stroke_linejoin: "round",
-                rect { x: "5", y: "6.5", width: "14", height: "11", rx: "2.5" }
+                rect { x: "5", y: "6", width: "14", height: "12", rx: "2", stroke_dasharray: "3 2.2" }
             }
         },
-        Tool::AddPoint => rsx! {
+        ReviewToolGlyph::MagicWand => rsx! {
             svg {
                 class: "review-tool-icon-svg",
                 view_box: "0 0 24 24",
@@ -1546,8 +1791,166 @@ fn review_tool_icon(tool: &Tool) -> Element {
                 stroke_width: "1.9",
                 stroke_linecap: "round",
                 stroke_linejoin: "round",
-                path { d: "M12 20.5s4.5-4.8 4.5-8.8a4.5 4.5 0 1 0-9 0c0 4 4.5 8.8 4.5 8.8z" }
-                circle { cx: "12", cy: "11.5", r: "1.6" }
+                path { d: "m6 19 8.8-8.8" }
+                path { d: "M14.4 5.2v3.3" }
+                path { d: "M12.8 6.8h3.3" }
+                path { d: "M18.6 9.2v2.4" }
+                path { d: "M17.4 10.4h2.4" }
+                path { d: "M8.4 4v2.6" }
+                path { d: "M7.1 5.3h2.6" }
+            }
+        },
+        ReviewToolGlyph::SelectSameTile => rsx! {
+            svg {
+                class: "review-tool-icon-svg",
+                view_box: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                stroke_width: "1.9",
+                stroke_linecap: "round",
+                stroke_linejoin: "round",
+                rect { x: "4.5", y: "5", width: "5", height: "5", rx: "0.8" }
+                rect { x: "14.5", y: "5", width: "5", height: "5", rx: "0.8" }
+                rect { x: "4.5", y: "14", width: "5", height: "5", rx: "0.8" }
+                rect { x: "14.5", y: "14", width: "5", height: "5", rx: "0.8" }
+                path { d: "M9.5 7.5h5" }
+                path { d: "m12.5 4.8 2.7 2.7-2.7 2.7" }
+            }
+        },
+        ReviewToolGlyph::SelectObject => rsx! {
+            svg {
+                class: "review-tool-icon-svg",
+                view_box: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                stroke_width: "1.9",
+                stroke_linecap: "round",
+                stroke_linejoin: "round",
+                path { d: "M6 4.5 16 12 11.5 12.8 13.8 18.5 11.3 19.5 9 13.8 6 16z" }
+            }
+        },
+        ReviewToolGlyph::InsertTile => rsx! {
+            svg {
+                class: "review-tool-icon-svg",
+                view_box: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                stroke_width: "1.9",
+                stroke_linecap: "round",
+                stroke_linejoin: "round",
+                rect { x: "5", y: "6", width: "8", height: "8", rx: "1" }
+                path { d: "M16.5 8.2v7.6" }
+                path { d: "M12.7 12h7.6" }
+            }
+        },
+        ReviewToolGlyph::EditPolygons => rsx! {
+            svg {
+                class: "review-tool-icon-svg",
+                view_box: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                stroke_width: "1.9",
+                stroke_linecap: "round",
+                stroke_linejoin: "round",
+                path { d: "M6 7.5 10 5l5 3 3 5-3.8 5.2-6 .8L4.8 14z" }
+                circle { cx: "6", cy: "7.5", r: "1" }
+                circle { cx: "15", cy: "8", r: "1" }
+                circle { cx: "18", cy: "13", r: "1" }
+                circle { cx: "8.2", cy: "19", r: "1" }
+            }
+        },
+        ReviewToolGlyph::InsertRectangle => rsx! {
+            svg {
+                class: "review-tool-icon-svg",
+                view_box: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                stroke_width: "1.9",
+                stroke_linecap: "round",
+                stroke_linejoin: "round",
+                rect { x: "5", y: "7", width: "14", height: "10", rx: "1.8" }
+                path { d: "M12 5v4" }
+                path { d: "M10 7h4" }
+            }
+        },
+        ReviewToolGlyph::InsertPoint => rsx! {
+            svg {
+                class: "review-tool-icon-svg",
+                view_box: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                stroke_width: "1.9",
+                stroke_linecap: "round",
+                stroke_linejoin: "round",
+                path { d: "M12 5v14" }
+                path { d: "M5 12h14" }
+                circle { cx: "12", cy: "12", r: "2.5" }
+            }
+        },
+        ReviewToolGlyph::InsertEllipse => rsx! {
+            svg {
+                class: "review-tool-icon-svg",
+                view_box: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                stroke_width: "1.9",
+                stroke_linecap: "round",
+                stroke_linejoin: "round",
+                ellipse { cx: "12", cy: "12", rx: "7", ry: "4.8" }
+                path { d: "M12 5v3.4" }
+            }
+        },
+        ReviewToolGlyph::InsertCapsule => rsx! {
+            svg {
+                class: "review-tool-icon-svg",
+                view_box: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                stroke_width: "1.9",
+                stroke_linecap: "round",
+                stroke_linejoin: "round",
+                rect { x: "6", y: "5", width: "12", height: "14", rx: "6" }
+            }
+        },
+        ReviewToolGlyph::InsertPolygon => rsx! {
+            svg {
+                class: "review-tool-icon-svg",
+                view_box: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                stroke_width: "1.9",
+                stroke_linecap: "round",
+                stroke_linejoin: "round",
+                path { d: "M6 8 10 5l6 2.5 2 5-4.2 5.5-6.6-.7L4.8 12z" }
+            }
+        },
+        ReviewToolGlyph::InsertTemplate => rsx! {
+            svg {
+                class: "review-tool-icon-svg",
+                view_box: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                stroke_width: "1.9",
+                stroke_linecap: "round",
+                stroke_linejoin: "round",
+                rect { x: "6", y: "4.5", width: "12", height: "15", rx: "1.6" }
+                path { d: "M9 9h6" }
+                path { d: "M9 12h6" }
+                path { d: "M9 15h4" }
+            }
+        },
+        ReviewToolGlyph::InsertText => rsx! {
+            svg {
+                class: "review-tool-icon-svg",
+                view_box: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                stroke_width: "1.9",
+                stroke_linecap: "round",
+                stroke_linejoin: "round",
+                path { d: "M6 6h12" }
+                path { d: "M12 6v12" }
+                path { d: "M8.5 18h7" }
             }
         },
     }
@@ -1632,6 +2035,35 @@ fn layer_kind_label(layer: &Layer) -> &'static str {
     }
 }
 
+fn active_toolbar_kind(session: &EditorSession, layer_index: usize) -> ReviewToolbarKind {
+    match session.document().map.layer(layer_index) {
+        Some(layer) if layer.as_object().is_some() => ReviewToolbarKind::Object,
+        _ => ReviewToolbarKind::Tile,
+    }
+}
+
+fn toolbar_supports_tool(kind: ReviewToolbarKind, tool: Tool) -> bool {
+    match kind {
+        ReviewToolbarKind::Tile => matches!(tool, Tool::Hand | Tool::Paint | Tool::Erase | Tool::Select),
+        ReviewToolbarKind::Object => matches!(tool, Tool::Select | Tool::AddRectangle | Tool::AddPoint),
+    }
+}
+
+fn set_review_active_layer_kind(
+    state: &mut AppState,
+    layer_index: usize,
+    kind: ReviewToolbarKind,
+) {
+    state.active_layer = layer_index;
+    state.selected_object = None;
+    if !toolbar_supports_tool(kind, state.tool) {
+        state.tool = match kind {
+            ReviewToolbarKind::Tile => Tool::Paint,
+            ReviewToolbarKind::Object => Tool::Select,
+        };
+    }
+}
+
 fn layer_thumb_variant(index: usize, layer: &Layer) -> &'static str {
     let lower = layer.name().to_ascii_lowercase();
     if lower.contains("ui") || lower.contains("object") {
@@ -1669,26 +2101,24 @@ fn collect_objects(session: &EditorSession) -> Vec<MobileObjectSummary> {
 }
 
 fn create_object_on_first_object_layer(state: &mut AppState, shape: ObjectShape) {
-    let object_layer_index = match state.session.as_ref() {
-        Some(session) => session
-            .document()
-            .map
-            .layers
-            .iter()
-            .enumerate()
-            .find(|(_, layer)| layer.as_object().is_some())
-            .map(|(index, _)| index),
-        None => {
-            state.status = "Load a map first.".to_string();
-            return;
-        }
+    let Some(session) = state.session.as_ref() else {
+        state.status = "Load a map first.".to_string();
+        return;
     };
+    let object_layer_index = session
+        .document()
+        .map
+        .layers
+        .iter()
+        .enumerate()
+        .find(|(_, layer)| layer.as_object().is_some())
+        .map(|(index, _)| index);
 
     let Some(object_layer_index) = object_layer_index else {
         state.status = "No object layer is available yet.".to_string();
         return;
     };
 
-    state.active_layer = object_layer_index;
+    set_review_active_layer_kind(state, object_layer_index, ReviewToolbarKind::Object);
     create_object(state, shape);
 }

@@ -655,6 +655,12 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
   .review-tool-row-live {
     flex-wrap: nowrap;
   }
+  .review-tool-row-swap {
+    animation: review-toolbar-swap-in 180ms ease;
+  }
+  .review-tool-row-object .review-tool {
+    flex-basis: 78px;
+  }
   .review-tool {
     display: flex;
     flex-direction: column;
@@ -664,12 +670,15 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
     border: none;
     background: transparent;
     font: inherit;
-    flex: 0 0 62px;
+    flex: 0 0 74px;
     min-height: 56px;
     padding: 0;
   }
   .review-tool.active {
-    color: #0a84ff;
+    color: #d1d1d6;
+  }
+  .review-tool.placeholder {
+    color: #6e6e73;
   }
   .review-tool-icon {
     width: 24px;
@@ -677,10 +686,24 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
     display: grid;
     place-items: center;
   }
+  .review-tool span {
+    text-align: center;
+    line-height: 1.1;
+  }
   .review-tool-icon-svg {
     width: 24px;
     height: 24px;
     display: block;
+  }
+  @keyframes review-toolbar-swap-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
   .review-tile-strip {
     flex: none;
