@@ -160,8 +160,8 @@ pub(crate) const STYLES: &str = r#"
   .canvas {
     position: relative;
     background:
-      linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px),
-      linear-gradient(180deg, rgba(255,255,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.028) 0.5px, transparent 0.5px),
+      linear-gradient(180deg, rgba(255,255,255,0.028) 0.5px, transparent 0.5px),
       #142131;
     box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
     transform-origin: top left;
@@ -187,8 +187,8 @@ pub(crate) const STYLES: &str = r#"
   .shape-fill-preview-frame {
     z-index: 5;
     pointer-events: none;
-    border: 1px solid rgba(203, 213, 225, 0.62);
-    background: rgba(203, 213, 225, 0.06);
+    border: 0.5px solid rgba(203, 213, 225, 0.56);
+    background: rgba(203, 213, 225, 0.045);
   }
   .canvas.camera-transition {
     transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
@@ -196,13 +196,13 @@ pub(crate) const STYLES: &str = r#"
   .cell-hitbox {
     z-index: 2;
     background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    border: 0.5px solid rgba(255, 255, 255, 0.048);
     cursor: crosshair;
   }
   .cell-hitbox.selected {
-    outline: 1px solid rgba(168, 174, 182, 0.78);
-    outline-offset: -1px;
-    background: rgba(168, 174, 182, 0.08);
+    outline: 0.5px solid rgba(168, 174, 182, 0.68);
+    outline-offset: -0.5px;
+    background: rgba(168, 174, 182, 0.055);
   }
   .object-overlay {
     z-index: 3;
@@ -210,7 +210,7 @@ pub(crate) const STYLES: &str = r#"
     background-repeat: no-repeat;
   }
   .object-overlay.selected {
-    filter: drop-shadow(0 0 1px rgba(168, 174, 182, 0.46));
+    filter: drop-shadow(0 0 0.5px rgba(168, 174, 182, 0.42));
   }
   @media (pointer: coarse) {
     .tile-sprite,

@@ -5,10 +5,10 @@ use taled_core::{EditorDocument, MapObject, ObjectShape};
 use crate::app_state::PaletteTile;
 
 const OBJECT_MAIN_HEX: &str = "#808080";
-const OBJECT_FILL_RGBA: &str = "rgba(128,128,128,0.196)";
+const OBJECT_FILL_RGBA: &str = "rgba(128,128,128,0.168)";
 const OBJECT_SHADOW_RGBA: &str = "rgba(0,0,0,0.92)";
-const OBJECT_SELECTED_RGBA: &str = "rgba(162,168,176,0.42)";
-const OBJECT_SELECTED_STROKE_RGBA: &str = "rgba(168,174,182,0.78)";
+const OBJECT_SELECTED_RGBA: &str = "rgba(162,168,176,0.30)";
+const OBJECT_SELECTED_STROKE_RGBA: &str = "rgba(168,174,182,0.68)";
 const PALETTE_PREVIEW_SIZE: f32 = 44.0;
 const PALETTE_INSET: f32 = 4.0;
 const POINT_MARKER_WIDTH: f32 = 20.0;
@@ -88,7 +88,7 @@ pub(crate) fn object_icon_style(shape: &ObjectShape) -> String {
 fn rectangle_overlay_style(object: &MapObject, pointer_events: &str, selected: bool) -> String {
     let selected_outline = if selected {
         format!(
-            "outline:1px solid {OBJECT_SELECTED_STROKE_RGBA};outline-offset:0;box-shadow:0 0 0 1px rgba(255,255,255,0.08);"
+            "outline:0.5px solid {OBJECT_SELECTED_STROKE_RGBA};outline-offset:0;box-shadow:0 0 0 0.5px rgba(255,255,255,0.06);"
         )
     } else {
         String::new()
@@ -97,7 +97,7 @@ fn rectangle_overlay_style(object: &MapObject, pointer_events: &str, selected: b
     format!(
         concat!(
             "left:{}px;top:{}px;width:{}px;height:{}px;pointer-events:{};",
-            "border:1px solid {};background:{};box-shadow:0.5px 0.5px 0 {};",
+            "border:0.5px solid {};background:{};box-shadow:0.5px 0.5px 0 {};",
             "{}"
         ),
         object.x,
@@ -118,9 +118,9 @@ fn point_overlay_style(
     selected: bool,
     zoom: f32,
 ) -> String {
-    let mut filters = vec![format!("drop-shadow(1px 1px 0 {OBJECT_SHADOW_RGBA})")];
+    let mut filters = vec![format!("drop-shadow(0.5px 0.5px 0 {OBJECT_SHADOW_RGBA})")];
     if selected {
-        filters.push(format!("drop-shadow(0 0 4px {OBJECT_SELECTED_RGBA})"));
+        filters.push(format!("drop-shadow(0 0 2px {OBJECT_SELECTED_RGBA})"));
     }
 
     format!(
@@ -143,7 +143,7 @@ fn point_overlay_style(
 fn rectangle_icon_data_uri() -> String {
     svg_data_uri(
         r#"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'>
-<rect x='3' y='3' width='14' height='14' fill='rgba(128,128,128,0.196)' stroke='#808080' stroke-width='1.5'/>
+<rect x='3' y='3' width='14' height='14' fill='rgba(128,128,128,0.168)' stroke='#808080' stroke-width='1'/>
 </svg>"#,
     )
 }
@@ -151,7 +151,7 @@ fn rectangle_icon_data_uri() -> String {
 fn point_marker_data_uri() -> String {
     svg_data_uri(
         r#"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 30'>
-<path fill='rgba(128,128,128,0.196)' fill-rule='evenodd' stroke='#808080' stroke-width='1.5' d='M10 1C5.03 1 1 5.03 1 10c0 5.06 3.68 8.43 9 18 5.32-9.57 9-12.94 9-18 0-4.97-4.03-9-9-9Zm0 4.75a4.25 4.25 0 1 1 0 8.5a4.25 4.25 0 0 1 0-8.5Z'/>
+<path fill='rgba(128,128,128,0.168)' fill-rule='evenodd' stroke='#808080' stroke-width='1' d='M10 1C5.03 1 1 5.03 1 10c0 5.06 3.68 8.43 9 18 5.32-9.57 9-12.94 9-18 0-4.97-4.03-9-9-9Zm0 4.75a4.25 4.25 0 1 1 0 8.5a4.25 4.25 0 0 1 0-8.5Z'/>
 </svg>"#,
     )
 }

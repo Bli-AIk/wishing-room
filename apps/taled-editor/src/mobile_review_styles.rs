@@ -302,8 +302,8 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
     --grid-offset-x: 0px;
     --grid-offset-y: 0px;
     background:
-      linear-gradient(#333 1px, transparent 1px),
-      linear-gradient(90deg, #333 1px, transparent 1px),
+      linear-gradient(rgba(255,255,255,0.085) 0.5px, transparent 0.5px),
+      linear-gradient(90deg, rgba(255,255,255,0.085) 0.5px, transparent 0.5px),
       #2a2a2a;
     background-size: var(--grid-size-x) var(--grid-size-y);
     background-position: var(--grid-offset-x) var(--grid-offset-y);
@@ -1127,7 +1127,7 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
     touch-action: none;
   }
   .review-map-live .cell-hitbox {
-    border-color: rgba(255,255,255,0.04);
+    border-color: rgba(255,255,255,0.03);
   }
   .review-color-chip {
     display: flex;
