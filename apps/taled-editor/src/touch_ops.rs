@@ -10,9 +10,7 @@ use crate::{
         ActiveTouchPointer, AppState, PinchGesture, ShapeFillPreview, SingleTouchGesture,
         TileSelectionHandle, TileSelectionRegion, Tool,
     },
-    edit_ops::{
-        apply_cell_tool, apply_shape_fill_rect, place_tile_selection_transfer, select_tile_region,
-    },
+    edit_ops::{apply_cell_tool, apply_shape_fill_rect, select_tile_region},
 };
 
 const LONG_PRESS_DURATION: Duration = Duration::from_millis(260);
@@ -363,7 +361,7 @@ fn apply_touch_tool(
         Tool::Hand => {}
         Tool::Select => {
             if state.tile_selection_transfer.is_some() {
-                place_tile_selection_transfer(state);
+                state.status = "Selection positioned. Tap Done to place it.".to_string();
                 return;
             }
             if selects_tile_region(state) {

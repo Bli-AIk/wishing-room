@@ -12,9 +12,9 @@ use crate::{
     edit_ops::{
         cancel_tile_selection_transfer, copy_tile_selection, create_object,
         cut_tile_selection, delete_selected_object, delete_tile_selection,
-        flip_tile_selection_horizontally, nudge_selected_object, rename_selected_object,
-        rotate_tile_selection_clockwise, selected_object_view, toggle_layer_lock,
-        toggle_layer_visibility,
+        flip_tile_selection_horizontally, flip_tile_selection_vertically, nudge_selected_object,
+        place_tile_selection_transfer, rename_selected_object, rotate_tile_selection_clockwise,
+        selected_object_view, toggle_layer_lock, toggle_layer_visibility,
     },
     embedded_samples::{embedded_sample, embedded_sample_thumb, embedded_samples},
     session_ops::{
@@ -334,10 +334,7 @@ fn tile_selection_action_bar(
     let Some(selection) = snapshot.tile_selection else {
         return rsx! { Fragment {} };
     };
-    if snapshot.tile_selection_preview.is_some()
-        || snapshot.tile_selection_transfer.is_some()
-        || snapshot.tool != Tool::Select
-    {
+    if snapshot.tile_selection_preview.is_some() || snapshot.tool != Tool::Select {
         return rsx! { Fragment {} };
     }
     if session
@@ -368,9 +365,15 @@ fn tile_selection_action_bar(
             )}
             {review_selection_action_button(
                 state,
-                ReviewSelectionAction::Flip,
-                "Flip",
+                ReviewSelectionAction::FlipX,
+                "Flip X",
                 flip_tile_selection_horizontally,
+            )}
+            {review_selection_action_button(
+                state,
+                ReviewSelectionAction::FlipY,
+                "Flip Y",
+                flip_tile_selection_vertically,
             )}
             {review_selection_action_button(
                 state,
@@ -384,6 +387,14 @@ fn tile_selection_action_bar(
                 "Delete",
                 delete_tile_selection,
             )}
+            if snapshot.tile_selection_transfer.is_some() {
+                {review_selection_action_button(
+                    state,
+                    ReviewSelectionAction::Done,
+                    "Done",
+                    place_tile_selection_transfer,
+                )}
+            }
         }
     }
 }
@@ -426,9 +437,11 @@ fn selection_bounds(selection: TileSelectionRegion) -> (u32, u32, u32, u32) {
 
 #[derive(Clone, Copy)]
 enum ReviewSelectionAction {
+    Done,
     Cut,
     Copy,
-    Flip,
+    FlipX,
+    FlipY,
     Rotate,
     Delete,
 }
@@ -451,6 +464,18 @@ fn review_selection_action_button(
 
 fn review_selection_action_icon(action: ReviewSelectionAction) -> Element {
     match action {
+        ReviewSelectionAction::Done => rsx! {
+            svg {
+                class: "review-inline-icon-svg",
+                view_box: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                stroke_width: "1.9",
+                stroke_linecap: "round",
+                stroke_linejoin: "round",
+                path { d: "m6 12 4 4 8-8" }
+            }
+        },
         ReviewSelectionAction::Cut => rsx! {
             svg {
                 class: "review-inline-icon-svg",
@@ -480,7 +505,7 @@ fn review_selection_action_icon(action: ReviewSelectionAction) -> Element {
                 path { d: "M5 15V7a2 2 0 0 1 2-2h8" }
             }
         },
-        ReviewSelectionAction::Flip => rsx! {
+        ReviewSelectionAction::FlipX => rsx! {
             svg {
                 class: "review-inline-icon-svg",
                 view_box: "0 0 24 24",
@@ -492,6 +517,20 @@ fn review_selection_action_icon(action: ReviewSelectionAction) -> Element {
                 path { d: "M8 7 4 12l4 5" }
                 path { d: "M16 7l4 5-4 5" }
                 path { d: "M12 5v14" }
+            }
+        },
+        ReviewSelectionAction::FlipY => rsx! {
+            svg {
+                class: "review-inline-icon-svg",
+                view_box: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                stroke_width: "1.9",
+                stroke_linecap: "round",
+                stroke_linejoin: "round",
+                path { d: "M7 8 12 4l5 4" }
+                path { d: "m7 16 5 4 5-4" }
+                path { d: "M5 12h14" }
             }
         },
         ReviewSelectionAction::Rotate => rsx! {
