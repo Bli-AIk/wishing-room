@@ -3,7 +3,7 @@ use taled_core::{EditorSession, Layer};
 
 use crate::{
     app_state::{AppState, Tool},
-    edit_ops::{toggle_layer_lock, toggle_layer_visibility},
+    edit_ops::{cancel_tile_selection_transfer, toggle_layer_lock, toggle_layer_visibility},
     mobile_review::render_mobile_shell,
     mobile_review_styles::MOBILE_REVIEW_STYLES,
     session_ops::{adjust_zoom, load_sample, open_document, save_as_document, save_document},
@@ -211,6 +211,7 @@ fn render_layers_section(snapshot: &AppState, mut state: Signal<AppState>) -> El
                             class: "name",
                             onclick: move |_| {
                                 let mut state = state.write();
+                                cancel_tile_selection_transfer(&mut state);
                                 state.active_layer = index;
                                 state.selected_object = None;
                                 state.tile_selection = None;
@@ -248,6 +249,7 @@ fn tool_button(
             class: class,
             onclick: move |_| {
                 let mut state = state.write();
+                cancel_tile_selection_transfer(&mut state);
                 state.tool = tool;
                 state.shape_fill_preview = None;
             },

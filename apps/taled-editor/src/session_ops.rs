@@ -6,7 +6,7 @@ use taled_core::{EditorSession, Layer};
 use crate::embedded_samples::{embedded_sample, embedded_samples};
 #[cfg(target_os = "android")]
 use crate::platform::log_path;
-use crate::{app_state::AppState, platform::log};
+use crate::{app_state::AppState, edit_ops::cancel_tile_selection_transfer, platform::log};
 #[cfg(any(target_arch = "wasm32", target_os = "android"))]
 use crate::{demo::load_embedded_demo_session, platform::EMBEDDED_DEMO_MAP_PATH};
 
@@ -196,6 +196,7 @@ pub(crate) fn save_document(state: &mut AppState) {
 }
 
 pub(crate) fn apply_undo(state: &mut AppState) {
+    cancel_tile_selection_transfer(state);
     let Some(session) = state.session.as_mut() else {
         state.status = "Nothing to undo.".to_string();
         return;
@@ -210,6 +211,7 @@ pub(crate) fn apply_undo(state: &mut AppState) {
 }
 
 pub(crate) fn apply_redo(state: &mut AppState) {
+    cancel_tile_selection_transfer(state);
     let Some(session) = state.session.as_mut() else {
         state.status = "Nothing to redo.".to_string();
         return;
@@ -251,6 +253,7 @@ fn normalize_after_history_change(state: &mut AppState) {
         state.shape_fill_preview = None;
         state.tile_selection = None;
         state.tile_selection_preview = None;
+        state.tile_selection_transfer = None;
         return;
     }
 
@@ -272,6 +275,7 @@ fn normalize_after_history_change(state: &mut AppState) {
     }
     state.shape_fill_preview = None;
     state.tile_selection_preview = None;
+    state.tile_selection_transfer = None;
     if state.tile_selection.is_some()
         && session
             .document()
@@ -310,6 +314,7 @@ fn install_session(state: &mut AppState, session: EditorSession) {
     state.shape_fill_preview = None;
     state.tile_selection = None;
     state.tile_selection_preview = None;
+    state.tile_selection_transfer = None;
     state.layers_panel_expanded = false;
     state.zoom_percent = 100;
     let (default_pan_x, default_pan_y) = default_mobile_center_pan(&session, state.zoom_percent);

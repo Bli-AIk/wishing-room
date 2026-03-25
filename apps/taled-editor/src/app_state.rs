@@ -61,6 +61,7 @@ pub(crate) struct SingleTouchGesture {
     pub(crate) drag_active: bool,
     pub(crate) anchor_cell: Option<(u32, u32)>,
     pub(crate) resize_handle: Option<TileSelectionHandle>,
+    pub(crate) selection_move_drag_offset: Option<(u32, u32)>,
     pub(crate) last_applied_cell: Option<(u32, u32)>,
     pub(crate) last_surface_x: f64,
     pub(crate) last_surface_y: f64,
@@ -101,6 +102,22 @@ pub(crate) struct TileClipboard {
     pub(crate) tiles: Vec<u32>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TileSelectionTransferMode {
+    Copy,
+    Cut,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TileSelectionTransfer {
+    pub(crate) source_layer: usize,
+    pub(crate) source_selection: TileSelectionRegion,
+    pub(crate) width: u32,
+    pub(crate) height: u32,
+    pub(crate) tiles: Vec<u32>,
+    pub(crate) mode: TileSelectionTransferMode,
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct AppState {
     pub(crate) path_input: String,
@@ -115,6 +132,7 @@ pub(crate) struct AppState {
     pub(crate) tile_clipboard: Option<TileClipboard>,
     pub(crate) tile_selection: Option<TileSelectionRegion>,
     pub(crate) tile_selection_preview: Option<TileSelectionRegion>,
+    pub(crate) tile_selection_transfer: Option<TileSelectionTransfer>,
     pub(crate) tool: Tool,
     pub(crate) layers_panel_expanded: bool,
     pub(crate) mobile_screen: MobileScreen,
@@ -159,6 +177,7 @@ impl Default for AppState {
                 tile_clipboard: None,
                 tile_selection: None,
                 tile_selection_preview: None,
+                tile_selection_transfer: None,
                 tool: Tool::Paint,
                 layers_panel_expanded: false,
                 mobile_screen,
@@ -201,6 +220,7 @@ impl Default for AppState {
                 tile_clipboard: None,
                 tile_selection: None,
                 tile_selection_preview: None,
+                tile_selection_transfer: None,
                 tool: Tool::Paint,
                 layers_panel_expanded: false,
                 mobile_screen: MobileScreen::Dashboard,
@@ -247,6 +267,7 @@ impl Default for AppState {
                 tile_clipboard: None,
                 tile_selection: None,
                 tile_selection_preview: None,
+                tile_selection_transfer: None,
                 tool: Tool::Paint,
                 layers_panel_expanded: false,
                 mobile_screen: MobileScreen::Editor,

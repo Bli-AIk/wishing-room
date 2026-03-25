@@ -47,6 +47,8 @@ pub(crate) fn render_canvas(snapshot: &AppState, mut state: Signal<AppState>) ->
     };
     let tile_selection_overlay = active_tile_selection_overlay(document, snapshot);
     let has_tile_selection_overlay = tile_selection_overlay.is_some();
+    let tile_selection_transfer_preview =
+        active_tile_selection_transfer_preview(document, snapshot);
 
     rsx! {
         div {
@@ -208,6 +210,20 @@ pub(crate) fn render_canvas(snapshot: &AppState, mut state: Signal<AppState>) ->
                                         div { class: "tile-selection-handle-dot" }
                                     }
                                 }
+                            }
+                        }
+                    })}
+
+                    {tile_selection_transfer_preview.as_ref().map(|preview| rsx! {
+                        for tile in &preview.tiles {
+                            div {
+                                key: "tile-selection-transfer-preview-{tile.x}-{tile.y}",
+                                class: if tile.fallback {
+                                    "shape-fill-preview-tile fallback"
+                                } else {
+                                    "tile-preview shape-fill-preview-tile"
+                                },
+                                style: "{tile.style}",
                             }
                         }
                     })}
@@ -391,6 +407,10 @@ struct ShapeFillPreviewVisual {
     frame_style: String,
 }
 
+struct TileSelectionTransferPreviewVisual {
+    tiles: Vec<ShapeFillPreviewTile>,
+}
+
 struct ShapeFillPreviewTile {
     x: u32,
     y: u32,
@@ -415,6 +435,7 @@ fn active_tile_selection_overlay(
         document,
         selection,
         snapshot.tile_selection_preview.is_some(),
+        snapshot.tile_selection_transfer.is_some(),
     ))
 }
 
@@ -422,6 +443,7 @@ fn build_tile_selection_overlay(
     document: &EditorDocument,
     selection: TileSelectionRegion,
     preview: bool,
+    transfer_active: bool,
 ) -> TileSelectionOverlayVisual {
     let (min_x, min_y, max_x, max_y) = (
         selection.start_cell.0.min(selection.end_cell.0),
@@ -431,7 +453,8 @@ fn build_tile_selection_overlay(
     );
     let width = (max_x - min_x + 1) * document.map.tile_width;
     let height = (max_y - min_y + 1) * document.map.tile_height;
-    let show_handles = width > document.map.tile_width || height > document.map.tile_height;
+    let show_handles =
+        !transfer_active && (width > document.map.tile_width || height > document.map.tile_height);
     let region_style = preview_frame_style(
         document.map.tile_width,
         document.map.tile_height,
@@ -456,6 +479,46 @@ fn build_tile_selection_overlay(
             Vec::new()
         },
     }
+}
+
+fn active_tile_selection_transfer_preview(
+    document: &EditorDocument,
+    snapshot: &AppState,
+) -> Option<TileSelectionTransferPreviewVisual> {
+    let transfer = snapshot.tile_selection_transfer.as_ref()?;
+    let selection = snapshot.tile_selection?;
+    let (min_x, min_y, _, _) = selection_bounds(selection);
+    let mut tiles = Vec::new();
+
+    for local_y in 0..transfer.height {
+        for local_x in 0..transfer.width {
+            let x = min_x + local_x;
+            let y = min_y + local_y;
+            let gid = transfer.tiles[(local_y * transfer.width + local_x) as usize];
+            if gid == 0 {
+                continue;
+            }
+            let style = preview_tile_style(document, &snapshot.image_cache, gid, x, y)
+                .unwrap_or_else(|| cell_style(document.map.tile_width, document.map.tile_height, x, y));
+            tiles.push(ShapeFillPreviewTile {
+                x,
+                y,
+                style,
+                fallback: document.map.tile_reference_for_gid(gid).is_none(),
+            });
+        }
+    }
+
+    Some(TileSelectionTransferPreviewVisual { tiles })
+}
+
+fn selection_bounds(selection: TileSelectionRegion) -> (u32, u32, u32, u32) {
+    (
+        selection.start_cell.0.min(selection.end_cell.0),
+        selection.start_cell.1.min(selection.end_cell.1),
+        selection.start_cell.0.max(selection.end_cell.0),
+        selection.start_cell.1.max(selection.end_cell.1),
+    )
 }
 
 struct TileSelectionOverlayVisual {

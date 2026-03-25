@@ -10,10 +10,11 @@ use taled_core::{EditorSession, Layer, ObjectShape};
 use crate::{
     app_state::{AppState, MobileScreen, MobileTransition, PaletteTile, TileSelectionRegion, Tool},
     edit_ops::{
-        confirm_tile_selection, copy_tile_selection, create_object, delete_selected_object,
-        delete_tile_selection, flip_tile_selection_horizontally, nudge_selected_object,
-        rename_selected_object, rotate_tile_selection_clockwise, selected_object_view,
-        toggle_layer_lock, toggle_layer_visibility,
+        cancel_tile_selection_transfer, copy_tile_selection, create_object,
+        cut_tile_selection, delete_selected_object, delete_tile_selection,
+        flip_tile_selection_horizontally, nudge_selected_object, rename_selected_object,
+        rotate_tile_selection_clockwise, selected_object_view, toggle_layer_lock,
+        toggle_layer_visibility,
     },
     embedded_samples::{embedded_sample, embedded_sample_thumb, embedded_samples},
     session_ops::{
@@ -333,7 +334,10 @@ fn tile_selection_action_bar(
     let Some(selection) = snapshot.tile_selection else {
         return rsx! { Fragment {} };
     };
-    if snapshot.tile_selection_preview.is_some() || snapshot.tool != Tool::Select {
+    if snapshot.tile_selection_preview.is_some()
+        || snapshot.tile_selection_transfer.is_some()
+        || snapshot.tool != Tool::Select
+    {
         return rsx! { Fragment {} };
     }
     if session
@@ -350,6 +354,12 @@ fn tile_selection_action_bar(
 
     rsx! {
         div { class: "review-selection-actions", style: "{action_bar_style}",
+            {review_selection_action_button(
+                state,
+                ReviewSelectionAction::Cut,
+                "Cut",
+                cut_tile_selection,
+            )}
             {review_selection_action_button(
                 state,
                 ReviewSelectionAction::Copy,
@@ -373,12 +383,6 @@ fn tile_selection_action_bar(
                 ReviewSelectionAction::Delete,
                 "Delete",
                 delete_tile_selection,
-            )}
-            {review_selection_action_button(
-                state,
-                ReviewSelectionAction::Confirm,
-                "Confirm",
-                confirm_tile_selection,
             )}
         }
     }
@@ -422,11 +426,11 @@ fn selection_bounds(selection: TileSelectionRegion) -> (u32, u32, u32, u32) {
 
 #[derive(Clone, Copy)]
 enum ReviewSelectionAction {
+    Cut,
     Copy,
     Flip,
     Rotate,
     Delete,
-    Confirm,
 }
 
 fn review_selection_action_button(
@@ -447,6 +451,22 @@ fn review_selection_action_button(
 
 fn review_selection_action_icon(action: ReviewSelectionAction) -> Element {
     match action {
+        ReviewSelectionAction::Cut => rsx! {
+            svg {
+                class: "review-inline-icon-svg",
+                view_box: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                stroke_width: "1.9",
+                stroke_linecap: "round",
+                stroke_linejoin: "round",
+                path { d: "M4 6l16 12" }
+                path { d: "m4 18 5-5" }
+                path { d: "m15 11 5-5" }
+                circle { cx: "7", cy: "8", r: "2.1" }
+                circle { cx: "7", cy: "16", r: "2.1" }
+            }
+        },
         ReviewSelectionAction::Copy => rsx! {
             svg {
                 class: "review-inline-icon-svg",
@@ -501,18 +521,6 @@ fn review_selection_action_icon(action: ReviewSelectionAction) -> Element {
                 path { d: "M7 7l1 12h8l1-12" }
                 path { d: "M10 11v5" }
                 path { d: "M14 11v5" }
-            }
-        },
-        ReviewSelectionAction::Confirm => rsx! {
-            svg {
-                class: "review-inline-icon-svg",
-                view_box: "0 0 24 24",
-                fill: "none",
-                stroke: "currentColor",
-                stroke_width: "1.9",
-                stroke_linecap: "round",
-                stroke_linejoin: "round",
-                path { d: "m6 12 4 4 8-8" }
             }
         },
     }
@@ -1843,6 +1851,7 @@ fn review_tool_button(
             class: "{class_name}",
             onclick: move |_| {
                 let mut state = state.write();
+                cancel_tile_selection_transfer(&mut state);
                 state.tool = tool;
                 state.shape_fill_preview = None;
                 state.tile_selection_preview = None;
@@ -2277,6 +2286,7 @@ fn toolbar_supports_tool(kind: ReviewToolbarKind, tool: Tool) -> bool {
 }
 
 fn set_review_active_layer_kind(state: &mut AppState, layer_index: usize, kind: ReviewToolbarKind) {
+    cancel_tile_selection_transfer(state);
     state.active_layer = layer_index;
     state.selected_object = None;
     state.shape_fill_preview = None;
