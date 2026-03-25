@@ -91,6 +91,101 @@ fn round_trips_supported_map() {
 }
 
 #[test]
+fn session_history_tracks_undo_and_redo() {
+    let mut session = EditorSession::load(sample_map_path()).expect("sample map should load");
+    let original = session.document().map.layers[0]
+        .as_tile()
+        .expect("tile layer")
+        .tile_at(1, 1)
+        .expect("initial gid");
+    let replacement = if original == 4 { 3 } else { 4 };
+
+    assert!(!session.can_undo());
+    assert!(!session.can_redo());
+
+    session
+        .edit(|document| {
+            let layer = document.map.layers[0].as_tile_mut().expect("tile layer");
+            layer.set_tile(1, 1, replacement)?;
+            Ok(())
+        })
+        .expect("edit should succeed");
+
+    let edited = session.document().map.layers[0]
+        .as_tile()
+        .expect("tile layer")
+        .tile_at(1, 1)
+        .expect("edited gid");
+    assert_eq!(edited, replacement);
+    assert!(session.can_undo());
+    assert!(!session.can_redo());
+
+    assert!(session.undo());
+    let undone = session.document().map.layers[0]
+        .as_tile()
+        .expect("tile layer")
+        .tile_at(1, 1)
+        .expect("undone gid");
+    assert_eq!(undone, original);
+    assert!(!session.can_undo());
+    assert!(session.can_redo());
+
+    assert!(session.redo());
+    let redone = session.document().map.layers[0]
+        .as_tile()
+        .expect("tile layer")
+        .tile_at(1, 1)
+        .expect("redone gid");
+    assert_eq!(redone, replacement);
+    assert!(session.can_undo());
+    assert!(!session.can_redo());
+}
+
+#[test]
+fn history_batch_groups_multiple_tile_edits() {
+    let mut session = EditorSession::load(sample_map_path()).expect("sample map should load");
+    let original_a = session.document().map.layers[0]
+        .as_tile()
+        .expect("tile layer")
+        .tile_at(0, 0)
+        .expect("initial gid");
+    let original_b = session.document().map.layers[0]
+        .as_tile()
+        .expect("tile layer")
+        .tile_at(1, 0)
+        .expect("initial gid");
+
+    session.begin_history_batch();
+    session
+        .edit(|document| {
+            let layer = document.map.layers[0].as_tile_mut().expect("tile layer");
+            layer.set_tile(0, 0, 4)?;
+            Ok(())
+        })
+        .expect("first batched edit");
+    session
+        .edit(|document| {
+            let layer = document.map.layers[0].as_tile_mut().expect("tile layer");
+            layer.set_tile(1, 0, 3)?;
+            Ok(())
+        })
+        .expect("second batched edit");
+
+    assert!(session.finish_history_batch());
+    assert!(session.can_undo());
+    assert!(!session.can_redo());
+
+    assert!(session.undo());
+    let tile_layer = session.document().map.layers[0]
+        .as_tile()
+        .expect("tile layer");
+    assert_eq!(tile_layer.tile_at(0, 0), Some(original_a));
+    assert_eq!(tile_layer.tile_at(1, 0), Some(original_b));
+    assert!(!session.can_undo());
+    assert!(session.can_redo());
+}
+
+#[test]
 fn loads_tmwa_sample_with_inferred_tileset_metrics() {
     let session = EditorSession::load(tmwa_sample_path()).expect("tmwa map should load");
     let document = session.document();

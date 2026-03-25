@@ -365,6 +365,37 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
     user-select: none;
     -webkit-user-select: none;
   }
+  .review-history-float {
+    left: 18px;
+    top: 4.5px;
+    position: absolute;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    backdrop-filter: none;
+    z-index: 12;
+  }
+  .review-history-button {
+    width: 38px;
+    height: 38px;
+    display: grid;
+    place-items: center;
+    border: none;
+    border-radius: 999px;
+    background: rgba(28, 28, 30, 0.86);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.22);
+    color: rgba(255,255,255,0.92);
+    padding: 0;
+  }
+  .review-history-button.disabled {
+    color: rgba(255,255,255,0.34);
+    background: rgba(28, 28, 30, 0.58);
+  }
   .review-pan-joystick-ring,
   .review-pan-joystick-center-mark,
   .review-pan-joystick-knob,

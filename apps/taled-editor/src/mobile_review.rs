@@ -16,7 +16,8 @@ use crate::{
     embedded_samples::{embedded_sample, embedded_sample_thumb, embedded_samples},
     session_ops::{
         adjust_zoom, adjust_zoom_around_view_center, animate_camera_to_center,
-        animate_camera_to_fit_map, load_embedded_sample, load_sample, save_document,
+        animate_camera_to_fit_map, apply_redo, apply_undo, load_embedded_sample,
+        load_sample, save_document,
     },
     ui_inspector::collect_palette,
     ui_visuals::{object_icon_style, palette_tile_style},
@@ -174,6 +175,8 @@ fn render_editor(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
         .layer(snapshot.active_layer)
         .map(|layer| (layer.name().to_string(), layer_kind_label(layer)))
         .unwrap_or_else(|| ("No layer".to_string(), "Unavailable"));
+    let can_undo = session.can_undo();
+    let can_redo = session.can_redo();
     let palette: Vec<PaletteTile> = collect_palette(session.document())
         .into_iter()
         .take(24)
@@ -211,6 +214,30 @@ fn render_editor(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
             div { class: "review-editor-canvas", style: grid_style,
                 div { class: "review-map-surface review-map-live",
                     {crate::ui_canvas::render_canvas(snapshot, state)}
+                }
+                div { class: "review-history-float",
+                    button {
+                        class: if can_undo {
+                            "review-history-button"
+                        } else {
+                            "review-history-button disabled"
+                        },
+                        disabled: !can_undo,
+                        onclick: move |_| apply_undo(&mut state.write()),
+                        aria_label: "Undo",
+                        {review_history_icon(true)}
+                    }
+                    button {
+                        class: if can_redo {
+                            "review-history-button"
+                        } else {
+                            "review-history-button disabled"
+                        },
+                        disabled: !can_redo,
+                        onclick: move |_| apply_redo(&mut state.write()),
+                        aria_label: "Redo",
+                        {review_history_icon(false)}
+                    }
                 }
                 ReviewPanJoystick { state }
                 ReviewZoomControl { zoom_percent: snapshot.zoom_percent, state }
@@ -906,12 +933,7 @@ fn render_properties(snapshot: &AppState, mut state: Signal<AppState>) -> Elemen
                         button {
                             class: "review-link-button",
                             onclick: move |_| {
-                                let mut state = state.write();
-                                if state.session.as_mut().is_some_and(EditorSession::undo) {
-                                    state.status = "Undo applied.".to_string();
-                                } else {
-                                    state.status = "Nothing to undo.".to_string();
-                                }
+                                apply_undo(&mut state.write());
                             },
                             "Run"
                         }
@@ -921,12 +943,7 @@ fn render_properties(snapshot: &AppState, mut state: Signal<AppState>) -> Elemen
                         button {
                             class: "review-link-button",
                             onclick: move |_| {
-                                let mut state = state.write();
-                                if state.session.as_mut().is_some_and(EditorSession::redo) {
-                                    state.status = "Redo applied.".to_string();
-                                } else {
-                                    state.status = "Nothing to redo.".to_string();
-                                }
+                                apply_redo(&mut state.write());
                             },
                             "Run"
                         }
@@ -1403,6 +1420,33 @@ fn review_lock_icon(locked: bool) -> Element {
                 rect { x: "5", y: "11", width: "14", height: "9", rx: "2" }
                 path { d: "M8 11V8.6A4 4 0 0 1 12 5a4 4 0 0 1 4 3.6" }
             }
+        }
+    }
+}
+
+fn review_history_icon(is_undo: bool) -> Element {
+    let d = if is_undo {
+        "M10 8 6 12l4 4"
+    } else {
+        "m14 8 4 4-4 4"
+    };
+    let tail = if is_undo {
+        "M7 12h7a4 4 0 1 1 0 8"
+    } else {
+        "M17 12h-7a4 4 0 1 0 0 8"
+    };
+
+    rsx! {
+        svg {
+            class: "review-inline-icon-svg",
+            view_box: "0 0 24 24",
+            fill: "none",
+            stroke: "currentColor",
+            stroke_width: "1.9",
+            stroke_linecap: "round",
+            stroke_linejoin: "round",
+            path { d: "{d}" }
+            path { d: "{tail}" }
         }
     }
 }

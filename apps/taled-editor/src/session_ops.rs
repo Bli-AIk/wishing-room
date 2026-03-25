@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use taled_core::EditorSession;
+use taled_core::{EditorSession, Layer};
 
 #[cfg(any(target_arch = "wasm32", target_os = "android"))]
 use crate::embedded_samples::{embedded_sample, embedded_samples};
@@ -9,8 +9,6 @@ use crate::platform::log_path;
 use crate::{app_state::AppState, platform::log};
 #[cfg(any(target_arch = "wasm32", target_os = "android"))]
 use crate::{demo::load_embedded_demo_session, platform::EMBEDDED_DEMO_MAP_PATH};
-#[cfg(any(target_arch = "wasm32", target_os = "android"))]
-use taled_core::Layer;
 
 #[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
 pub(crate) fn open_document(state: &mut AppState) {
@@ -197,6 +195,34 @@ pub(crate) fn save_document(state: &mut AppState) {
     }
 }
 
+pub(crate) fn apply_undo(state: &mut AppState) {
+    let Some(session) = state.session.as_mut() else {
+        state.status = "Nothing to undo.".to_string();
+        return;
+    };
+
+    if session.undo() {
+        normalize_after_history_change(state);
+        state.status = "Undo applied.".to_string();
+    } else {
+        state.status = "Nothing to undo.".to_string();
+    }
+}
+
+pub(crate) fn apply_redo(state: &mut AppState) {
+    let Some(session) = state.session.as_mut() else {
+        state.status = "Nothing to redo.".to_string();
+        return;
+    };
+
+    if session.redo() {
+        normalize_after_history_change(state);
+        state.status = "Redo applied.".to_string();
+    } else {
+        state.status = "Nothing to redo.".to_string();
+    }
+}
+
 pub(crate) fn save_as_document(state: &mut AppState) {
     let Some(session) = state.session.as_mut() else {
         state.status = "Nothing to save.".to_string();
@@ -209,6 +235,37 @@ pub(crate) fn save_as_document(state: &mut AppState) {
             state.status = format!("Saved as {}.", state.save_as_input);
         }
         Err(error) => state.status = format!("Save-as failed: {error}"),
+    }
+}
+
+fn normalize_after_history_change(state: &mut AppState) {
+    let Some(session) = state.session.as_ref() else {
+        return;
+    };
+
+    let layer_count = session.document().map.layers.len();
+    if layer_count == 0 {
+        state.active_layer = 0;
+        state.selected_object = None;
+        state.selected_cell = None;
+        return;
+    }
+
+    if state.active_layer >= layer_count {
+        state.active_layer = layer_count - 1;
+    }
+
+    if let Some(object_id) = state.selected_object {
+        let object_still_exists = session
+            .document()
+            .map
+            .layer(state.active_layer)
+            .and_then(Layer::as_object)
+            .and_then(|layer| layer.object(object_id))
+            .is_some();
+        if !object_still_exists {
+            state.selected_object = None;
+        }
     }
 }
 
@@ -246,6 +303,7 @@ fn install_session(state: &mut AppState, session: EditorSession) {
     state.active_touch_points.clear();
     state.single_touch_gesture = None;
     state.pinch_gesture = None;
+    state.touch_edit_batch_active = false;
     state.suppress_click_until = None;
     state.canvas_host_scroll_offset = (0.0, 0.0);
     state.canvas_host_size = None;

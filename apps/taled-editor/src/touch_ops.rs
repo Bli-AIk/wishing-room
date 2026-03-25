@@ -38,12 +38,14 @@ pub(crate) fn handle_touch_pointer_down(state: &mut AppState, event: Event<Point
     log_touch_probe(state, &event, "down", point.x, point.y);
 
     if state.active_touch_points.len() >= 2 {
+        finish_touch_edit_batch(state);
         state.single_touch_gesture = None;
         initialize_pinch_gesture(state);
         return;
     }
 
     state.pinch_gesture = None;
+    start_touch_edit_batch(state);
     state.single_touch_gesture = Some(SingleTouchGesture {
         pointer_id: event.pointer_id(),
         started_at: Instant::now(),
@@ -146,6 +148,8 @@ pub(crate) fn handle_touch_pointer_up(state: &mut AppState, event: Event<Pointer
     if should_apply {
         apply_touch_tool(state, point.x, point.y);
     }
+
+    finish_touch_edit_batch(state);
 }
 
 pub(crate) fn handle_touch_pointer_cancel(state: &mut AppState, event: Event<PointerData>) {
@@ -159,6 +163,7 @@ pub(crate) fn handle_touch_pointer_cancel(state: &mut AppState, event: Event<Poi
     if state.active_touch_points.len() < 2 {
         state.pinch_gesture = None;
     }
+    abort_touch_edit_batch(state);
 }
 
 fn finalize_single_touch_if_needed(state: &mut AppState, pointer_id: i32, x: f64, y: f64) -> bool {
@@ -267,6 +272,43 @@ fn hit_test_object(state: &AppState, world_x: f64, world_y: f64) -> Option<(usiz
 
 fn tool_supports_drag(tool: Tool) -> bool {
     matches!(tool, Tool::Paint | Tool::Erase)
+}
+
+fn tool_batches_history(tool: Tool) -> bool {
+    matches!(tool, Tool::Paint | Tool::Erase)
+}
+
+fn start_touch_edit_batch(state: &mut AppState) {
+    if state.touch_edit_batch_active || !tool_batches_history(state.tool) {
+        return;
+    }
+    let Some(session) = state.session.as_mut() else {
+        return;
+    };
+    session.begin_history_batch();
+    state.touch_edit_batch_active = true;
+}
+
+fn finish_touch_edit_batch(state: &mut AppState) {
+    if !state.touch_edit_batch_active {
+        return;
+    }
+    if let Some(session) = state.session.as_mut()
+        && session.finish_history_batch()
+    {
+        state.status = "Edit applied.".to_string();
+    }
+    state.touch_edit_batch_active = false;
+}
+
+fn abort_touch_edit_batch(state: &mut AppState) {
+    if !state.touch_edit_batch_active {
+        return;
+    }
+    if let Some(session) = state.session.as_mut() {
+        session.abort_history_batch();
+    }
+    state.touch_edit_batch_active = false;
 }
 
 fn suppress_synthetic_click(state: &mut AppState) {

@@ -61,6 +61,7 @@ pub struct EditorSession {
     document: EditorDocument,
     undo_stack: Vec<EditorDocument>,
     redo_stack: Vec<EditorDocument>,
+    history_batch: Option<EditorDocument>,
     asset_source: AssetSource,
     dirty: bool,
 }
@@ -73,6 +74,7 @@ impl EditorSession {
             document: EditorDocument { file_path, map },
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
+            history_batch: None,
             asset_source: AssetSource::FileSystem,
             dirty: false,
         })
@@ -96,6 +98,7 @@ impl EditorSession {
             document: EditorDocument { file_path, map },
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
+            history_batch: None,
             asset_source: AssetSource::Embedded(assets),
             dirty: false,
         })
@@ -141,10 +144,44 @@ impl EditorSession {
     {
         let snapshot = self.document.clone();
         edit(&mut self.document)?;
+        if self.history_batch.is_some() {
+            if self.document != snapshot {
+                self.dirty = true;
+            }
+            return Ok(());
+        }
+
+        if self.document != snapshot {
+            self.undo_stack.push(snapshot);
+            self.redo_stack.clear();
+            self.dirty = true;
+        }
+        Ok(())
+    }
+
+    pub fn begin_history_batch(&mut self) {
+        if self.history_batch.is_none() {
+            self.history_batch = Some(self.document.clone());
+        }
+    }
+
+    pub fn finish_history_batch(&mut self) -> bool {
+        let Some(snapshot) = self.history_batch.take() else {
+            return false;
+        };
+
+        if snapshot == self.document {
+            return false;
+        }
+
         self.undo_stack.push(snapshot);
         self.redo_stack.clear();
         self.dirty = true;
-        Ok(())
+        true
+    }
+
+    pub fn abort_history_batch(&mut self) {
+        self.history_batch = None;
     }
 
     pub fn undo(&mut self) -> bool {
@@ -157,6 +194,14 @@ impl EditorSession {
         self.document = previous;
         self.dirty = true;
         true
+    }
+
+    pub fn can_undo(&self) -> bool {
+        !self.undo_stack.is_empty()
+    }
+
+    pub fn can_redo(&self) -> bool {
+        !self.redo_stack.is_empty()
     }
 
     pub fn redo(&mut self) -> bool {
