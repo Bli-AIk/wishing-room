@@ -7,9 +7,10 @@ use taled_core::ObjectShape;
 use crate::platform::log;
 use crate::{
     app_state::{
-        ActiveTouchPointer, AppState, PinchGesture, ShapeFillPreview, SingleTouchGesture, Tool,
+        ActiveTouchPointer, AppState, PinchGesture, ShapeFillPreview, SingleTouchGesture,
+        TileSelectionRegion, Tool,
     },
-    edit_ops::{apply_cell_tool, apply_shape_fill_rect},
+    edit_ops::{apply_cell_tool, apply_shape_fill_rect, select_tile_region},
 };
 
 const LONG_PRESS_DURATION: Duration = Duration::from_millis(260);
@@ -49,17 +50,26 @@ pub(crate) fn handle_touch_pointer_down(state: &mut AppState, event: Event<Point
 
     state.pinch_gesture = None;
     start_touch_edit_batch(state);
+    let anchor_cell = cell_from_surface(state, point.x, point.y);
     state.single_touch_gesture = Some(SingleTouchGesture {
         pointer_id: event.pointer_id(),
         started_at: Instant::now(),
         drag_active: false,
-        anchor_cell: cell_from_surface(state, point.x, point.y),
+        anchor_cell,
         last_applied_cell: None,
         last_surface_x: point.x,
         last_surface_y: point.y,
     });
     state.shape_fill_preview = if state.tool == Tool::ShapeFill {
-        cell_from_surface(state, point.x, point.y).map(|cell| ShapeFillPreview {
+        anchor_cell.map(|cell| ShapeFillPreview {
+            start_cell: cell,
+            end_cell: cell,
+        })
+    } else {
+        None
+    };
+    state.tile_selection_preview = if selects_tile_region(state) {
+        anchor_cell.map(|cell| TileSelectionRegion {
             start_cell: cell,
             end_cell: cell,
         })
@@ -105,6 +115,31 @@ pub(crate) fn handle_touch_pointer_move(state: &mut AppState, event: Event<Point
             state.pan_y += delta_y.round() as i32;
             log_touch_resolution(state, "hand-pan", point.x, point.y);
         }
+        return;
+    }
+
+    if selects_tile_region(state) {
+        let hit_cell = cell_from_surface(state, point.x, point.y);
+        let Some(gesture) = state.single_touch_gesture.as_mut() else {
+            return;
+        };
+        if gesture.pointer_id != event.pointer_id() {
+            return;
+        }
+        if hit_cell.is_some() {
+            gesture.drag_active = true;
+        }
+        state.tile_selection_preview = match (gesture.anchor_cell, hit_cell) {
+            (Some(start_cell), Some(end_cell)) => Some(TileSelectionRegion {
+                start_cell,
+                end_cell,
+            }),
+            (Some(start_cell), None) => Some(TileSelectionRegion {
+                start_cell,
+                end_cell: start_cell,
+            }),
+            _ => None,
+        };
         return;
     }
 
@@ -186,6 +221,7 @@ pub(crate) fn handle_touch_pointer_up(state: &mut AppState, event: Event<Pointer
     }
     state.single_touch_gesture = None;
     state.shape_fill_preview = None;
+    state.tile_selection_preview = None;
 
     if should_apply {
         apply_touch_tool(state, point.x, point.y, anchor_cell);
@@ -203,6 +239,7 @@ pub(crate) fn handle_touch_pointer_cancel(state: &mut AppState, event: Event<Poi
     remove_touch_point(state, event.pointer_id());
     state.single_touch_gesture = None;
     state.shape_fill_preview = None;
+    state.tile_selection_preview = None;
     if state.active_touch_points.len() < 2 {
         state.pinch_gesture = None;
     }
@@ -219,6 +256,9 @@ fn finalize_single_touch_if_needed(state: &mut AppState, pointer_id: i32, x: f64
     };
     if gesture.pointer_id != pointer_id {
         return false;
+    }
+    if selects_tile_region(state) {
+        return gesture.anchor_cell.is_some() && cell_from_surface(state, x, y).is_some();
     }
     if state.tool == Tool::ShapeFill {
         return gesture.anchor_cell.is_some() && cell_from_surface(state, x, y).is_some();
@@ -244,7 +284,17 @@ fn apply_touch_tool(
     log_touch_resolution(state, "apply", x, y);
     match state.tool {
         Tool::Hand => {}
-        Tool::Select => select_at_point(state, x, y),
+        Tool::Select => {
+            if selects_tile_region(state) {
+                let Some((end_x, end_y)) = cell_from_surface(state, x, y) else {
+                    return;
+                };
+                let (start_x, start_y) = anchor_cell.unwrap_or((end_x, end_y));
+                select_tile_region(state, start_x, start_y, end_x, end_y);
+            } else {
+                select_at_point(state, x, y);
+            }
+        }
         Tool::ShapeFill => {
             let Some((end_x, end_y)) = cell_from_surface(state, x, y) else {
                 return;
@@ -266,6 +316,8 @@ fn select_at_point(state: &mut AppState, x: f64, y: f64) {
     let Some((world_x, world_y)) = world_coordinates_from_surface(state, x, y) else {
         state.selected_cell = None;
         state.selected_object = None;
+        state.tile_selection = None;
+        state.tile_selection_preview = None;
         return;
     };
 
@@ -273,15 +325,28 @@ fn select_at_point(state: &mut AppState, x: f64, y: f64) {
         state.active_layer = layer_index;
         state.selected_object = Some(object_id);
         state.selected_cell = cell_from_surface(state, x, y);
+        state.tile_selection = None;
+        state.tile_selection_preview = None;
         state.status = format!("Selected object {object_id}.");
         return;
     }
 
     state.selected_object = None;
+    state.tile_selection = None;
+    state.tile_selection_preview = None;
     state.selected_cell = cell_from_surface(state, x, y);
     if let Some((cell_x, cell_y)) = state.selected_cell {
         state.status = format!("Selected cell ({cell_x}, {cell_y}).");
     }
+}
+
+fn selects_tile_region(state: &AppState) -> bool {
+    state.tool == Tool::Select
+        && state
+            .session
+            .as_ref()
+            .and_then(|session| session.document().map.layer(state.active_layer))
+            .is_some_and(|layer| layer.as_tile().is_some())
 }
 
 fn hit_test_object(state: &AppState, world_x: f64, world_y: f64) -> Option<(usize, u32)> {

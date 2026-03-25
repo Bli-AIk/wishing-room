@@ -4,7 +4,7 @@ use dioxus::prelude::*;
 use taled_core::{EditorDocument, ObjectShape};
 
 use crate::{
-    app_state::{AppState, Tool},
+    app_state::{AppState, TileSelectionRegion, Tool},
     edit_ops::apply_cell_tool,
     platform::log,
     touch_ops::{
@@ -45,6 +45,8 @@ pub(crate) fn render_canvas(snapshot: &AppState, mut state: Signal<AppState>) ->
     } else {
         None
     };
+    let tile_selection_overlay = active_tile_selection_overlay(document, snapshot);
+    let has_tile_selection_overlay = tile_selection_overlay.is_some();
 
     rsx! {
         div {
@@ -160,6 +162,8 @@ pub(crate) fn render_canvas(snapshot: &AppState, mut state: Signal<AppState>) ->
                                                 }
                                                 state.active_layer = layer_index;
                                                 state.selected_object = Some(object_id);
+                                                state.tile_selection = None;
+                                                state.tile_selection_preview = None;
                                             }
                                         }
                                     }
@@ -186,11 +190,36 @@ pub(crate) fn render_canvas(snapshot: &AppState, mut state: Signal<AppState>) ->
                         }
                     })}
 
+                    {tile_selection_overlay.as_ref().map(|overlay| rsx! {
+                        div {
+                            class: if overlay.preview {
+                                "tile-selection-region preview"
+                            } else {
+                                "tile-selection-region"
+                            },
+                            style: "{overlay.region_style}",
+                            div { class: "tile-selection-frame" }
+                            if overlay.show_handles {
+                                for handle in &overlay.handles {
+                                    div {
+                                        key: "tile-selection-handle-{handle.position}",
+                                        class: "tile-selection-handle {handle.position}",
+                                        style: "{handle.style}",
+                                    }
+                                }
+                            }
+                        }
+                    })}
+
                     for y in 0..map.height {
                         for x in 0..map.width {
                             div {
                                 key: "cell-{x}-{y}",
-                                class: if snapshot.selected_cell == Some((x, y)) { "cell-hitbox selected" } else { "cell-hitbox" },
+                                class: if !has_tile_selection_overlay && snapshot.selected_cell == Some((x, y)) {
+                                    "cell-hitbox selected"
+                                } else {
+                                    "cell-hitbox"
+                                },
                                 style: cell_style(map.tile_width, map.tile_height, x, y),
                                 onclick: move |_| {
                                     let mut state = state.write();
@@ -366,4 +395,82 @@ struct ShapeFillPreviewTile {
     y: u32,
     style: String,
     fallback: bool,
+}
+
+fn active_tile_selection_overlay(
+    document: &EditorDocument,
+    snapshot: &AppState,
+) -> Option<TileSelectionOverlayVisual> {
+    if snapshot.tool != Tool::Select {
+        return None;
+    }
+    let active_layer = document.map.layer(snapshot.active_layer)?;
+    active_layer.as_tile()?;
+
+    let selection = snapshot
+        .tile_selection_preview
+        .or(snapshot.tile_selection)?;
+    Some(build_tile_selection_overlay(
+        document,
+        selection,
+        snapshot.tile_selection_preview.is_some(),
+    ))
+}
+
+fn build_tile_selection_overlay(
+    document: &EditorDocument,
+    selection: TileSelectionRegion,
+    preview: bool,
+) -> TileSelectionOverlayVisual {
+    let (min_x, min_y, max_x, max_y) = (
+        selection.start_cell.0.min(selection.end_cell.0),
+        selection.start_cell.1.min(selection.end_cell.1),
+        selection.start_cell.0.max(selection.end_cell.0),
+        selection.start_cell.1.max(selection.end_cell.1),
+    );
+    let width = (max_x - min_x + 1) * document.map.tile_width;
+    let height = (max_y - min_y + 1) * document.map.tile_height;
+    let show_handles = width > document.map.tile_width || height > document.map.tile_height;
+    let region_style = preview_frame_style(
+        document.map.tile_width,
+        document.map.tile_height,
+        min_x,
+        min_y,
+        max_x,
+        max_y,
+    );
+
+    TileSelectionOverlayVisual {
+        preview,
+        region_style,
+        show_handles,
+        handles: if show_handles {
+            vec![
+                TileSelectionHandleVisual::new("top-left", "left:-5px;top:-5px;"),
+                TileSelectionHandleVisual::new("top-right", "right:-5px;top:-5px;"),
+                TileSelectionHandleVisual::new("bottom-left", "left:-5px;bottom:-5px;"),
+                TileSelectionHandleVisual::new("bottom-right", "right:-5px;bottom:-5px;"),
+            ]
+        } else {
+            Vec::new()
+        },
+    }
+}
+
+struct TileSelectionOverlayVisual {
+    preview: bool,
+    region_style: String,
+    show_handles: bool,
+    handles: Vec<TileSelectionHandleVisual>,
+}
+
+struct TileSelectionHandleVisual {
+    position: &'static str,
+    style: &'static str,
+}
+
+impl TileSelectionHandleVisual {
+    const fn new(position: &'static str, style: &'static str) -> Self {
+        Self { position, style }
+    }
 }

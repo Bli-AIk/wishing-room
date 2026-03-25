@@ -213,6 +213,8 @@ fn render_layers_section(snapshot: &AppState, mut state: Signal<AppState>) -> El
                                 let mut state = state.write();
                                 state.active_layer = index;
                                 state.selected_object = None;
+                                state.tile_selection = None;
+                                state.tile_selection_preview = None;
                             },
                             span { class: "layer-name-stack",
                                 span { "{layer.name()}" }

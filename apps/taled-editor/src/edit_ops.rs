@@ -77,10 +77,42 @@ pub(crate) fn apply_cell_tool(state: &mut AppState, x: u32, y: u32) {
         }
         Tool::Fill => apply_fill(state, x, y),
         Tool::ShapeFill => apply_shape_fill_rect(state, x, y, x, y),
-        Tool::Select => {}
+        Tool::Select => {
+            if state
+                .session
+                .as_ref()
+                .and_then(|session| session.document().map.layer(layer_index))
+                .is_some_and(|layer| layer.as_tile().is_some())
+            {
+                select_tile_region(state, x, y, x, y);
+            }
+        }
         Tool::AddRectangle => create_object_at(state, ObjectShape::Rectangle, x, y),
         Tool::AddPoint => create_object_at(state, ObjectShape::Point, x, y),
     }
+}
+
+pub(crate) fn select_tile_region(
+    state: &mut AppState,
+    start_x: u32,
+    start_y: u32,
+    end_x: u32,
+    end_y: u32,
+) {
+    state.tile_selection = Some(crate::app_state::TileSelectionRegion {
+        start_cell: (start_x, start_y),
+        end_cell: (end_x, end_y),
+    });
+    state.tile_selection_preview = None;
+    state.selected_object = None;
+    state.selected_cell = None;
+
+    let width = start_x.abs_diff(end_x) + 1;
+    let height = start_y.abs_diff(end_y) + 1;
+    state.status = format!(
+        "Selected region {}x{} from ({}, {}) to ({}, {}).",
+        width, height, start_x, start_y, end_x, end_y
+    );
 }
 
 pub(crate) fn apply_shape_fill_rect(
@@ -503,7 +535,7 @@ mod tests {
 
     use taled_core::EditorSession;
 
-    use super::{apply_cell_tool, apply_shape_fill_rect};
+    use super::{apply_cell_tool, apply_shape_fill_rect, select_tile_region};
     use crate::app_state::{AppState, Tool};
 
     fn sample_map_path() -> PathBuf {
@@ -581,5 +613,23 @@ mod tests {
         assert_eq!(layer.tile_at(5, 4), Some(2));
         assert!(session.can_undo());
         assert!(!session.can_redo());
+    }
+
+    #[test]
+    fn tile_region_selection_tracks_multicell_bounds() {
+        let mut state = test_state(Tool::Select, 1);
+
+        select_tile_region(&mut state, 2, 3, 5, 7);
+
+        assert_eq!(
+            state.tile_selection,
+            Some(crate::app_state::TileSelectionRegion {
+                start_cell: (2, 3),
+                end_cell: (5, 7),
+            })
+        );
+        assert_eq!(state.tile_selection_preview, None);
+        assert_eq!(state.selected_cell, None);
+        assert!(state.status.contains("4x5"));
     }
 }

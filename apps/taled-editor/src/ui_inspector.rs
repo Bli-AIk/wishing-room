@@ -88,7 +88,12 @@ pub(crate) fn render_inspector(snapshot: &AppState, mut state: Signal<AppState>)
                                     class: if selected_object_id == Some(object.id) { "active" } else { "" },
                                     onclick: {
                                         let object_id = object.id;
-                                        move |_| state.write().selected_object = Some(object_id)
+                                        move |_| {
+                                            let mut state = state.write();
+                                            state.selected_object = Some(object_id);
+                                            state.tile_selection = None;
+                                            state.tile_selection_preview = None;
+                                        }
                                     },
                                     span {
                                         class: "object-shape-icon",

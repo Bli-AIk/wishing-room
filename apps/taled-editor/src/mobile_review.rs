@@ -864,6 +864,8 @@ fn render_objects(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
                                         ReviewToolbarKind::Object,
                                     );
                                     state.selected_object = Some(entry.object_id);
+                                    state.tile_selection = None;
+                                    state.tile_selection_preview = None;
                                 }
                             },
                             span {
@@ -1646,6 +1648,7 @@ fn review_tool_button(
                 let mut state = state.write();
                 state.tool = tool;
                 state.shape_fill_preview = None;
+                state.tile_selection_preview = None;
             },
             div { class: "review-tool-icon", {review_tool_icon(&glyph)} }
             span { "{label}" }
@@ -2082,6 +2085,8 @@ fn set_review_active_layer_kind(
     state.active_layer = layer_index;
     state.selected_object = None;
     state.shape_fill_preview = None;
+    state.tile_selection = None;
+    state.tile_selection_preview = None;
     if !toolbar_supports_tool(kind, state.tool) {
         state.tool = match kind {
             ReviewToolbarKind::Tile => Tool::Paint,

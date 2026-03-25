@@ -190,6 +190,49 @@ pub(crate) const STYLES: &str = r#"
     border: 0.5px solid rgba(203, 213, 225, 0.56);
     background: rgba(203, 213, 225, 0.045);
   }
+  .tile-selection-region,
+  .tile-selection-frame,
+  .tile-selection-handle {
+    position: absolute;
+    box-sizing: border-box;
+    pointer-events: none;
+  }
+  .tile-selection-region {
+    z-index: 6;
+    background: rgba(58, 174, 255, 0.16);
+    box-shadow:
+      inset 0 0 0 0.5px rgba(58, 174, 255, 0.92),
+      0 0 10px rgba(58, 174, 255, 0.18);
+    animation: tile-selection-fade-in 160ms ease-out;
+  }
+  .tile-selection-region.preview {
+    background: rgba(58, 174, 255, 0.11);
+    box-shadow:
+      inset 0 0 0 0.5px rgba(58, 174, 255, 0.74),
+      0 0 8px rgba(58, 174, 255, 0.14);
+  }
+  .tile-selection-frame {
+    inset: 0;
+    border: 0.5px solid rgba(90, 196, 255, 0.94);
+  }
+  .tile-selection-handle {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: #eef8ff;
+    border: 0.5px solid rgba(90, 196, 255, 0.98);
+    box-shadow:
+      0 0 0 1px rgba(28, 106, 158, 0.52),
+      0 0 10px rgba(58, 174, 255, 0.24);
+  }
+  @keyframes tile-selection-fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
   .canvas.camera-transition {
     transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
   }
