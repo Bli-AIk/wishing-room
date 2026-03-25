@@ -73,6 +73,12 @@ pub(crate) struct PinchGesture {
     pub(crate) world_center_y: f64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ShapeFillPreview {
+    pub(crate) start_cell: (u32, u32),
+    pub(crate) end_cell: (u32, u32),
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct AppState {
     pub(crate) path_input: String,
@@ -83,6 +89,7 @@ pub(crate) struct AppState {
     pub(crate) selected_gid: u32,
     pub(crate) selected_cell: Option<(u32, u32)>,
     pub(crate) selected_object: Option<u32>,
+    pub(crate) shape_fill_preview: Option<ShapeFillPreview>,
     pub(crate) tool: Tool,
     pub(crate) layers_panel_expanded: bool,
     pub(crate) mobile_screen: MobileScreen,
@@ -123,6 +130,7 @@ impl Default for AppState {
                 selected_gid: 0,
                 selected_cell: None,
                 selected_object: None,
+                shape_fill_preview: None,
                 tool: Tool::Paint,
                 layers_panel_expanded: false,
                 mobile_screen,
@@ -161,6 +169,7 @@ impl Default for AppState {
                 selected_gid: 0,
                 selected_cell: None,
                 selected_object: None,
+                shape_fill_preview: None,
                 tool: Tool::Paint,
                 layers_panel_expanded: false,
                 mobile_screen: MobileScreen::Dashboard,
@@ -203,6 +212,7 @@ impl Default for AppState {
                 selected_gid: 0,
                 selected_cell: None,
                 selected_object: None,
+                shape_fill_preview: None,
                 tool: Tool::Paint,
                 layers_panel_expanded: false,
                 mobile_screen: MobileScreen::Editor,

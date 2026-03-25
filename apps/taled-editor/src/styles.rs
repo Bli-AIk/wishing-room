@@ -167,12 +167,28 @@ pub(crate) const STYLES: &str = r#"
     transform-origin: top left;
     touch-action: none;
   }
-  .tile-sprite, .cell-hitbox, .object-overlay {
+  .tile-sprite, .tile-preview, .shape-fill-preview-frame, .cell-hitbox, .object-overlay {
     position: absolute;
     box-sizing: border-box;
   }
   .tile-sprite {
     z-index: 1;
+  }
+  .tile-preview,
+  .shape-fill-preview-tile {
+    position: absolute;
+    box-sizing: border-box;
+    z-index: 4;
+    pointer-events: none;
+  }
+  .shape-fill-preview-tile.fallback {
+    background: rgba(203, 213, 225, 0.20);
+  }
+  .shape-fill-preview-frame {
+    z-index: 5;
+    pointer-events: none;
+    border: 1px solid rgba(203, 213, 225, 0.62);
+    background: rgba(203, 213, 225, 0.06);
   }
   .canvas.camera-transition {
     transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);

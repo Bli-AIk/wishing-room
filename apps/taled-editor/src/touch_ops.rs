@@ -6,7 +6,9 @@ use taled_core::ObjectShape;
 #[cfg(target_os = "android")]
 use crate::platform::log;
 use crate::{
-    app_state::{ActiveTouchPointer, AppState, PinchGesture, SingleTouchGesture, Tool},
+    app_state::{
+        ActiveTouchPointer, AppState, PinchGesture, ShapeFillPreview, SingleTouchGesture, Tool,
+    },
     edit_ops::{apply_cell_tool, apply_shape_fill_rect},
 };
 
@@ -40,6 +42,7 @@ pub(crate) fn handle_touch_pointer_down(state: &mut AppState, event: Event<Point
     if state.active_touch_points.len() >= 2 {
         finish_touch_edit_batch(state);
         state.single_touch_gesture = None;
+        state.shape_fill_preview = None;
         initialize_pinch_gesture(state);
         return;
     }
@@ -55,6 +58,14 @@ pub(crate) fn handle_touch_pointer_down(state: &mut AppState, event: Event<Point
         last_surface_x: point.x,
         last_surface_y: point.y,
     });
+    state.shape_fill_preview = if state.tool == Tool::ShapeFill {
+        cell_from_surface(state, point.x, point.y).map(|cell| ShapeFillPreview {
+            start_cell: cell,
+            end_cell: cell,
+        })
+    } else {
+        None
+    };
 }
 
 pub(crate) fn handle_touch_pointer_move(state: &mut AppState, event: Event<PointerData>) {
@@ -108,6 +119,17 @@ pub(crate) fn handle_touch_pointer_move(state: &mut AppState, event: Event<Point
         if hit_cell.is_some() {
             gesture.drag_active = true;
         }
+        state.shape_fill_preview = match (gesture.anchor_cell, hit_cell) {
+            (Some(start_cell), Some(end_cell)) => Some(ShapeFillPreview {
+                start_cell,
+                end_cell,
+            }),
+            (Some(start_cell), None) => Some(ShapeFillPreview {
+                start_cell,
+                end_cell: start_cell,
+            }),
+            _ => None,
+        };
         return;
     }
 
@@ -163,6 +185,7 @@ pub(crate) fn handle_touch_pointer_up(state: &mut AppState, event: Event<Pointer
         state.pinch_gesture = None;
     }
     state.single_touch_gesture = None;
+    state.shape_fill_preview = None;
 
     if should_apply {
         apply_touch_tool(state, point.x, point.y, anchor_cell);
@@ -179,6 +202,7 @@ pub(crate) fn handle_touch_pointer_cancel(state: &mut AppState, event: Event<Poi
     suppress_synthetic_click(state);
     remove_touch_point(state, event.pointer_id());
     state.single_touch_gesture = None;
+    state.shape_fill_preview = None;
     if state.active_touch_points.len() < 2 {
         state.pinch_gesture = None;
     }

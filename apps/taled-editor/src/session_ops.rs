@@ -248,6 +248,7 @@ fn normalize_after_history_change(state: &mut AppState) {
         state.active_layer = 0;
         state.selected_object = None;
         state.selected_cell = None;
+        state.shape_fill_preview = None;
         return;
     }
 
@@ -267,6 +268,7 @@ fn normalize_after_history_change(state: &mut AppState) {
             state.selected_object = None;
         }
     }
+    state.shape_fill_preview = None;
 }
 
 fn install_session(state: &mut AppState, session: EditorSession) {
@@ -293,6 +295,7 @@ fn install_session(state: &mut AppState, session: EditorSession) {
     state.selected_gid = selected_gid;
     state.selected_cell = None;
     state.selected_object = None;
+    state.shape_fill_preview = None;
     state.layers_panel_expanded = false;
     state.zoom_percent = 100;
     let (default_pan_x, default_pan_y) = default_mobile_center_pan(&session, state.zoom_percent);

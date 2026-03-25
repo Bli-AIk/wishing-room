@@ -38,6 +38,13 @@ pub(crate) fn render_canvas(snapshot: &AppState, mut state: Signal<AppState>) ->
     } else {
         "canvas"
     };
+    let shape_fill_preview = if snapshot.tool == Tool::ShapeFill {
+        snapshot
+            .shape_fill_preview
+            .map(|preview| build_shape_fill_preview(document, snapshot, preview))
+    } else {
+        None
+    };
 
     rsx! {
         div {
@@ -161,6 +168,24 @@ pub(crate) fn render_canvas(snapshot: &AppState, mut state: Signal<AppState>) ->
                         }
                     }
 
+                    {shape_fill_preview.as_ref().map(|preview| rsx! {
+                        for tile in &preview.tiles {
+                            div {
+                                key: "shape-fill-preview-{tile.x}-{tile.y}",
+                                class: if tile.fallback {
+                                    "shape-fill-preview-tile fallback"
+                                } else {
+                                    "tile-preview shape-fill-preview-tile"
+                                },
+                                style: "{tile.style}",
+                            }
+                        }
+                        div {
+                            class: "shape-fill-preview-frame",
+                            style: "{preview.frame_style}",
+                        }
+                    })}
+
                     for y in 0..map.height {
                         for x in 0..map.width {
                             div {
@@ -244,6 +269,84 @@ fn cell_style(tile_width: u32, tile_height: u32, x: u32, y: u32) -> String {
     )
 }
 
+fn preview_tile_style(
+    document: &EditorDocument,
+    image_cache: &BTreeMap<usize, String>,
+    gid: u32,
+    x: u32,
+    y: u32,
+) -> Option<String> {
+    let mut style = sprite_style(document, image_cache, gid, x, y)?;
+    style.push_str("opacity:0.46;filter:saturate(0.92);");
+    Some(style)
+}
+
+fn build_shape_fill_preview(
+    document: &EditorDocument,
+    snapshot: &AppState,
+    preview: crate::app_state::ShapeFillPreview,
+) -> ShapeFillPreviewVisual {
+    let (min_x, min_y, max_x, max_y) = preview_bounds(preview);
+    let mut tiles = Vec::new();
+
+    for y in min_y..=max_y {
+        for x in min_x..=max_x {
+            let style = preview_tile_style(
+                document,
+                &snapshot.image_cache,
+                snapshot.selected_gid,
+                x,
+                y,
+            )
+            .unwrap_or_else(|| cell_style(document.map.tile_width, document.map.tile_height, x, y));
+            tiles.push(ShapeFillPreviewTile {
+                x,
+                y,
+                style,
+                fallback: document.map.tile_reference_for_gid(snapshot.selected_gid).is_none(),
+            });
+        }
+    }
+
+    ShapeFillPreviewVisual {
+        tiles,
+        frame_style: preview_frame_style(
+            document.map.tile_width,
+            document.map.tile_height,
+            min_x,
+            min_y,
+            max_x,
+            max_y,
+        ),
+    }
+}
+
+fn preview_bounds(preview: crate::app_state::ShapeFillPreview) -> (u32, u32, u32, u32) {
+    (
+        preview.start_cell.0.min(preview.end_cell.0),
+        preview.start_cell.1.min(preview.end_cell.1),
+        preview.start_cell.0.max(preview.end_cell.0),
+        preview.start_cell.1.max(preview.end_cell.1),
+    )
+}
+
+fn preview_frame_style(
+    tile_width: u32,
+    tile_height: u32,
+    min_x: u32,
+    min_y: u32,
+    max_x: u32,
+    max_y: u32,
+) -> String {
+    format!(
+        "left:{}px;top:{}px;width:{}px;height:{}px;",
+        min_x * tile_width,
+        min_y * tile_height,
+        (max_x - min_x + 1) * tile_width,
+        (max_y - min_y + 1) * tile_height,
+    )
+}
+
 fn object_class(selected: Option<u32>, object_id: u32, shape: &ObjectShape) -> &'static str {
     match (selected == Some(object_id), shape) {
         (true, ObjectShape::Rectangle) => "object-overlay rectangle selected",
@@ -251,4 +354,16 @@ fn object_class(selected: Option<u32>, object_id: u32, shape: &ObjectShape) -> &
         (false, ObjectShape::Rectangle) => "object-overlay rectangle",
         (false, ObjectShape::Point) => "object-overlay point",
     }
+}
+
+struct ShapeFillPreviewVisual {
+    tiles: Vec<ShapeFillPreviewTile>,
+    frame_style: String,
+}
+
+struct ShapeFillPreviewTile {
+    x: u32,
+    y: u32,
+    style: String,
+    fallback: bool,
 }

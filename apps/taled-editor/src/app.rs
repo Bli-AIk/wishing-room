@@ -244,7 +244,11 @@ fn tool_button(
     rsx! {
         button {
             class: class,
-            onclick: move |_| state.write().tool = tool,
+            onclick: move |_| {
+                let mut state = state.write();
+                state.tool = tool;
+                state.shape_fill_preview = None;
+            },
             "{label}"
         }
     }

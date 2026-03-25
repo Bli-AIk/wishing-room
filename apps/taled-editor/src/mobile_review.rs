@@ -1642,7 +1642,11 @@ fn review_tool_button(
     rsx! {
         button {
             class: "{class_name}",
-            onclick: move |_| state.write().tool = tool,
+            onclick: move |_| {
+                let mut state = state.write();
+                state.tool = tool;
+                state.shape_fill_preview = None;
+            },
             div { class: "review-tool-icon", {review_tool_icon(&glyph)} }
             span { "{label}" }
         }
@@ -2074,6 +2078,7 @@ fn set_review_active_layer_kind(
 ) {
     state.active_layer = layer_index;
     state.selected_object = None;
+    state.shape_fill_preview = None;
     if !toolbar_supports_tool(kind, state.tool) {
         state.tool = match kind {
             ReviewToolbarKind::Tile => Tool::Paint,
