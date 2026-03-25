@@ -8,10 +8,12 @@ use futures_timer::Delay;
 use taled_core::{EditorSession, Layer, ObjectShape};
 
 use crate::{
-    app_state::{AppState, MobileScreen, MobileTransition, PaletteTile, Tool},
+    app_state::{AppState, MobileScreen, MobileTransition, PaletteTile, TileSelectionRegion, Tool},
     edit_ops::{
-        create_object, delete_selected_object, nudge_selected_object, rename_selected_object,
-        selected_object_view, toggle_layer_lock, toggle_layer_visibility,
+        confirm_tile_selection, copy_tile_selection, create_object, delete_selected_object,
+        delete_tile_selection, flip_tile_selection_horizontally, nudge_selected_object,
+        rename_selected_object, rotate_tile_selection_clockwise, selected_object_view,
+        toggle_layer_lock, toggle_layer_visibility,
     },
     embedded_samples::{embedded_sample, embedded_sample_thumb, embedded_samples},
     session_ops::{
@@ -191,6 +193,7 @@ fn render_editor(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
     let grid_style = editor_grid_style(snapshot, session);
     let page_key = review_page_key(snapshot, "editor");
     let page_class = review_page_class(snapshot, "review-page review-editor-page");
+    let selection_action_bar = tile_selection_action_bar(snapshot, session, state);
 
     rsx! {
         div { key: "{page_key}", class: "{page_class}",
@@ -222,6 +225,7 @@ fn render_editor(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
                 div { class: "review-map-surface review-map-live",
                     {crate::ui_canvas::render_canvas(snapshot, state)}
                 }
+                {selection_action_bar}
                 div { class: "review-history-float",
                     button {
                         class: if can_undo {
@@ -318,6 +322,199 @@ fn render_editor(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
             }
             {review_nav(snapshot, state, false)}
         }
+    }
+}
+
+fn tile_selection_action_bar(
+    snapshot: &AppState,
+    session: &EditorSession,
+    state: Signal<AppState>,
+) -> Element {
+    let Some(selection) = snapshot.tile_selection else {
+        return rsx! { Fragment {} };
+    };
+    if snapshot.tile_selection_preview.is_some() || snapshot.tool != Tool::Select {
+        return rsx! { Fragment {} };
+    }
+    if session
+        .document()
+        .map
+        .layer(snapshot.active_layer)
+        .and_then(Layer::as_tile)
+        .is_none()
+    {
+        return rsx! { Fragment {} };
+    }
+
+    let action_bar_style = tile_selection_action_bar_style(snapshot, session, selection);
+
+    rsx! {
+        div { class: "review-selection-actions", style: "{action_bar_style}",
+            {review_selection_action_button(
+                state,
+                ReviewSelectionAction::Copy,
+                "Copy",
+                copy_tile_selection,
+            )}
+            {review_selection_action_button(
+                state,
+                ReviewSelectionAction::Flip,
+                "Flip",
+                flip_tile_selection_horizontally,
+            )}
+            {review_selection_action_button(
+                state,
+                ReviewSelectionAction::Rotate,
+                "Rotate",
+                rotate_tile_selection_clockwise,
+            )}
+            {review_selection_action_button(
+                state,
+                ReviewSelectionAction::Delete,
+                "Delete",
+                delete_tile_selection,
+            )}
+            {review_selection_action_button(
+                state,
+                ReviewSelectionAction::Confirm,
+                "Confirm",
+                confirm_tile_selection,
+            )}
+        }
+    }
+}
+
+fn tile_selection_action_bar_style(
+    snapshot: &AppState,
+    session: &EditorSession,
+    selection: TileSelectionRegion,
+) -> String {
+    let map = &session.document().map;
+    let (min_x, min_y, max_x, max_y) = selection_bounds(selection);
+    let zoom = f64::from(snapshot.zoom_percent) / 100.0;
+    let left = f64::from(snapshot.pan_x) + f64::from(min_x * map.tile_width) * zoom;
+    let right = f64::from(snapshot.pan_x) + f64::from((max_x + 1) * map.tile_width) * zoom;
+    let top = f64::from(snapshot.pan_y) + f64::from(min_y * map.tile_height) * zoom;
+    let bottom = f64::from(snapshot.pan_y) + f64::from((max_y + 1) * map.tile_height) * zoom;
+    let host_width = snapshot
+        .canvas_host_size
+        .map(|(width, _)| width)
+        .unwrap_or(384.0);
+    let center_x = ((left + right) * 0.5).clamp(92.0, host_width - 92.0);
+
+    if top >= 86.0 {
+        format!(
+            "left:{center_x:.1}px;top:{top:.1}px;transform:translate(-50%, calc(-100% - 10px));"
+        )
+    } else {
+        format!("left:{center_x:.1}px;top:{bottom:.1}px;transform:translate(-50%, 10px);")
+    }
+}
+
+fn selection_bounds(selection: TileSelectionRegion) -> (u32, u32, u32, u32) {
+    (
+        selection.start_cell.0.min(selection.end_cell.0),
+        selection.start_cell.1.min(selection.end_cell.1),
+        selection.start_cell.0.max(selection.end_cell.0),
+        selection.start_cell.1.max(selection.end_cell.1),
+    )
+}
+
+#[derive(Clone, Copy)]
+enum ReviewSelectionAction {
+    Copy,
+    Flip,
+    Rotate,
+    Delete,
+    Confirm,
+}
+
+fn review_selection_action_button(
+    mut state: Signal<AppState>,
+    action: ReviewSelectionAction,
+    label: &'static str,
+    apply: fn(&mut AppState),
+) -> Element {
+    rsx! {
+        button {
+            class: "review-selection-action",
+            onclick: move |_| apply(&mut state.write()),
+            div { class: "review-selection-action-icon", {review_selection_action_icon(action)} }
+            span { "{label}" }
+        }
+    }
+}
+
+fn review_selection_action_icon(action: ReviewSelectionAction) -> Element {
+    match action {
+        ReviewSelectionAction::Copy => rsx! {
+            svg {
+                class: "review-inline-icon-svg",
+                view_box: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                stroke_width: "1.9",
+                stroke_linecap: "round",
+                stroke_linejoin: "round",
+                rect { x: "8", y: "8", width: "11", height: "11", rx: "2.4" }
+                path { d: "M5 15V7a2 2 0 0 1 2-2h8" }
+            }
+        },
+        ReviewSelectionAction::Flip => rsx! {
+            svg {
+                class: "review-inline-icon-svg",
+                view_box: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                stroke_width: "1.9",
+                stroke_linecap: "round",
+                stroke_linejoin: "round",
+                path { d: "M8 7 4 12l4 5" }
+                path { d: "M16 7l4 5-4 5" }
+                path { d: "M12 5v14" }
+            }
+        },
+        ReviewSelectionAction::Rotate => rsx! {
+            svg {
+                class: "review-inline-icon-svg",
+                view_box: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                stroke_width: "1.9",
+                stroke_linecap: "round",
+                stroke_linejoin: "round",
+                path { d: "M8 6H4v4" }
+                path { d: "M4 10a8 8 0 1 1 2.3 5.7" }
+            }
+        },
+        ReviewSelectionAction::Delete => rsx! {
+            svg {
+                class: "review-inline-icon-svg",
+                view_box: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                stroke_width: "1.9",
+                stroke_linecap: "round",
+                stroke_linejoin: "round",
+                path { d: "M4 7h16" }
+                path { d: "M9 7V5h6v2" }
+                path { d: "M7 7l1 12h8l1-12" }
+                path { d: "M10 11v5" }
+                path { d: "M14 11v5" }
+            }
+        },
+        ReviewSelectionAction::Confirm => rsx! {
+            svg {
+                class: "review-inline-icon-svg",
+                view_box: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                stroke_width: "1.9",
+                stroke_linecap: "round",
+                stroke_linejoin: "round",
+                path { d: "m6 12 4 4 8-8" }
+            }
+        },
     }
 }
 

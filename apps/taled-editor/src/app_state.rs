@@ -94,6 +94,13 @@ pub(crate) enum TileSelectionHandle {
     BottomRight,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TileClipboard {
+    pub(crate) width: u32,
+    pub(crate) height: u32,
+    pub(crate) tiles: Vec<u32>,
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct AppState {
     pub(crate) path_input: String,
@@ -105,6 +112,7 @@ pub(crate) struct AppState {
     pub(crate) selected_cell: Option<(u32, u32)>,
     pub(crate) selected_object: Option<u32>,
     pub(crate) shape_fill_preview: Option<ShapeFillPreview>,
+    pub(crate) tile_clipboard: Option<TileClipboard>,
     pub(crate) tile_selection: Option<TileSelectionRegion>,
     pub(crate) tile_selection_preview: Option<TileSelectionRegion>,
     pub(crate) tool: Tool,
@@ -148,6 +156,7 @@ impl Default for AppState {
                 selected_cell: None,
                 selected_object: None,
                 shape_fill_preview: None,
+                tile_clipboard: None,
                 tile_selection: None,
                 tile_selection_preview: None,
                 tool: Tool::Paint,
@@ -189,6 +198,7 @@ impl Default for AppState {
                 selected_cell: None,
                 selected_object: None,
                 shape_fill_preview: None,
+                tile_clipboard: None,
                 tile_selection: None,
                 tile_selection_preview: None,
                 tool: Tool::Paint,
@@ -234,6 +244,7 @@ impl Default for AppState {
                 selected_cell: None,
                 selected_object: None,
                 shape_fill_preview: None,
+                tile_clipboard: None,
                 tile_selection: None,
                 tile_selection_preview: None,
                 tool: Tool::Paint,

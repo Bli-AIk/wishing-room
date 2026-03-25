@@ -379,6 +379,54 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
     backdrop-filter: none;
     z-index: 12;
   }
+  .review-selection-actions {
+    position: absolute;
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    padding: 4px 6px;
+    border-radius: 16px;
+    background: rgba(38, 38, 40, 0.92);
+    backdrop-filter: blur(14px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.24);
+    z-index: 13;
+    animation: review-selection-actions-fade 180ms ease-out;
+  }
+  .review-selection-action {
+    min-width: 56px;
+    padding: 7px 6px 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    border: none;
+    background: transparent;
+    color: rgba(255,255,255,0.80);
+  }
+  .review-selection-action + .review-selection-action {
+    border-left: 1px solid rgba(255,255,255,0.06);
+  }
+  .review-selection-action-icon {
+    width: 20px;
+    height: 20px;
+    display: grid;
+    place-items: center;
+  }
+  .review-selection-action span {
+    font-size: 11px;
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+  @keyframes review-selection-actions-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
   .review-history-button {
     width: 38px;
     height: 38px;
