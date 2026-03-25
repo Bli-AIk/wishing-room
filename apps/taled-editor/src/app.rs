@@ -216,6 +216,9 @@ fn render_layers_section(snapshot: &AppState, mut state: Signal<AppState>) -> El
                                 state.selected_object = None;
                                 state.tile_selection = None;
                                 state.tile_selection_preview = None;
+                                state.tile_selection_closing = None;
+                                state.tile_selection_closing_started_at = None;
+                                state.tile_selection_last_tap_at = None;
                             },
                             span { class: "layer-name-stack",
                                 span { "{layer.name()}" }
@@ -252,6 +255,9 @@ fn tool_button(
                 cancel_tile_selection_transfer(&mut state);
                 state.tool = tool;
                 state.shape_fill_preview = None;
+                state.tile_selection_closing = None;
+                state.tile_selection_closing_started_at = None;
+                state.tile_selection_last_tap_at = None;
             },
             "{label}"
         }

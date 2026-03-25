@@ -1,4 +1,7 @@
-use std::collections::VecDeque;
+use std::{
+    collections::VecDeque,
+    time::{Duration, Instant},
+};
 
 use taled_core::{
     EditorError, EditorSession, Layer, MapObject, ObjectShape, Property, PropertyValue,
@@ -8,6 +11,8 @@ use crate::app_state::{
     AppState, TileClipboard, TileSelectionRegion, TileSelectionTransfer,
     TileSelectionTransferMode, Tool,
 };
+
+const TILE_SELECTION_DOUBLE_TAP_WINDOW: Duration = Duration::from_millis(320);
 
 pub(crate) fn toggle_layer_visibility(state: &mut AppState, layer_index: usize) {
     apply_edit(state, |document| {
@@ -87,6 +92,9 @@ pub(crate) fn apply_cell_tool(state: &mut AppState, x: u32, y: u32) {
                 .and_then(|session| session.document().map.layer(layer_index))
                 .is_some_and(|layer| layer.as_tile().is_some())
             {
+                if handle_tile_selection_tap(state, x, y) {
+                    return;
+                }
                 select_tile_region(state, x, y, x, y);
             }
         }
@@ -102,6 +110,9 @@ pub(crate) fn select_tile_region(
     end_x: u32,
     end_y: u32,
 ) {
+    state.tile_selection_closing = None;
+    state.tile_selection_closing_started_at = None;
+    state.tile_selection_last_tap_at = None;
     state.tile_selection = Some(crate::app_state::TileSelectionRegion {
         start_cell: (start_x, start_y),
         end_cell: (end_x, end_y),
@@ -118,17 +129,57 @@ pub(crate) fn select_tile_region(
     );
 }
 
+pub(crate) fn handle_tile_selection_tap(state: &mut AppState, x: u32, y: u32) -> bool {
+    if state.tile_selection_transfer.is_some() {
+        return false;
+    }
+
+    let Some(selection) = state.tile_selection else {
+        return false;
+    };
+
+    if selection_contains_cell(selection, (x, y)) {
+        let now = Instant::now();
+        if state
+            .tile_selection_last_tap_at
+            .is_some_and(|last| now.duration_since(last) <= TILE_SELECTION_DOUBLE_TAP_WINDOW)
+        {
+            dismiss_tile_selection(state);
+            state.status = "Selection closed.".to_string();
+        } else {
+            state.tile_selection_last_tap_at = Some(now);
+        }
+        true
+    } else {
+        dismiss_tile_selection(state);
+        state.status = "Selection cleared.".to_string();
+        true
+    }
+}
+
+pub(crate) fn dismiss_tile_selection(state: &mut AppState) {
+    state.tile_selection_last_tap_at = None;
+    state.tile_selection_preview = None;
+    if let Some(selection) = state.tile_selection.take() {
+        state.tile_selection_closing = Some(selection);
+        state.tile_selection_closing_started_at = Some(Instant::now());
+    } else {
+        state.tile_selection_closing = None;
+        state.tile_selection_closing_started_at = None;
+    }
+}
+
 pub(crate) fn copy_tile_selection(state: &mut AppState) {
-    if let Some(transfer) = state.tile_selection_transfer.as_ref() {
-        state.tile_clipboard = Some(TileClipboard {
-            width: transfer.width,
-            height: transfer.height,
-            tiles: transfer.tiles.clone(),
-        });
-        state.status = format!(
-            "Copied moving region {}x{}.",
-            transfer.width, transfer.height
-        );
+    if state.tile_selection_transfer.is_some() {
+        let placed = apply_tile_selection_transfer(state, false);
+        if let Some(transfer) = state.tile_selection_transfer.as_ref()
+            && placed
+        {
+            state.status = format!(
+                "Copied moving region {}x{} at the current position.",
+                transfer.width, transfer.height
+            );
+        }
         return;
     }
 
@@ -141,6 +192,9 @@ pub(crate) fn copy_tile_selection(state: &mut AppState) {
     state.tile_clipboard = Some(clipboard);
     state.tile_selection_transfer = Some(transfer);
     state.tile_selection_preview = None;
+    state.tile_selection_closing = None;
+    state.tile_selection_closing_started_at = None;
+    state.tile_selection_last_tap_at = None;
     state.selected_object = None;
     state.selected_cell = None;
     state.status = format!(
@@ -171,6 +225,9 @@ pub(crate) fn cut_tile_selection(state: &mut AppState) {
         match clear_result {
             Ok(()) => {
                 transfer.mode = TileSelectionTransferMode::Cut;
+                state.tile_selection_closing = None;
+                state.tile_selection_closing_started_at = None;
+                state.tile_selection_last_tap_at = None;
                 state.status = format!(
                     "Cut moving region {}x{}. Drag to move, tap Done to place.",
                     transfer.width, transfer.height
@@ -207,6 +264,9 @@ pub(crate) fn cut_tile_selection(state: &mut AppState) {
                 ..transfer
             });
             state.tile_selection_preview = None;
+            state.tile_selection_closing = None;
+            state.tile_selection_closing_started_at = None;
+            state.tile_selection_last_tap_at = None;
             state.selected_object = None;
             state.selected_cell = None;
             state.status = format!(
@@ -375,10 +435,8 @@ pub(crate) fn rotate_tile_selection_clockwise(state: &mut AppState) {
 }
 
 pub(crate) fn delete_tile_selection(state: &mut AppState) {
-    if let Some(transfer) = state.tile_selection_transfer.as_mut() {
-        transfer.tiles.fill(0);
-        sync_clipboard_from_transfer(state);
-        state.status = "Cleared moving selection contents.".to_string();
+    if state.tile_selection_transfer.is_some() {
+        delete_tile_selection_source_and_exit(state);
         return;
     }
 
@@ -394,71 +452,17 @@ pub(crate) fn delete_tile_selection(state: &mut AppState) {
     });
 
     if state.status == "Edit applied." {
+        dismiss_tile_selection(state);
         state.status = "Cleared selected region.".to_string();
     }
 }
 
 pub(crate) fn place_tile_selection_transfer(state: &mut AppState) {
-    let Some(transfer) = state.tile_selection_transfer.clone() else {
-        state.status = "Nothing to place.".to_string();
-        return;
-    };
-    let Some(selection) = state.tile_selection else {
-        state.status = "Move the selection before placing it.".to_string();
-        return;
-    };
-    let target_layer = state.active_layer;
-    let (min_x, min_y, _, _) = selection_bounds(selection);
-
-    if transfer.source_layer != target_layer {
-        cancel_tile_selection_transfer(state);
-        state.status = "Selection move canceled because the active layer changed.".to_string();
-        return;
-    }
-
-    let apply_result = if matches!(transfer.mode, TileSelectionTransferMode::Cut) {
-        let Some(session) = state.session.as_mut() else {
-            state.status = "No map loaded.".to_string();
-            return;
-        };
-        let result = session.edit(|document| {
-            let tile_layer = selected_tile_layer_mut(document, target_layer)?;
-            write_region_tiles(tile_layer, min_x, min_y, transfer.width, transfer.height, &transfer.tiles)
-        });
-        if result.is_ok() {
-            session.finish_history_batch();
-        } else {
-            session.abort_history_batch();
-        }
-        result
-    } else {
-        let tiles = transfer.tiles.clone();
-        let width = transfer.width;
-        let height = transfer.height;
-        apply_edit_result(state, move |document| {
-            let tile_layer = selected_tile_layer_mut(document, target_layer)?;
-            write_region_tiles(tile_layer, min_x, min_y, width, height, &tiles)
-        })
-    };
-
-    match apply_result {
-        Ok(()) => {
-            let end_cell = (
-                min_x + transfer.width.saturating_sub(1),
-                min_y + transfer.height.saturating_sub(1),
-            );
-            state.tile_selection = Some(TileSelectionRegion {
-                start_cell: (min_x, min_y),
-                end_cell,
-            });
-            state.tile_selection_preview = None;
-            state.tile_selection_transfer = None;
-            state.status = format!("Placed selection at ({min_x}, {min_y}).");
-        }
-        Err(error) => {
-            state.tile_selection_transfer = None;
-            state.status = format!("Place failed: {error}");
-        }
+    if apply_tile_selection_transfer(state, true)
+        && let Some(selection) = state.tile_selection
+    {
+        let (min_x, min_y, _, _) = selection_bounds(selection);
+        state.status = format!("Placed selection at ({min_x}, {min_y}).");
     }
 }
 
@@ -494,6 +498,10 @@ pub(crate) fn cancel_tile_selection_transfer(state: &mut AppState) {
             state.status = "Canceled move, but restoring the cut region failed.".to_string();
         }
     }
+
+    state.tile_selection_closing = None;
+    state.tile_selection_closing_started_at = None;
+    state.tile_selection_last_tap_at = None;
 }
 
 pub(crate) fn apply_shape_fill_rect(
@@ -905,6 +913,11 @@ fn selection_bounds(selection: TileSelectionRegion) -> (u32, u32, u32, u32) {
     )
 }
 
+fn selection_contains_cell(selection: TileSelectionRegion, cell: (u32, u32)) -> bool {
+    let (min_x, min_y, max_x, max_y) = selection_bounds(selection);
+    cell.0 >= min_x && cell.0 <= max_x && cell.1 >= min_y && cell.1 <= max_y
+}
+
 fn selected_tile_layer_mut(
     document: &mut taled_core::EditorDocument,
     layer_index: usize,
@@ -992,6 +1005,122 @@ fn clamp_transfer_selection_to_map(
             origin_x + width.saturating_sub(1),
             origin_y + height.saturating_sub(1),
         ),
+    }
+}
+
+fn apply_tile_selection_transfer(state: &mut AppState, finalize: bool) -> bool {
+    let Some(transfer) = state.tile_selection_transfer.clone() else {
+        state.status = "Nothing to place.".to_string();
+        return false;
+    };
+    let Some(selection) = state.tile_selection else {
+        state.status = "Move the selection before placing it.".to_string();
+        return false;
+    };
+    let target_layer = state.active_layer;
+    let (min_x, min_y, _, _) = selection_bounds(selection);
+
+    if transfer.source_layer != target_layer {
+        cancel_tile_selection_transfer(state);
+        state.status = "Selection move canceled because the active layer changed.".to_string();
+        return false;
+    }
+
+    let apply_result = if matches!(transfer.mode, TileSelectionTransferMode::Cut) {
+        let Some(session) = state.session.as_mut() else {
+            state.status = "No map loaded.".to_string();
+            return false;
+        };
+        let result = session.edit(|document| {
+            let tile_layer = selected_tile_layer_mut(document, target_layer)?;
+            write_region_tiles(
+                tile_layer,
+                min_x,
+                min_y,
+                transfer.width,
+                transfer.height,
+                &transfer.tiles,
+            )
+        });
+        match (result.is_ok(), finalize) {
+            (true, true) => {
+                session.finish_history_batch();
+            }
+            (false, true) => {
+                session.abort_history_batch();
+            }
+            _ => {}
+        }
+        result
+    } else {
+        let tiles = transfer.tiles.clone();
+        let width = transfer.width;
+        let height = transfer.height;
+        apply_edit_result(state, move |document| {
+            let tile_layer = selected_tile_layer_mut(document, target_layer)?;
+            write_region_tiles(tile_layer, min_x, min_y, width, height, &tiles)
+        })
+    };
+
+    match apply_result {
+        Ok(()) => {
+            let end_cell = (
+                min_x + transfer.width.saturating_sub(1),
+                min_y + transfer.height.saturating_sub(1),
+            );
+            state.tile_selection = Some(TileSelectionRegion {
+                start_cell: (min_x, min_y),
+                end_cell,
+            });
+            state.tile_selection_preview = None;
+            if finalize {
+                state.tile_selection_transfer = None;
+            }
+            true
+        }
+        Err(error) => {
+            if finalize {
+                state.tile_selection_transfer = None;
+            }
+            state.status = format!("Place failed: {error}");
+            false
+        }
+    }
+}
+
+fn delete_tile_selection_source_and_exit(state: &mut AppState) {
+    let Some(transfer) = state.tile_selection_transfer.clone() else {
+        state.status = "Nothing to delete.".to_string();
+        return;
+    };
+    let (min_x, min_y, max_x, max_y) = selection_bounds(transfer.source_selection);
+
+    if matches!(transfer.mode, TileSelectionTransferMode::Cut) {
+        if let Some(session) = state.session.as_mut() {
+            session.abort_history_batch();
+        }
+        state.tile_selection_transfer = None;
+        state.tile_selection = None;
+        state.tile_selection_preview = None;
+        state.status = "Deleted the source selection and exited move mode.".to_string();
+        return;
+    }
+
+    let deleted = apply_edit_result(state, move |document| {
+        let tile_layer = selected_tile_layer_mut(document, transfer.source_layer)?;
+        clear_region_tiles(tile_layer, min_x, min_y, max_x, max_y)
+    });
+
+    match deleted {
+        Ok(()) => {
+            state.tile_selection_transfer = None;
+            state.tile_selection = None;
+            state.tile_selection_preview = None;
+            state.status = "Deleted the source selection and exited move mode.".to_string();
+        }
+        Err(error) => {
+            state.status = format!("Delete failed: {error}");
+        }
     }
 }
 
@@ -1112,7 +1241,8 @@ mod tests {
     use super::{
         apply_cell_tool, apply_shape_fill_rect, copy_tile_selection, cut_tile_selection,
         delete_tile_selection, flip_tile_selection_horizontally, flip_tile_selection_vertically,
-        place_tile_selection_transfer, rotate_tile_selection_clockwise, select_tile_region,
+        handle_tile_selection_tap, place_tile_selection_transfer, rotate_tile_selection_clockwise,
+        select_tile_region,
     };
     use crate::app_state::{AppState, TileSelectionRegion, TileSelectionTransferMode, Tool};
 
@@ -1212,6 +1342,43 @@ mod tests {
     }
 
     #[test]
+    fn tapping_outside_an_existing_selection_clears_without_creating_a_new_one() {
+        let mut state = test_state(Tool::Select, 1);
+        select_tile_region(&mut state, 2, 3, 5, 7);
+
+        assert!(handle_tile_selection_tap(&mut state, 0, 0));
+        assert_eq!(state.tile_selection, None);
+        assert!(state.tile_selection_closing.is_some());
+    }
+
+    #[test]
+    fn single_tap_inside_an_existing_selection_keeps_it_active() {
+        let mut state = test_state(Tool::Select, 1);
+        select_tile_region(&mut state, 2, 3, 5, 7);
+
+        assert!(handle_tile_selection_tap(&mut state, 3, 4));
+        assert_eq!(
+            state.tile_selection,
+            Some(TileSelectionRegion {
+                start_cell: (2, 3),
+                end_cell: (5, 7),
+            })
+        );
+        assert!(state.tile_selection_last_tap_at.is_some());
+    }
+
+    #[test]
+    fn double_tap_inside_an_existing_selection_closes_it() {
+        let mut state = test_state(Tool::Select, 1);
+        select_tile_region(&mut state, 2, 3, 5, 7);
+
+        assert!(handle_tile_selection_tap(&mut state, 3, 4));
+        assert!(handle_tile_selection_tap(&mut state, 3, 4));
+        assert_eq!(state.tile_selection, None);
+        assert!(state.tile_selection_closing.is_some());
+    }
+
+    #[test]
     fn copy_tile_selection_stores_region_tiles_in_clipboard() {
         let mut state = test_state(Tool::Select, 1);
         select_tile_region(&mut state, 1, 1, 2, 2);
@@ -1256,6 +1423,37 @@ mod tests {
         assert_eq!(layer.tile_at(2, 1), Some(52));
         assert_eq!(layer.tile_at(4, 2), Some(51));
         assert_eq!(layer.tile_at(5, 2), Some(52));
+    }
+
+    #[test]
+    fn copy_in_move_mode_stamps_current_position_and_stays_active() {
+        let mut state = test_state(Tool::Select, 1);
+        if let Some(session) = state.session.as_mut() {
+            session
+                .edit(|document| {
+                    let layer = document.map.layers[0].as_tile_mut().expect("tile layer");
+                    layer.set_tile(1, 1, 71)?;
+                    layer.set_tile(2, 1, 72)?;
+                    Ok(())
+                })
+                .expect("seed row");
+        }
+        select_tile_region(&mut state, 1, 1, 2, 1);
+        copy_tile_selection(&mut state);
+
+        state.tile_selection = Some(TileSelectionRegion {
+            start_cell: (4, 2),
+            end_cell: (5, 2),
+        });
+        copy_tile_selection(&mut state);
+
+        let session = state.session.as_ref().expect("session");
+        let layer = session.document().map.layers[0]
+            .as_tile()
+            .expect("tile layer");
+        assert_eq!(layer.tile_at(4, 2), Some(71));
+        assert_eq!(layer.tile_at(5, 2), Some(72));
+        assert!(state.tile_selection_transfer.is_some());
     }
 
     #[test]
@@ -1319,6 +1517,38 @@ mod tests {
         assert_eq!(layer.tile_at(2, 1), Some(62));
         assert_eq!(layer.tile_at(4, 2), Some(original_target_tiles.0));
         assert_eq!(layer.tile_at(5, 2), Some(original_target_tiles.1));
+    }
+
+    #[test]
+    fn delete_in_move_mode_clears_the_source_region_and_exits() {
+        let mut state = test_state(Tool::Select, 1);
+        if let Some(session) = state.session.as_mut() {
+            session
+                .edit(|document| {
+                    let layer = document.map.layers[0].as_tile_mut().expect("tile layer");
+                    layer.set_tile(1, 1, 81)?;
+                    layer.set_tile(2, 1, 82)?;
+                    Ok(())
+                })
+                .expect("seed row");
+        }
+        select_tile_region(&mut state, 1, 1, 2, 1);
+        copy_tile_selection(&mut state);
+        state.tile_selection = Some(TileSelectionRegion {
+            start_cell: (4, 2),
+            end_cell: (5, 2),
+        });
+
+        delete_tile_selection(&mut state);
+
+        let session = state.session.as_ref().expect("session");
+        let layer = session.document().map.layers[0]
+            .as_tile()
+            .expect("tile layer");
+        assert_eq!(layer.tile_at(1, 1), Some(0));
+        assert_eq!(layer.tile_at(2, 1), Some(0));
+        assert!(state.tile_selection_transfer.is_none());
+        assert!(state.tile_selection.is_none());
     }
 
     #[test]

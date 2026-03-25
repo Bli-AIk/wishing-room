@@ -10,7 +10,9 @@ use crate::{
         ActiveTouchPointer, AppState, PinchGesture, ShapeFillPreview, SingleTouchGesture,
         TileSelectionHandle, TileSelectionRegion, Tool,
     },
-    edit_ops::{apply_cell_tool, apply_shape_fill_rect, select_tile_region},
+    edit_ops::{
+        apply_cell_tool, apply_shape_fill_rect, handle_tile_selection_tap, select_tile_region,
+    },
 };
 
 const LONG_PRESS_DURATION: Duration = Duration::from_millis(260);
@@ -70,6 +72,13 @@ pub(crate) fn handle_touch_pointer_down(state: &mut AppState, event: Event<Point
     } else {
         None
     };
+    let outside_existing_selection = selects_tile_region(state)
+        && state.tile_selection_transfer.is_none()
+        && selection_resize_handle.is_none()
+        && state
+            .tile_selection
+            .zip(hit_cell)
+            .is_some_and(|(selection, cell)| !selection_contains_cell(selection, cell));
     let anchor_cell = selection_resize_handle
         .and_then(|handle| {
             state
@@ -80,14 +89,14 @@ pub(crate) fn handle_touch_pointer_down(state: &mut AppState, event: Event<Point
             if state.tile_selection_transfer.is_some() {
                 hit_cell.and_then(|cell| selection_move_origin_from_cell(state, cell))
             } else {
-                None
+                hit_cell.filter(|_| !outside_existing_selection)
             }
-        })
-        .or(hit_cell);
+        });
     state.single_touch_gesture = Some(SingleTouchGesture {
         pointer_id: event.pointer_id(),
         started_at: Instant::now(),
         drag_active: false,
+        outside_existing_selection,
         anchor_cell,
         resize_handle: selection_resize_handle,
         selection_move_drag_offset,
@@ -103,15 +112,7 @@ pub(crate) fn handle_touch_pointer_down(state: &mut AppState, event: Event<Point
     } else {
         None
     };
-    state.tile_selection_preview = if selects_tile_region(state) && state.tile_selection_transfer.is_none()
-    {
-        anchor_cell.map(|cell| TileSelectionRegion {
-            start_cell: cell,
-            end_cell: cell,
-        })
-    } else {
-        None
-    };
+    state.tile_selection_preview = None;
     if state.tile_selection_transfer.is_some()
         && let Some(selection) = anchor_cell.map(|origin| selection_from_origin(state, origin))
     {
@@ -184,15 +185,28 @@ pub(crate) fn handle_touch_pointer_move(state: &mut AppState, event: Event<Point
     }
 
     if selects_tile_region(state) {
-        let resize_handle = state
+        let (resize_handle, outside_existing_selection) = state
             .single_touch_gesture
             .as_ref()
-            .and_then(|gesture| gesture.resize_handle);
-        let hit_cell = selection_end_cell_from_surface(state, point.x, point.y, resize_handle);
+            .map(|gesture| (gesture.resize_handle, gesture.outside_existing_selection))
+            .unwrap_or((None, false));
+        let hit_cell = (!outside_existing_selection)
+            .then(|| selection_end_cell_from_surface(state, point.x, point.y, resize_handle))
+            .flatten();
         let Some(gesture) = state.single_touch_gesture.as_mut() else {
             return;
         };
         if gesture.pointer_id != event.pointer_id() {
+            return;
+        }
+        let delta_x = point.x - gesture.last_surface_x;
+        let delta_y = point.y - gesture.last_surface_y;
+        gesture.last_surface_x = point.x;
+        gesture.last_surface_y = point.y;
+        if gesture.outside_existing_selection {
+            if delta_x.abs() >= 1.0 || delta_y.abs() >= 1.0 {
+                gesture.drag_active = true;
+            }
             return;
         }
         if hit_cell.is_some() {
@@ -265,7 +279,7 @@ pub(crate) fn handle_touch_pointer_move(state: &mut AppState, event: Event<Point
     };
 
     if should_apply {
-        apply_touch_tool(state, point.x, point.y, None, None);
+        apply_touch_tool(state, point.x, point.y, None, None, false, false);
     }
 }
 
@@ -278,11 +292,16 @@ pub(crate) fn handle_touch_pointer_up(state: &mut AppState, event: Event<Pointer
 
     let point = touch_surface_point(state, &event);
     let should_apply = finalize_single_touch_if_needed(state, event.pointer_id(), point.x, point.y);
-    let (anchor_cell, resize_handle) = state
+    let (anchor_cell, resize_handle, outside_existing_selection, preserve_existing_selection) = state
         .single_touch_gesture
         .as_ref()
-        .map(|gesture| (gesture.anchor_cell, gesture.resize_handle))
-        .unwrap_or((None, None));
+        .map(|gesture| (
+            gesture.anchor_cell,
+            gesture.resize_handle,
+            gesture.outside_existing_selection,
+            should_preserve_existing_selection(gesture),
+        ))
+        .unwrap_or((None, None, false, false));
     log_touch_probe(state, &event, "up", point.x, point.y);
 
     remove_touch_point(state, event.pointer_id());
@@ -294,7 +313,15 @@ pub(crate) fn handle_touch_pointer_up(state: &mut AppState, event: Event<Pointer
     state.tile_selection_preview = None;
 
     if should_apply {
-        apply_touch_tool(state, point.x, point.y, anchor_cell, resize_handle);
+        apply_touch_tool(
+            state,
+            point.x,
+            point.y,
+            anchor_cell,
+            resize_handle,
+            outside_existing_selection,
+            preserve_existing_selection,
+        );
     }
 
     finish_touch_edit_batch(state);
@@ -331,6 +358,9 @@ fn finalize_single_touch_if_needed(state: &mut AppState, pointer_id: i32, x: f64
         if state.tile_selection_transfer.is_some() {
             return state.tile_selection.is_some();
         }
+        if gesture.outside_existing_selection {
+            return true;
+        }
         return gesture.anchor_cell.is_some()
             && selection_end_cell_from_surface(state, x, y, gesture.resize_handle).is_some();
     }
@@ -349,12 +379,55 @@ fn finalize_single_touch_if_needed(state: &mut AppState, pointer_id: i32, x: f64
     true
 }
 
+fn should_preserve_existing_selection(gesture: &SingleTouchGesture) -> bool {
+    gesture.outside_existing_selection
+        && (gesture.drag_active || gesture.started_at.elapsed() >= LONG_PRESS_DURATION)
+}
+
+fn apply_outside_selection_tap(state: &mut AppState, x: f64, y: f64) -> bool {
+    let Some((end_x, end_y)) = clamped_cell_from_surface(state, x, y) else {
+        return false;
+    };
+    let _ = handle_tile_selection_tap(state, end_x, end_y);
+    true
+}
+
+fn apply_tile_region_touch_tool(
+    state: &mut AppState,
+    x: f64,
+    y: f64,
+    anchor_cell: Option<(u32, u32)>,
+    resize_handle: Option<TileSelectionHandle>,
+    outside_existing_selection: bool,
+    preserve_existing_selection: bool,
+) {
+    if outside_existing_selection {
+        if preserve_existing_selection {
+            return;
+        }
+        let _ = apply_outside_selection_tap(state, x, y);
+        return;
+    }
+
+    let Some((end_x, end_y)) = selection_end_cell_from_surface(state, x, y, resize_handle) else {
+        return;
+    };
+    let (start_x, start_y) = anchor_cell.unwrap_or((end_x, end_y));
+    let simple_tap = resize_handle.is_none() && anchor_cell == Some((end_x, end_y));
+    if simple_tap && handle_tile_selection_tap(state, end_x, end_y) {
+        return;
+    }
+    select_tile_region(state, start_x, start_y, end_x, end_y);
+}
+
 fn apply_touch_tool(
     state: &mut AppState,
     x: f64,
     y: f64,
     anchor_cell: Option<(u32, u32)>,
     resize_handle: Option<TileSelectionHandle>,
+    outside_existing_selection: bool,
+    preserve_existing_selection: bool,
 ) {
     log_touch_resolution(state, "apply", x, y);
     match state.tool {
@@ -365,13 +438,15 @@ fn apply_touch_tool(
                 return;
             }
             if selects_tile_region(state) {
-                let Some((end_x, end_y)) =
-                    selection_end_cell_from_surface(state, x, y, resize_handle)
-                else {
-                    return;
-                };
-                let (start_x, start_y) = anchor_cell.unwrap_or((end_x, end_y));
-                select_tile_region(state, start_x, start_y, end_x, end_y);
+                apply_tile_region_touch_tool(
+                    state,
+                    x,
+                    y,
+                    anchor_cell,
+                    resize_handle,
+                    outside_existing_selection,
+                    preserve_existing_selection,
+                );
             } else {
                 select_at_point(state, x, y);
             }
@@ -1010,12 +1085,16 @@ fn world_coordinates_from_surface(state: &AppState, x: f64, y: f64) -> Option<(f
 
 #[cfg(test)]
 mod tests {
+    use std::time::{Duration, Instant};
+
     use super::{
-        adjusted_selection_resize_surface_point, initialize_pinch_gesture,
-        selection_resize_anchor_cell, touch_distance, update_pinch_gesture,
+        adjusted_selection_resize_surface_point, initialize_pinch_gesture, LONG_PRESS_DURATION,
+        selection_resize_anchor_cell, should_preserve_existing_selection, touch_distance,
+        update_pinch_gesture,
     };
     use crate::app_state::{
-        ActiveTouchPointer, AppState, TileSelectionHandle, TileSelectionRegion,
+        ActiveTouchPointer, AppState, SingleTouchGesture, TileSelectionHandle,
+        TileSelectionRegion,
     };
 
     #[test]
@@ -1115,5 +1194,59 @@ mod tests {
             ),
             (191.5, 255.5)
         );
+    }
+
+    #[test]
+    fn quick_tap_outside_existing_selection_does_not_preserve_it() {
+        let gesture = SingleTouchGesture {
+            pointer_id: 1,
+            started_at: Instant::now(),
+            drag_active: false,
+            outside_existing_selection: true,
+            anchor_cell: None,
+            resize_handle: None,
+            selection_move_drag_offset: None,
+            last_applied_cell: None,
+            last_surface_x: 0.0,
+            last_surface_y: 0.0,
+        };
+
+        assert!(!should_preserve_existing_selection(&gesture));
+    }
+
+    #[test]
+    fn long_press_outside_existing_selection_preserves_it() {
+        let gesture = SingleTouchGesture {
+            pointer_id: 1,
+            started_at: Instant::now() - LONG_PRESS_DURATION - Duration::from_millis(10),
+            drag_active: false,
+            outside_existing_selection: true,
+            anchor_cell: None,
+            resize_handle: None,
+            selection_move_drag_offset: None,
+            last_applied_cell: None,
+            last_surface_x: 0.0,
+            last_surface_y: 0.0,
+        };
+
+        assert!(should_preserve_existing_selection(&gesture));
+    }
+
+    #[test]
+    fn drag_outside_existing_selection_preserves_it() {
+        let gesture = SingleTouchGesture {
+            pointer_id: 1,
+            started_at: Instant::now(),
+            drag_active: true,
+            outside_existing_selection: true,
+            anchor_cell: None,
+            resize_handle: None,
+            selection_move_drag_offset: None,
+            last_applied_cell: None,
+            last_surface_x: 0.0,
+            last_surface_y: 0.0,
+        };
+
+        assert!(should_preserve_existing_selection(&gesture));
     }
 }

@@ -221,6 +221,13 @@ pub(crate) const STYLES: &str = r#"
       inset 0 0 0 0.5px rgba(58, 174, 255, 0.74),
       0 0 8px rgba(58, 174, 255, 0.14);
   }
+  .tile-selection-region.closing {
+    background: rgba(58, 174, 255, 0.11);
+    box-shadow:
+      inset 0 0 0 0.5px rgba(58, 174, 255, 0.62),
+      0 0 7px rgba(58, 174, 255, 0.10);
+    animation: tile-selection-fade-out 170ms ease-out forwards;
+  }
   .tile-selection-frame {
     inset: 0;
     border: 0.5px solid rgba(90, 196, 255, 0.94);
@@ -243,6 +250,14 @@ pub(crate) const STYLES: &str = r#"
     }
     to {
       opacity: 1;
+    }
+  }
+  @keyframes tile-selection-fade-out {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
     }
   }
   .canvas.camera-transition {

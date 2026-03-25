@@ -351,12 +351,14 @@ fn tile_selection_action_bar(
 
     rsx! {
         div { class: "review-selection-actions", style: "{action_bar_style}",
-            {review_selection_action_button(
-                state,
-                ReviewSelectionAction::Cut,
-                "Cut",
-                cut_tile_selection,
-            )}
+            if snapshot.tile_selection_transfer.is_none() {
+                {review_selection_action_button(
+                    state,
+                    ReviewSelectionAction::Cut,
+                    "Cut",
+                    cut_tile_selection,
+                )}
+            }
             {review_selection_action_button(
                 state,
                 ReviewSelectionAction::Copy,
@@ -1110,6 +1112,9 @@ fn render_objects(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
                                     state.selected_object = Some(entry.object_id);
                                     state.tile_selection = None;
                                     state.tile_selection_preview = None;
+                                    state.tile_selection_closing = None;
+                                    state.tile_selection_closing_started_at = None;
+                                    state.tile_selection_last_tap_at = None;
                                 }
                             },
                             span {
@@ -2331,6 +2336,9 @@ fn set_review_active_layer_kind(state: &mut AppState, layer_index: usize, kind: 
     state.shape_fill_preview = None;
     state.tile_selection = None;
     state.tile_selection_preview = None;
+    state.tile_selection_closing = None;
+    state.tile_selection_closing_started_at = None;
+    state.tile_selection_last_tap_at = None;
     if !toolbar_supports_tool(kind, state.tool) {
         state.tool = match kind {
             ReviewToolbarKind::Tile => Tool::Paint,

@@ -253,6 +253,9 @@ fn normalize_after_history_change(state: &mut AppState) {
         state.shape_fill_preview = None;
         state.tile_selection = None;
         state.tile_selection_preview = None;
+        state.tile_selection_closing = None;
+        state.tile_selection_closing_started_at = None;
+        state.tile_selection_last_tap_at = None;
         state.tile_selection_transfer = None;
         return;
     }
@@ -275,6 +278,9 @@ fn normalize_after_history_change(state: &mut AppState) {
     }
     state.shape_fill_preview = None;
     state.tile_selection_preview = None;
+    state.tile_selection_closing = None;
+    state.tile_selection_closing_started_at = None;
+    state.tile_selection_last_tap_at = None;
     state.tile_selection_transfer = None;
     if state.tile_selection.is_some()
         && session
@@ -314,6 +320,9 @@ fn install_session(state: &mut AppState, session: EditorSession) {
     state.shape_fill_preview = None;
     state.tile_selection = None;
     state.tile_selection_preview = None;
+    state.tile_selection_closing = None;
+    state.tile_selection_closing_started_at = None;
+    state.tile_selection_last_tap_at = None;
     state.tile_selection_transfer = None;
     state.layers_panel_expanded = false;
     state.zoom_percent = 100;

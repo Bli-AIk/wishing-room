@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, time::Duration};
 
 use dioxus::prelude::*;
 use taled_core::{EditorDocument, ObjectShape};
@@ -13,6 +13,8 @@ use crate::{
     },
     ui_visuals::object_overlay_style,
 };
+
+const TILE_SELECTION_FADE_DURATION: Duration = Duration::from_millis(170);
 
 pub(crate) fn render_canvas(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
     let Some(session) = snapshot.session.as_ref() else {
@@ -194,7 +196,9 @@ pub(crate) fn render_canvas(snapshot: &AppState, mut state: Signal<AppState>) ->
 
                     {tile_selection_overlay.as_ref().map(|overlay| rsx! {
                         div {
-                            class: if overlay.preview {
+                            class: if overlay.closing {
+                                "tile-selection-region closing"
+                            } else if overlay.preview {
                                 "tile-selection-region preview"
                             } else {
                                 "tile-selection-region"
@@ -428,13 +432,23 @@ fn active_tile_selection_overlay(
     let active_layer = document.map.layer(snapshot.active_layer)?;
     active_layer.as_tile()?;
 
-    let selection = snapshot
-        .tile_selection_preview
-        .or(snapshot.tile_selection)?;
+    let (selection, preview, closing) = if let Some(selection) = snapshot.tile_selection_preview {
+        (selection, true, false)
+    } else if let Some(selection) = snapshot.tile_selection {
+        (selection, false, false)
+    } else if snapshot
+        .tile_selection_closing_started_at
+        .is_some_and(|started_at| started_at.elapsed() <= TILE_SELECTION_FADE_DURATION)
+    {
+        (snapshot.tile_selection_closing?, false, true)
+    } else {
+        return None;
+    };
     Some(build_tile_selection_overlay(
         document,
         selection,
-        snapshot.tile_selection_preview.is_some(),
+        preview,
+        closing,
         snapshot.tile_selection_transfer.is_some(),
     ))
 }
@@ -443,6 +457,7 @@ fn build_tile_selection_overlay(
     document: &EditorDocument,
     selection: TileSelectionRegion,
     preview: bool,
+    closing: bool,
     transfer_active: bool,
 ) -> TileSelectionOverlayVisual {
     let (min_x, min_y, max_x, max_y) = (
@@ -466,6 +481,7 @@ fn build_tile_selection_overlay(
 
     TileSelectionOverlayVisual {
         preview,
+        closing,
         region_style,
         show_handles,
         handles: if show_handles {
@@ -523,6 +539,7 @@ fn selection_bounds(selection: TileSelectionRegion) -> (u32, u32, u32, u32) {
 
 struct TileSelectionOverlayVisual {
     preview: bool,
+    closing: bool,
     region_style: String,
     show_handles: bool,
     handles: Vec<TileSelectionHandleVisual>,
