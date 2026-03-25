@@ -205,6 +205,7 @@ pub(crate) fn render_canvas(snapshot: &AppState, mut state: Signal<AppState>) ->
                                         key: "tile-selection-handle-{handle.position}",
                                         class: "tile-selection-handle {handle.position}",
                                         style: "{handle.style}",
+                                        div { class: "tile-selection-handle-dot" }
                                     }
                                 }
                             }
@@ -320,19 +321,19 @@ fn build_shape_fill_preview(
 
     for y in min_y..=max_y {
         for x in min_x..=max_x {
-            let style = preview_tile_style(
-                document,
-                &snapshot.image_cache,
-                snapshot.selected_gid,
-                x,
-                y,
-            )
-            .unwrap_or_else(|| cell_style(document.map.tile_width, document.map.tile_height, x, y));
+            let style =
+                preview_tile_style(document, &snapshot.image_cache, snapshot.selected_gid, x, y)
+                    .unwrap_or_else(|| {
+                        cell_style(document.map.tile_width, document.map.tile_height, x, y)
+                    });
             tiles.push(ShapeFillPreviewTile {
                 x,
                 y,
                 style,
-                fallback: document.map.tile_reference_for_gid(snapshot.selected_gid).is_none(),
+                fallback: document
+                    .map
+                    .tile_reference_for_gid(snapshot.selected_gid)
+                    .is_none(),
             });
         }
     }
@@ -446,10 +447,10 @@ fn build_tile_selection_overlay(
         show_handles,
         handles: if show_handles {
             vec![
-                TileSelectionHandleVisual::new("top-left", "left:-5px;top:-5px;"),
-                TileSelectionHandleVisual::new("top-right", "right:-5px;top:-5px;"),
-                TileSelectionHandleVisual::new("bottom-left", "left:-5px;bottom:-5px;"),
-                TileSelectionHandleVisual::new("bottom-right", "right:-5px;bottom:-5px;"),
+                TileSelectionHandleVisual::new("top-left", "left:-11px;top:-11px;"),
+                TileSelectionHandleVisual::new("top-right", "right:-11px;top:-11px;"),
+                TileSelectionHandleVisual::new("bottom-left", "left:-11px;bottom:-11px;"),
+                TileSelectionHandleVisual::new("bottom-right", "right:-11px;bottom:-11px;"),
             ]
         } else {
             Vec::new()

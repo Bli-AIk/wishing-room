@@ -60,6 +60,7 @@ pub(crate) struct SingleTouchGesture {
     pub(crate) started_at: Instant,
     pub(crate) drag_active: bool,
     pub(crate) anchor_cell: Option<(u32, u32)>,
+    pub(crate) resize_handle: Option<TileSelectionHandle>,
     pub(crate) last_applied_cell: Option<(u32, u32)>,
     pub(crate) last_surface_x: f64,
     pub(crate) last_surface_y: f64,
@@ -83,6 +84,14 @@ pub(crate) struct ShapeFillPreview {
 pub(crate) struct TileSelectionRegion {
     pub(crate) start_cell: (u32, u32),
     pub(crate) end_cell: (u32, u32),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TileSelectionHandle {
+    TopLeft,
+    TopRight,
+    BottomLeft,
+    BottomRight,
 }
 
 #[derive(Debug, Clone)]

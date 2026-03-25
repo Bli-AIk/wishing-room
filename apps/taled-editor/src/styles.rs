@@ -191,11 +191,21 @@ pub(crate) const STYLES: &str = r#"
     background: rgba(203, 213, 225, 0.045);
   }
   .tile-selection-region,
-  .tile-selection-frame,
-  .tile-selection-handle {
+  .tile-selection-frame {
     position: absolute;
     box-sizing: border-box;
     pointer-events: none;
+  }
+  .tile-selection-handle {
+    position: absolute;
+    box-sizing: border-box;
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    background: transparent;
+    pointer-events: auto;
+    touch-action: none;
+    z-index: 7;
   }
   .tile-selection-region {
     z-index: 6;
@@ -215,7 +225,9 @@ pub(crate) const STYLES: &str = r#"
     inset: 0;
     border: 0.5px solid rgba(90, 196, 255, 0.94);
   }
-  .tile-selection-handle {
+  .tile-selection-handle-dot {
+    position: absolute;
+    inset: 6px;
     width: 10px;
     height: 10px;
     border-radius: 999px;

@@ -16,8 +16,8 @@ use crate::{
     embedded_samples::{embedded_sample, embedded_sample_thumb, embedded_samples},
     session_ops::{
         adjust_zoom, adjust_zoom_around_view_center, animate_camera_to_center,
-        animate_camera_to_fit_map, apply_redo, apply_undo, load_embedded_sample,
-        load_sample, save_document,
+        animate_camera_to_fit_map, apply_redo, apply_undo, load_embedded_sample, load_sample,
+        save_document,
     },
     ui_inspector::collect_palette,
     ui_visuals::{object_icon_style, palette_tile_style},
@@ -2073,15 +2073,13 @@ fn toolbar_supports_tool(kind: ReviewToolbarKind, tool: Tool) -> bool {
             tool,
             Tool::Hand | Tool::Paint | Tool::Fill | Tool::ShapeFill | Tool::Erase | Tool::Select
         ),
-        ReviewToolbarKind::Object => matches!(tool, Tool::Select | Tool::AddRectangle | Tool::AddPoint),
+        ReviewToolbarKind::Object => {
+            matches!(tool, Tool::Select | Tool::AddRectangle | Tool::AddPoint)
+        }
     }
 }
 
-fn set_review_active_layer_kind(
-    state: &mut AppState,
-    layer_index: usize,
-    kind: ReviewToolbarKind,
-) {
+fn set_review_active_layer_kind(state: &mut AppState, layer_index: usize, kind: ReviewToolbarKind) {
     state.active_layer = layer_index;
     state.selected_object = None;
     state.shape_fill_preview = None;

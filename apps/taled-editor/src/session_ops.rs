@@ -272,9 +272,7 @@ fn normalize_after_history_change(state: &mut AppState) {
     }
     state.shape_fill_preview = None;
     state.tile_selection_preview = None;
-    if state
-        .tile_selection
-        .is_some()
+    if state.tile_selection.is_some()
         && session
             .document()
             .map

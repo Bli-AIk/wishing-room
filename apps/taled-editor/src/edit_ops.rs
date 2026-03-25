@@ -130,15 +130,16 @@ pub(crate) fn apply_shape_fill_rect(
     let max_y = start_y.max(end_y);
 
     apply_edit(state, move |document| {
-        let layer = document.map.layer_mut(layer_index).ok_or_else(|| {
-            EditorError::Invalid(format!("unknown layer index {layer_index}"))
-        })?;
+        let layer = document
+            .map
+            .layer_mut(layer_index)
+            .ok_or_else(|| EditorError::Invalid(format!("unknown layer index {layer_index}")))?;
         if layer.locked() {
             return Err(EditorError::Invalid("layer is locked".to_string()));
         }
-        let tile_layer = layer.as_tile_mut().ok_or_else(|| {
-            EditorError::Invalid("active layer is not a tile layer".to_string())
-        })?;
+        let tile_layer = layer
+            .as_tile_mut()
+            .ok_or_else(|| EditorError::Invalid("active layer is not a tile layer".to_string()))?;
         for y in min_y..=max_y {
             for x in min_x..=max_x {
                 tile_layer.set_tile(x, y, gid)?;
@@ -153,15 +154,16 @@ fn apply_fill(state: &mut AppState, x: u32, y: u32) {
     let replacement_gid = state.selected_gid;
 
     apply_edit(state, move |document| {
-        let layer = document.map.layer_mut(layer_index).ok_or_else(|| {
-            EditorError::Invalid(format!("unknown layer index {layer_index}"))
-        })?;
+        let layer = document
+            .map
+            .layer_mut(layer_index)
+            .ok_or_else(|| EditorError::Invalid(format!("unknown layer index {layer_index}")))?;
         if layer.locked() {
             return Err(EditorError::Invalid("layer is locked".to_string()));
         }
-        let tile_layer = layer.as_tile_mut().ok_or_else(|| {
-            EditorError::Invalid("active layer is not a tile layer".to_string())
-        })?;
+        let tile_layer = layer
+            .as_tile_mut()
+            .ok_or_else(|| EditorError::Invalid("active layer is not a tile layer".to_string()))?;
 
         let target_gid = tile_layer.tile_at(x, y).ok_or_else(|| {
             EditorError::Invalid(format!("tile coordinate out of bounds: {x},{y}"))
