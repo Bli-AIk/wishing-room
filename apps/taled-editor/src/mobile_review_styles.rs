@@ -289,7 +289,7 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
     height: 100dvh;
     position: relative;
     --review-editor-nav-height: calc(78px + env(safe-area-inset-bottom, 0px));
-    --review-editor-toolbar-height: 86px;
+    --review-editor-toolbar-height: 68px;
     --review-editor-float-gap: 3px;
   }
   .review-editor-canvas {
@@ -642,8 +642,8 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
   .review-tool-row {
     display: flex;
     align-items: stretch;
-    gap: 6px;
-    padding: 10px 12px 8px;
+    gap: 3px;
+    padding: 4px 8px 2px;
     overflow-x: auto;
     overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
@@ -659,19 +659,19 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
     animation: review-toolbar-swap-in 180ms ease;
   }
   .review-tool-row-object .review-tool {
-    flex-basis: 78px;
+    flex-basis: 66px;
   }
   .review-tool {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 6px;
+    gap: 3px;
     color: #8e8e93;
     border: none;
     background: transparent;
     font: inherit;
-    flex: 0 0 74px;
-    min-height: 56px;
+    flex: 0 0 60px;
+    min-height: 42px;
     padding: 0;
   }
   .review-tool.active {
@@ -681,18 +681,19 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
     color: #6e6e73;
   }
   .review-tool-icon {
-    width: 24px;
-    height: 24px;
+    width: 20px;
+    height: 20px;
     display: grid;
     place-items: center;
   }
   .review-tool span {
     text-align: center;
-    line-height: 1.1;
+    line-height: 1.05;
+    font-size: 10px;
   }
   .review-tool-icon-svg {
-    width: 24px;
-    height: 24px;
+    width: 20px;
+    height: 20px;
     display: block;
   }
   @keyframes review-toolbar-swap-in {
