@@ -870,25 +870,37 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
   .review-tile-strip-side {
     width: 62px;
     min-width: 62px;
+    position: relative;
     padding: 8px 4px 8px 4px;
+    overflow: hidden;
+  }
+  .review-tile-strip-side-pane {
+    position: absolute;
+    inset: 8px 4px;
     display: flex;
     flex-direction: column;
     gap: 3px;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 170ms ease, transform 170ms ease;
+    pointer-events: none;
     overflow-y: auto;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
   }
-  .review-tile-strip-side::-webkit-scrollbar {
+  .review-tile-strip-side-pane::-webkit-scrollbar {
     display: none;
   }
+  .review-tile-strip-side-pane.active {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
   .review-tile-strip-side-empty {
-    display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 3px;
-    min-height: 100%;
     color: #6e6e73;
     font-size: 9px;
     line-height: 1.05;

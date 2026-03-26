@@ -1485,9 +1485,21 @@ fn review_tool_side_panel(
     state: Signal<AppState>,
     kind: ReviewToolbarKind,
 ) -> Element {
+    let selection_mode_active = kind == ReviewToolbarKind::Tile && snapshot.tool == Tool::Select;
     rsx! {
-        div { class: "review-tile-strip-side",
-            if kind == ReviewToolbarKind::Tile && snapshot.tool == Tool::Select {
+        div {
+            class: if selection_mode_active {
+                "review-tile-strip-side active"
+            } else {
+                "review-tile-strip-side"
+            },
+            div {
+                class: if selection_mode_active {
+                    "review-tile-strip-side-pane review-tile-strip-side-pane-modes active"
+                } else {
+                    "review-tile-strip-side-pane review-tile-strip-side-pane-modes"
+                },
+                aria_hidden: (!selection_mode_active).to_string(),
                 {review_selection_mode_button(
                     true,
                     "Replace",
@@ -1520,11 +1532,16 @@ fn review_tool_side_panel(
                     true,
                     state,
                 )}
-            } else {
-                div { class: "review-tile-strip-side-empty",
-                    span { "No tool" }
-                    span { "options" }
-                }
+            }
+            div {
+                class: if selection_mode_active {
+                    "review-tile-strip-side-pane review-tile-strip-side-empty"
+                } else {
+                    "review-tile-strip-side-pane review-tile-strip-side-empty active"
+                },
+                aria_hidden: selection_mode_active.to_string(),
+                span { "No tool" }
+                span { "options" }
             }
         }
     }
