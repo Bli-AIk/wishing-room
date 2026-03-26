@@ -191,6 +191,7 @@ pub(crate) const STYLES: &str = r#"
     background: rgba(203, 213, 225, 0.045);
   }
   .tile-selection-region,
+  .tile-selection-irregular-bounds,
   .tile-selection-region-cells,
   .tile-selection-cell-fragment,
   .tile-selection-frame {
@@ -220,6 +221,21 @@ pub(crate) const STYLES: &str = r#"
   .tile-selection-region-cells {
     z-index: 6;
     animation: tile-selection-fade-in 160ms ease-out;
+  }
+  .tile-selection-irregular-bounds {
+    z-index: 5;
+    background: rgba(58, 174, 255, 0.04);
+    border: 0.5px dashed rgba(90, 196, 255, 0.54);
+    animation: tile-selection-fade-in 160ms ease-out;
+  }
+  .tile-selection-irregular-bounds.preview {
+    background: rgba(58, 174, 255, 0.025);
+    border-color: rgba(90, 196, 255, 0.42);
+  }
+  .tile-selection-irregular-bounds.closing {
+    background: rgba(58, 174, 255, 0.025);
+    border-color: rgba(90, 196, 255, 0.38);
+    animation: tile-selection-fade-out 170ms ease-out forwards;
   }
   .tile-selection-region-cells.preview {
     opacity: 0.9;
@@ -259,6 +275,15 @@ pub(crate) const STYLES: &str = r#"
     box-shadow:
       0 0 0 1px rgba(28, 106, 158, 0.52),
       0 0 10px rgba(58, 174, 255, 0.24);
+  }
+  .tile-selection-handle.ghost {
+    pointer-events: none;
+  }
+  .tile-selection-handle-dot.ghost {
+    inset: 6px;
+    background: rgba(7, 17, 27, 0.18);
+    border: 0.5px solid rgba(173, 228, 255, 0.72);
+    box-shadow: 0 0 0 1px rgba(28, 106, 158, 0.24);
   }
   @keyframes tile-selection-fade-in {
     from {

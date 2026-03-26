@@ -208,19 +208,41 @@ pub(crate) fn render_canvas(snapshot: &AppState, mut state: Signal<AppState>) ->
 
                     {tile_selection_overlay.as_ref().map(|overlay| rsx! {
                         if overlay.irregular {
-                            div {
-                                class: if overlay.closing {
-                                    "tile-selection-region-cells closing"
-                                } else if overlay.preview {
-                                    "tile-selection-region-cells preview"
-                                } else {
-                                    "tile-selection-region-cells"
-                                },
-                                for (index, cell_style) in overlay.cell_styles.iter().enumerate() {
-                                    div {
-                                        key: "tile-selection-cell-{index}",
-                                        class: "tile-selection-cell-fragment",
-                                        style: "{cell_style}",
+                            Fragment {
+                                div {
+                                    class: if overlay.closing {
+                                        "tile-selection-region-cells closing"
+                                    } else if overlay.preview {
+                                        "tile-selection-region-cells preview"
+                                    } else {
+                                        "tile-selection-region-cells"
+                                    },
+                                    for (index, cell_style) in overlay.cell_styles.iter().enumerate() {
+                                        div {
+                                            key: "tile-selection-cell-{index}",
+                                            class: "tile-selection-cell-fragment",
+                                            style: "{cell_style}",
+                                        }
+                                    }
+                                }
+                                div {
+                                    class: if overlay.closing {
+                                        "tile-selection-irregular-bounds closing"
+                                    } else if overlay.preview {
+                                        "tile-selection-irregular-bounds preview"
+                                    } else {
+                                        "tile-selection-irregular-bounds"
+                                    },
+                                    style: "{overlay.region_style}",
+                                    if overlay.show_irregular_handles {
+                                        for handle in &overlay.handles {
+                                            div {
+                                                key: "tile-selection-irregular-handle-{handle.position}",
+                                                class: "tile-selection-handle ghost {handle.position}",
+                                                style: "{handle.style}",
+                                                div { class: "tile-selection-handle-dot ghost" }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -555,6 +577,7 @@ fn build_tile_selection_overlay(
     let irregular = !selection_cells_are_rectangular(selection, &selection_cells);
     let show_handles =
         !irregular && !transfer_active && (width_in_cells > 1 || height_in_cells > 1);
+    let show_irregular_handles = irregular && (width_in_cells > 1 || height_in_cells > 1);
     let region_style = signed_preview_frame_style(
         document.map.tile_width,
         document.map.tile_height,
@@ -587,7 +610,8 @@ fn build_tile_selection_overlay(
             Vec::new()
         },
         show_handles,
-        handles: if show_handles {
+        show_irregular_handles,
+        handles: if show_handles || show_irregular_handles {
             vec![
                 TileSelectionHandleVisual::new("top-left", "left:-11px;top:-11px;"),
                 TileSelectionHandleVisual::new("top-right", "right:-11px;top:-11px;"),
@@ -640,6 +664,7 @@ struct TileSelectionOverlayVisual {
     region_style: String,
     cell_styles: Vec<String>,
     show_handles: bool,
+    show_irregular_handles: bool,
     handles: Vec<TileSelectionHandleVisual>,
 }
 
