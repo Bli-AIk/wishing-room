@@ -12,6 +12,9 @@ use crate::{
     embedded_samples::embedded_samples,
     platform::{EMBEDDED_DEMO_MAP_PATH, log},
 };
+use crate::l10n::{
+    AppLanguagePreference, SupportedLanguage, detect_device_locale_tag, resolve_language,
+};
 #[cfg(target_arch = "wasm32")]
 use web_sys::window;
 
@@ -46,6 +49,7 @@ pub(crate) enum MobileScreen {
     Objects,
     Properties,
     Settings,
+    About,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -160,6 +164,9 @@ pub(crate) struct AppState {
     pub(crate) mobile_screen: MobileScreen,
     pub(crate) mobile_transition: MobileTransition,
     pub(crate) mobile_transition_nonce: u64,
+    pub(crate) language_preference: AppLanguagePreference,
+    pub(crate) device_locale_tag: String,
+    pub(crate) about_contributors_expanded: bool,
     #[cfg(target_arch = "wasm32")]
     pub(crate) show_web_logs: bool,
     pub(crate) zoom_percent: i32,
@@ -186,6 +193,7 @@ impl Default for AppState {
                 .map(|value| parse_mobile_screen(&value))
                 .unwrap_or(MobileScreen::Dashboard);
             let path_input = EMBEDDED_DEMO_MAP_PATH.to_string();
+            let device_locale_tag = detect_device_locale_tag();
             let mut state = Self {
                 path_input: path_input.clone(),
                 save_as_input: path_input,
@@ -212,6 +220,9 @@ impl Default for AppState {
                 mobile_screen,
                 mobile_transition: MobileTransition::None,
                 mobile_transition_nonce: 0,
+                language_preference: AppLanguagePreference::Auto,
+                device_locale_tag,
+                about_contributors_expanded: false,
                 show_web_logs: false,
                 zoom_percent: 100,
                 pan_x: 0,
@@ -236,6 +247,7 @@ impl Default for AppState {
         #[cfg(target_os = "android")]
         {
             let path_input = EMBEDDED_DEMO_MAP_PATH.to_string();
+            let device_locale_tag = detect_device_locale_tag();
             let state = Self {
                 path_input: path_input.clone(),
                 save_as_input: path_input,
@@ -262,6 +274,9 @@ impl Default for AppState {
                 mobile_screen: MobileScreen::Dashboard,
                 mobile_transition: MobileTransition::None,
                 mobile_transition_nonce: 0,
+                language_preference: AppLanguagePreference::Auto,
+                device_locale_tag,
+                about_contributors_expanded: false,
                 zoom_percent: 100,
                 pan_x: 0,
                 pan_y: 0,
@@ -289,6 +304,7 @@ impl Default for AppState {
                 .map(EditorSession::sample_path_from_root)
                 .map(|path| path.display().to_string())
                 .unwrap_or_default();
+            let device_locale_tag = detect_device_locale_tag();
 
             Self {
                 path_input: path_input.clone(),
@@ -316,6 +332,9 @@ impl Default for AppState {
                 mobile_screen: MobileScreen::Editor,
                 mobile_transition: MobileTransition::None,
                 mobile_transition_nonce: 0,
+                language_preference: AppLanguagePreference::Auto,
+                device_locale_tag,
+                about_contributors_expanded: false,
                 zoom_percent: 100,
                 pan_x: 0,
                 pan_y: 0,
@@ -332,6 +351,12 @@ impl Default for AppState {
                 status: default_status_message(),
             }
         }
+    }
+}
+
+impl AppState {
+    pub(crate) fn resolved_language(&self) -> SupportedLanguage {
+        resolve_language(self.language_preference, &self.device_locale_tag)
     }
 }
 
@@ -469,6 +494,7 @@ fn parse_mobile_screen(value: &str) -> MobileScreen {
         "objects" => MobileScreen::Objects,
         "properties" => MobileScreen::Properties,
         "settings" => MobileScreen::Settings,
+        "about" => MobileScreen::About,
         _ => MobileScreen::Dashboard,
     }
 }

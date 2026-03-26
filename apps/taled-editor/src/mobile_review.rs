@@ -20,6 +20,7 @@ use crate::{
         toggle_layer_lock, toggle_layer_visibility,
     },
     embedded_samples::{embedded_sample, embedded_sample_thumb, embedded_samples},
+    l10n::{self, AppLanguagePreference},
     session_ops::{
         adjust_zoom, adjust_zoom_around_view_center, animate_camera_to_center,
         animate_camera_to_fit_map, apply_redo, apply_undo, load_embedded_sample, load_sample,
@@ -46,6 +47,17 @@ enum ReviewToolbarKind {
     Object,
 }
 
+#[derive(Clone, Copy)]
+enum ReviewNavItem {
+    Projects,
+    Assets,
+    Tilesets,
+    Layers,
+    Objects,
+    Properties,
+    Settings,
+}
+
 const CONTROL_DOUBLE_TAP_WINDOW: Duration = Duration::from_millis(320);
 const JOYSTICK_LOOP_INTERVAL: Duration = Duration::from_millis(16);
 const ZOOM_LOOP_INTERVAL: Duration = Duration::from_millis(28);
@@ -57,6 +69,7 @@ const SELECTION_ACTION_BAR_WIDTH: f64 = 264.0;
 const SELECTION_ACTION_BAR_HEIGHT: f64 = 48.0;
 const SELECTION_ACTION_BAR_MARGIN: f64 = 10.0;
 const SELECTION_ACTION_BAR_OFFSET: f64 = 8.0;
+const TALED_LOGO_DATA_URL: &str = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAATklEQVR4nGNgGOyAEYn9nwg1BNWx4FOJbhIx6phw6CEbDH4DiYkUkswiGCnEisHA4A/DwR8puDID3BIcEYBT3+APQ6obyEJIAaFAHnoAANeFCyR72fgMAAAAAElFTkSuQmCC";
 
 pub(crate) fn render_mobile_shell(snapshot: &AppState, state: Signal<AppState>) -> Element {
     rsx! {
@@ -69,9 +82,58 @@ pub(crate) fn render_mobile_shell(snapshot: &AppState, state: Signal<AppState>) 
                 MobileScreen::Objects => rsx! { {render_objects(snapshot, state)} },
                 MobileScreen::Properties => rsx! { {render_properties(snapshot, state)} },
                 MobileScreen::Settings => rsx! { {render_settings(snapshot, state)} },
+                MobileScreen::About => rsx! { {render_about(snapshot, state)} },
             }
         }
     }
+}
+
+fn t(snapshot: &AppState, key: &str) -> String {
+    l10n::text(snapshot.resolved_language(), key)
+}
+
+fn nav_label(snapshot: &AppState, item: ReviewNavItem) -> String {
+    match item {
+        ReviewNavItem::Projects => t(snapshot, "nav-projects"),
+        ReviewNavItem::Assets => t(snapshot, "nav-assets"),
+        ReviewNavItem::Tilesets => t(snapshot, "nav-tilesets"),
+        ReviewNavItem::Layers => t(snapshot, "nav-layers"),
+        ReviewNavItem::Objects => t(snapshot, "nav-objects"),
+        ReviewNavItem::Properties => t(snapshot, "nav-properties"),
+        ReviewNavItem::Settings => t(snapshot, "nav-settings"),
+    }
+}
+
+fn language_option_label(snapshot: &AppState, preference: AppLanguagePreference) -> String {
+    match preference {
+        AppLanguagePreference::Auto => t(snapshot, "settings-language-auto"),
+        AppLanguagePreference::English => t(snapshot, "settings-language-english"),
+        AppLanguagePreference::SimplifiedChinese => t(snapshot, "settings-language-zh-hans"),
+    }
+}
+
+fn device_language_detail(snapshot: &AppState) -> String {
+    l10n::text_with_args(
+        snapshot.resolved_language(),
+        "settings-language-device",
+        &[("language", l10n::language_name(snapshot.resolved_language()))],
+    )
+}
+
+fn apply_language_preference(state: &mut AppState, preference: AppLanguagePreference) {
+    state.language_preference = preference;
+    let resolved = l10n::language_name(state.resolved_language());
+    let status_key = match preference {
+        AppLanguagePreference::Auto => "settings-language-status-auto",
+        AppLanguagePreference::English | AppLanguagePreference::SimplifiedChinese => {
+            "settings-language-status-manual"
+        }
+    };
+    state.status = l10n::text_with_args(
+        state.resolved_language(),
+        status_key,
+        &[("language", resolved)],
+    );
 }
 
 fn review_page_class(snapshot: &AppState, base: &'static str) -> String {
@@ -107,6 +169,8 @@ fn navigate_mobile_screen(state: &mut AppState, next: MobileScreen) {
         | (MobileScreen::Layers, MobileScreen::Editor)
         | (MobileScreen::Objects, MobileScreen::Editor)
         | (MobileScreen::Properties, MobileScreen::Editor) => MobileTransition::VerticalBackward,
+        (MobileScreen::Settings, MobileScreen::About) => MobileTransition::VerticalForward,
+        (MobileScreen::About, MobileScreen::Settings) => MobileTransition::VerticalBackward,
         _ => MobileTransition::None,
     };
     state.mobile_transition_nonce = state.mobile_transition_nonce.wrapping_add(1);
@@ -208,8 +272,8 @@ fn render_editor(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
         div { key: "{page_key}", class: "{page_class}",
             {review_top_bar_inactive_right(
                 document_title(snapshot),
-                ("Back", MobileScreen::Dashboard),
-                "Settings",
+                (t(snapshot, "common-back"), MobileScreen::Dashboard),
+                t(snapshot, "nav-settings"),
                 state,
             )}
             div { class: "review-tile-strip-top-shell",
@@ -278,7 +342,7 @@ fn render_editor(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
                             state.layers_panel_expanded = !state.layers_panel_expanded;
                         },
                         span { class: "review-layer-float-title-stack",
-                            span { "Layers" }
+                            span { {t(snapshot, "nav-layers")} }
                             span { class: "review-layer-float-current", "{active_layer_summary.0}" }
                         }
                         span { class: "review-layer-float-title-icon", {review_layer_chevron_icon(snapshot.layers_panel_expanded)} }
@@ -931,8 +995,8 @@ fn render_tilesets(snapshot: &AppState, mut state: Signal<AppState>) -> Element 
         div { key: "{page_key}", class: "{page_class}",
             {review_top_bar(
                 "Tile Property Editor".to_string(),
-                Some(("Back", MobileScreen::Editor)),
-                Some(("Done", MobileScreen::Editor)),
+                Some((t(snapshot, "common-back"), MobileScreen::Editor)),
+                Some(("Done".to_string(), MobileScreen::Editor)),
                 state,
             )}
             div { class: "review-body review-section-stack",
@@ -1022,8 +1086,8 @@ fn render_layers(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
         div { key: "{page_key}", class: "{page_class}",
             {review_top_bar(
                 "Layer Manager".to_string(),
-                Some(("Back", MobileScreen::Editor)),
-                Some(("Done", MobileScreen::Editor)),
+                Some((t(snapshot, "common-back"), MobileScreen::Editor)),
+                Some(("Done".to_string(), MobileScreen::Editor)),
                 state,
             )}
             div { class: "review-body review-list",
@@ -1108,8 +1172,8 @@ fn render_objects(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
         div { key: "{page_key}", class: "{page_class}",
             {review_top_bar(
                 "Object Library".to_string(),
-                Some(("Back", MobileScreen::Editor)),
-                Some(("Done", MobileScreen::Editor)),
+                Some((t(snapshot, "common-back"), MobileScreen::Editor)),
+                Some(("Done".to_string(), MobileScreen::Editor)),
                 state,
             )}
             div { class: "review-body review-section-stack",
@@ -1216,8 +1280,8 @@ fn render_properties(snapshot: &AppState, mut state: Signal<AppState>) -> Elemen
         div { key: "{page_key}", class: "{page_class}",
             {review_top_bar(
                 "Properties".to_string(),
-                Some(("Back", MobileScreen::Editor)),
-                Some(("Done", MobileScreen::Editor)),
+                Some((t(snapshot, "common-back"), MobileScreen::Editor)),
+                Some(("Done".to_string(), MobileScreen::Editor)),
                 state,
             )}
             div { class: "review-body review-section-stack",
@@ -1293,7 +1357,6 @@ fn render_properties(snapshot: &AppState, mut state: Signal<AppState>) -> Elemen
                     div { class: "review-info-title", "Status" }
                     div { class: "review-info-meta", "{snapshot.status}" }
                 }
-                {render_log_path_card()}
                 div { class: "review-caption", "Export Settings" }
                 div { class: "review-settings-card",
                     div { class: "review-setting-row", span { "JSON" } div { class: "review-toggle on", div { class: "knob" } } }
@@ -1306,40 +1369,151 @@ fn render_properties(snapshot: &AppState, mut state: Signal<AppState>) -> Elemen
     }
 }
 
-fn render_settings(snapshot: &AppState, state: Signal<AppState>) -> Element {
+fn render_settings(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
     let page_key = review_page_key(snapshot, "settings");
     let page_class = review_page_class(snapshot, "review-page");
     rsx! {
         div { key: "{page_key}", class: "{page_class}",
-            {review_title_only_bar("App Settings".to_string())}
+            {review_title_only_bar(t(snapshot, "settings-title"))}
             div { class: "review-body review-section-stack",
-                div { class: "review-caption", "Grid Settings" }
-                div { class: "review-settings-card",
-                    div { class: "review-setting-row",
-                        span { "Grid Color" }
-                        div { class: "review-color-chip",
-                            span { class: "swatch", style: "background:#cccccc;" }
-                            span { "#CCCCCC" }
+                div { class: "review-caption", {t(snapshot, "settings-language-caption")} }
+                div { class: "review-settings-card single",
+                    div { class: "review-section-stack review-settings-inline-stack",
+                        div { class: "review-segmented",
+                            button {
+                                class: if snapshot.language_preference == AppLanguagePreference::Auto { "active" } else { "" },
+                                onclick: move |_| apply_language_preference(&mut state.write(), AppLanguagePreference::Auto),
+                                {language_option_label(snapshot, AppLanguagePreference::Auto)}
+                            }
+                            button {
+                                class: if snapshot.language_preference == AppLanguagePreference::English { "active" } else { "" },
+                                onclick: move |_| apply_language_preference(&mut state.write(), AppLanguagePreference::English),
+                                {language_option_label(snapshot, AppLanguagePreference::English)}
+                            }
+                            button {
+                                class: if snapshot.language_preference == AppLanguagePreference::SimplifiedChinese { "active" } else { "" },
+                                onclick: move |_| apply_language_preference(&mut state.write(), AppLanguagePreference::SimplifiedChinese),
+                                {language_option_label(snapshot, AppLanguagePreference::SimplifiedChinese)}
+                            }
                         }
-                    }
-                    div { class: "review-setting-row",
-                        span { "Snapping" }
-                        div { class: "review-toggle on", div { class: "knob" } }
+                        div { class: "review-info-meta", {device_language_detail(snapshot)} }
                     }
                 }
-                div { class: "review-caption", "Theme" }
+                div { class: "review-caption", {t(snapshot, "settings-theme-caption")} }
                 div { class: "review-settings-card single",
                     div { class: "review-segmented",
-                        button { class: "active", "Dark" }
-                        button { "Light" }
-                        button { "System" }
+                        button { class: "active", {t(snapshot, "settings-theme-dark")} }
+                        button { {t(snapshot, "settings-theme-light")} }
+                        button { {t(snapshot, "settings-theme-system")} }
                     }
                 }
-                div { class: "review-caption", "Export Settings" }
+                div { class: "review-caption", {t(snapshot, "settings-diagnostics-caption")} }
+                div { class: "review-info-card review-note-card",
+                    div { class: "review-info-title", {t(snapshot, "settings-status-title")} }
+                    div { class: "review-info-meta", "{snapshot.status}" }
+                }
+                {render_log_path_card(snapshot)}
+                div { class: "review-caption", {t(snapshot, "settings-export-caption")} }
                 div { class: "review-settings-card",
-                    div { class: "review-setting-row", span { "JSON" } div { class: "review-toggle on", div { class: "knob" } } }
-                    div { class: "review-setting-row", span { "XML" } div { class: "review-toggle on", div { class: "knob" } } }
-                    div { class: "review-setting-row", span { "PNG" } div { class: "review-toggle on", div { class: "knob" } } }
+                    div { class: "review-setting-row", span { {t(snapshot, "settings-export-json")} } div { class: "review-toggle on", div { class: "knob" } } }
+                    div { class: "review-setting-row", span { {t(snapshot, "settings-export-xml")} } div { class: "review-toggle on", div { class: "knob" } } }
+                    div { class: "review-setting-row", span { {t(snapshot, "settings-export-png")} } div { class: "review-toggle on", div { class: "knob" } } }
+                }
+                div { class: "review-caption", {t(snapshot, "settings-about-caption")} }
+                div { class: "review-info-card review-note-card review-about-entry-card",
+                    div { class: "review-info-title", "Taled" }
+                    div { class: "review-info-meta", {t(snapshot, "settings-about-description")} }
+                    button {
+                        class: "review-link-button",
+                        onclick: move |_| navigate_mobile_screen(&mut state.write(), MobileScreen::About),
+                        {t(snapshot, "settings-about-open")}
+                    }
+                }
+            }
+            {review_nav(snapshot, state, true)}
+        }
+    }
+}
+
+fn render_about(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
+    let page_key = review_page_key(snapshot, "about");
+    let page_class = review_page_class(snapshot, "review-page");
+    let contributors_expanded = snapshot.about_contributors_expanded;
+    rsx! {
+        div { key: "{page_key}", class: "{page_class}",
+            {review_top_bar(
+                t(snapshot, "settings-about-caption"),
+                Some((t(snapshot, "common-back"), MobileScreen::Settings)),
+                None,
+                state,
+            )}
+            div { class: "review-body review-section-stack",
+                div { class: "review-about-hero" ,
+                    img {
+                        class: "review-about-logo",
+                        src: TALED_LOGO_DATA_URL,
+                        alt: "Taled"
+                    }
+                    div { class: "review-info-title", "Taled" }
+                    div { class: "review-info-meta", {t(snapshot, "settings-about-description")} }
+                }
+                a {
+                    class: "review-settings-card review-license-card",
+                    href: "https://www.gnu.org/licenses/gpl-3.0.html",
+                    target: "_blank",
+                    rel: "noreferrer",
+                    div { class: "review-setting-row",
+                        span { {t(snapshot, "settings-about-license-title")} }
+                        span { class: "muted review-setting-meta", {t(snapshot, "settings-about-license-value")} }
+                    }
+                }
+                div { class: if contributors_expanded { "review-info-card review-note-card expanded" } else { "review-info-card review-note-card" },
+                    button {
+                        class: "review-disclosure-button",
+                        onclick: move |_| {
+                            let mut state = state.write();
+                            state.about_contributors_expanded = !state.about_contributors_expanded;
+                        },
+                        span { class: "review-info-title", {t(snapshot, "settings-about-contributors-title")} }
+                        span { class: "review-disclosure-copy",
+                            if contributors_expanded {
+                                {t(snapshot, "settings-about-contributors-hide")}
+                            } else {
+                                {t(snapshot, "settings-about-contributors-show")}
+                            }
+                        }
+                        span { class: "review-layer-float-title-icon", {review_layer_chevron_icon(contributors_expanded)} }
+                    }
+                    div {
+                        class: if contributors_expanded {
+                            "review-disclosure-panel expanded"
+                        } else {
+                            "review-disclosure-panel"
+                        },
+                        div { class: "review-settings-card about-embedded",
+                            div { class: "review-contributor-row",
+                                div { class: "review-info-title", {t(snapshot, "settings-about-contributors-value")} }
+                                div { class: "muted review-contributor-meta", {t(snapshot, "settings-about-contributor-role")} }
+                            }
+                        }
+                    }
+                }
+                div { class: "review-info-card review-note-card",
+                    div { class: "review-info-title", {t(snapshot, "settings-about-repository-title")} }
+                    div { class: "review-info-meta", {t(snapshot, "settings-about-repository-description")} }
+                    div { class: "review-info-meta", {t(snapshot, "settings-about-repository-contributing")} }
+                    div { class: "review-about-link-list",
+                        {review_about_link(snapshot, "settings-about-github", "https://github.com/Bli-AIk/taled")}
+                    }
+                }
+                div { class: "review-info-card review-note-card",
+                    div { class: "review-info-title", {t(snapshot, "settings-about-thanks-title")} }
+                    div { class: "review-about-link-list",
+                        {review_about_link(snapshot, "settings-about-tiled", "https://www.mapeditor.org/")}
+                        {review_about_link(snapshot, "settings-about-undertale", "https://undertale.com/")}
+                        {review_about_link(snapshot, "settings-about-deltarune", "https://deltarune.com/")}
+                        {review_about_link(snapshot, "settings-about-open-utdr", "https://github.com/Bli-AIk/open-utdr-maps")}
+                    }
                 }
             }
             {review_nav(snapshot, state, true)}
@@ -1354,7 +1528,7 @@ fn render_missing_screen(
 ) -> Element {
     rsx! {
         div { class: "review-page",
-            {review_top_bar(title, Some(("Back", MobileScreen::Dashboard)), None, state)}
+            {review_top_bar(title, Some(("Back".to_string(), MobileScreen::Dashboard)), None, state)}
             div { class: "review-body review-section-stack",
                 div { class: "review-info-card review-note-card",
                     div { class: "review-info-title", "No map loaded" }
@@ -1373,8 +1547,8 @@ fn render_missing_screen(
 
 fn review_top_bar(
     title: String,
-    left: Option<(&'static str, MobileScreen)>,
-    right: Option<(&'static str, MobileScreen)>,
+    left: Option<(String, MobileScreen)>,
+    right: Option<(String, MobileScreen)>,
     mut state: Signal<AppState>,
 ) -> Element {
     rsx! {
@@ -1404,8 +1578,8 @@ fn review_top_bar(
 
 fn review_top_bar_inactive_right(
     title: String,
-    left: (&'static str, MobileScreen),
-    inactive_right: &'static str,
+    left: (String, MobileScreen),
+    inactive_right: String,
     mut state: Signal<AppState>,
 ) -> Element {
     rsx! {
@@ -1442,14 +1616,14 @@ fn review_nav(snapshot: &AppState, state: Signal<AppState>, dashboard_variant: b
     rsx! {
         div { class: if dashboard_variant { "review-bottom-nav dashboard" } else { "review-bottom-nav editor" },
             if dashboard_variant {
-                {review_nav_button(snapshot, state, MobileScreen::Dashboard, "Projects")}
-                {review_static_nav_item("Assets")}
-                {review_nav_button(snapshot, state, MobileScreen::Settings, "Settings")}
+                {review_nav_button(snapshot, state, MobileScreen::Dashboard, ReviewNavItem::Projects)}
+                {review_static_nav_item(snapshot, ReviewNavItem::Assets)}
+                {review_nav_button(snapshot, state, MobileScreen::Settings, ReviewNavItem::Settings)}
             } else {
-                {review_nav_button(snapshot, state, MobileScreen::Tilesets, "Tilesets")}
-                {review_nav_button(snapshot, state, MobileScreen::Layers, "Layers")}
-                {review_nav_button(snapshot, state, MobileScreen::Objects, "Objects")}
-                {review_nav_button(snapshot, state, MobileScreen::Properties, "Properties")}
+                {review_nav_button(snapshot, state, MobileScreen::Tilesets, ReviewNavItem::Tilesets)}
+                {review_nav_button(snapshot, state, MobileScreen::Layers, ReviewNavItem::Layers)}
+                {review_nav_button(snapshot, state, MobileScreen::Objects, ReviewNavItem::Objects)}
+                {review_nav_button(snapshot, state, MobileScreen::Properties, ReviewNavItem::Properties)}
             }
         }
     }
@@ -1459,22 +1633,26 @@ fn review_nav_button(
     snapshot: &AppState,
     mut state: Signal<AppState>,
     screen: MobileScreen,
-    label: &'static str,
+    item: ReviewNavItem,
 ) -> Element {
+    let label = nav_label(snapshot, item);
+    let is_active = snapshot.mobile_screen == screen
+        || (snapshot.mobile_screen == MobileScreen::About && screen == MobileScreen::Settings);
     rsx! {
         button {
-            class: if snapshot.mobile_screen == screen { "review-nav-item active" } else { "review-nav-item" },
+            class: if is_active { "review-nav-item active" } else { "review-nav-item" },
             onclick: move |_| navigate_mobile_screen(&mut state.write(), screen),
-            div { class: "review-nav-icon", {review_nav_icon(label)} }
+            div { class: "review-nav-icon", {review_nav_icon(item)} }
             span { "{label}" }
         }
     }
 }
 
-fn review_static_nav_item(label: &'static str) -> Element {
+fn review_static_nav_item(snapshot: &AppState, item: ReviewNavItem) -> Element {
+    let label = nav_label(snapshot, item);
     rsx! {
         div { class: "review-nav-item review-nav-static",
-            div { class: "review-nav-icon", {review_nav_icon(label)} }
+            div { class: "review-nav-icon", {review_nav_icon(item)} }
             span { "{label}" }
         }
     }
@@ -1548,9 +1726,9 @@ fn review_tool_side_panel(
     }
 }
 
-fn review_nav_icon(label: &'static str) -> Element {
-    match label {
-        "Projects" => rsx! {
+fn review_nav_icon(item: ReviewNavItem) -> Element {
+    match item {
+        ReviewNavItem::Projects => rsx! {
             svg {
                 class: "review-nav-icon-svg",
                 view_box: "0 0 24 24",
@@ -1567,7 +1745,7 @@ fn review_nav_icon(label: &'static str) -> Element {
                 path { d: "M3 18h.01" }
             }
         },
-        "Assets" => rsx! {
+        ReviewNavItem::Assets => rsx! {
             svg {
                 class: "review-nav-icon-svg",
                 view_box: "0 0 24 24",
@@ -1579,7 +1757,7 @@ fn review_nav_icon(label: &'static str) -> Element {
                 path { d: "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" }
             }
         },
-        "Tilesets" => rsx! {
+        ReviewNavItem::Tilesets => rsx! {
             svg {
                 class: "review-nav-icon-svg",
                 view_box: "0 0 24 24",
@@ -1594,7 +1772,7 @@ fn review_nav_icon(label: &'static str) -> Element {
                 rect { x: "14", y: "14", width: "7", height: "7", rx: "1" }
             }
         },
-        "Layers" => rsx! {
+        ReviewNavItem::Layers => rsx! {
             svg {
                 class: "review-nav-icon-svg",
                 view_box: "0 0 24 24",
@@ -1608,7 +1786,7 @@ fn review_nav_icon(label: &'static str) -> Element {
                 path { d: "m3 16 9 5 9-5" }
             }
         },
-        "Objects" => rsx! {
+        ReviewNavItem::Objects => rsx! {
             svg {
                 class: "review-nav-icon-svg",
                 view_box: "0 0 24 24",
@@ -1622,7 +1800,7 @@ fn review_nav_icon(label: &'static str) -> Element {
                 circle { cx: "12", cy: "12", r: "5" }
             }
         },
-        "Settings" => rsx! {
+        ReviewNavItem::Settings => rsx! {
             svg {
                 class: "review-nav-icon-svg",
                 view_box: "0 0 24 24",
@@ -1635,7 +1813,7 @@ fn review_nav_icon(label: &'static str) -> Element {
                 path { d: "M19.4 15a1.7 1.7 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-.4-1 1.7 1.7 0 0 0-1-.6 1.7 1.7 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1-.4H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1-.4 1.7 1.7 0 0 0 .6-1 1.7 1.7 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6c.38-.08.72-.28 1-.6a1.7 1.7 0 0 0 .4-1V3a2 2 0 1 1 4 0v.09c0 .38.14.74.4 1 .28.32.62.52 1 .6a1.7 1.7 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.08.38.28.72.6 1 .26.26.62.4 1 .4H21a2 2 0 1 1 0 4h-.09c-.38 0-.74.14-1 .4-.32.28-.52.62-.6 1z" }
             }
         },
-        "Properties" => rsx! {
+        ReviewNavItem::Properties => rsx! {
             svg {
                 class: "review-nav-icon-svg",
                 view_box: "0 0 24 24",
@@ -1652,7 +1830,6 @@ fn review_nav_icon(label: &'static str) -> Element {
                 circle { cx: "11", cy: "18", r: "2" }
             }
         },
-        _ => rsx! { span {} },
     }
 }
 
@@ -2428,19 +2605,32 @@ fn review_slider_row(label: &'static str, value: &str) -> Element {
 }
 
 #[cfg(target_os = "android")]
-fn render_log_path_card() -> Element {
+fn render_log_path_card(snapshot: &AppState) -> Element {
     let path = log_path().unwrap_or_default();
     rsx! {
         div { class: "review-info-card review-note-card",
-            div { class: "review-info-title", "Log Path" }
+            div { class: "review-info-title", {t(snapshot, "settings-log-path-title")} }
             div { class: "review-info-meta", "{path}" }
         }
     }
 }
 
 #[cfg(not(target_os = "android"))]
-fn render_log_path_card() -> Element {
+fn render_log_path_card(_snapshot: &AppState) -> Element {
     rsx! {}
+}
+
+fn review_about_link(snapshot: &AppState, label_key: &'static str, url: &'static str) -> Element {
+    rsx! {
+        a {
+            class: "review-about-link",
+            href: "{url}",
+            target: "_blank",
+            rel: "noreferrer",
+            span { class: "review-about-link-title", {t(snapshot, label_key)} }
+            span { class: "review-about-link-url", "{url}" }
+        }
+    }
 }
 
 fn document_title(snapshot: &AppState) -> String {

@@ -1169,6 +1169,9 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
   .review-settings-card.single {
     padding: 0 16px;
   }
+  .review-settings-inline-stack {
+    width: 100%;
+  }
   .review-selected-tile-summary {
     font-size: 16px;
     font-weight: 600;
@@ -1258,6 +1261,121 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
   .review-note-card {
     flex-direction: column;
     align-items: flex-start;
+  }
+  .review-setting-meta {
+    text-align: right;
+    max-width: 62%;
+  }
+  .review-about-entry-card {
+    align-items: center;
+    text-align: center;
+  }
+  .review-about-entry-card .review-link-button {
+    margin: 2px auto 0;
+  }
+  .review-about-link-list {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .review-about-link {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    color: #9cc7ff;
+    text-decoration: none;
+  }
+  .review-about-link-title {
+    color: #f2f2f7;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .review-about-link-url {
+    color: #74a8ff;
+    font-size: 12px;
+    line-height: 1.35;
+    word-break: break-all;
+  }
+  .review-about-hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 20px 18px 18px;
+    border-radius: 22px;
+    border: 1px solid #2c2c2e;
+    background: linear-gradient(180deg, rgba(33,33,36,0.98), rgba(24,24,26,0.98));
+    text-align: center;
+  }
+  .review-about-logo {
+    width: 84px;
+    height: 84px;
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.28));
+  }
+  .review-disclosure-button {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+  }
+  .review-disclosure-copy {
+    margin-left: auto;
+    color: #8f8f95;
+    font-size: 12px;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+  .review-disclosure-panel {
+    width: 100%;
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: max-height 220ms ease, opacity 180ms ease, margin-top 180ms ease;
+  }
+  .review-disclosure-panel.expanded {
+    max-height: 240px;
+    opacity: 1;
+    margin-top: 10px;
+  }
+  .review-settings-card.about-embedded {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0 14px;
+    border-radius: 16px;
+    border: 1px solid #2c2c2e;
+    background: #1a1a1c;
+    overflow: hidden;
+  }
+  .review-license-card {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+  }
+  .review-contributor-row {
+    display: flex;
+    width: 100%;
+    box-sizing: border-box;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 14px 0;
+  }
+  .review-contributor-meta {
+    width: 100%;
+    max-width: none;
+    text-align: left;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
   .review-map-live .canvas-host {
     height: 100%;

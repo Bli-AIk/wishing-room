@@ -5,6 +5,7 @@ mod app_state;
 mod demo;
 mod edit_ops;
 mod embedded_samples;
+mod l10n;
 mod mobile_review;
 mod mobile_review_styles;
 mod platform;
