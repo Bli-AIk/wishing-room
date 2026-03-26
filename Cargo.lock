@@ -4347,6 +4347,8 @@ dependencies = [
  "jni 0.21.1",
  "js-sys",
  "ndk-context",
+ "serde",
+ "serde_json",
  "sys-locale",
  "taled-core",
  "unic-langid",

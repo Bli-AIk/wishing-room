@@ -7,6 +7,8 @@ edition = "2024"
 base64.workspace = true
 fluent-bundle.workspace = true
 futures-timer.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 sys-locale.workspace = true
 taled-core = { path = "../../crates/taled-core" }
 unic-langid.workspace = true
@@ -26,6 +28,7 @@ web-sys = { version = "0.3.91", features = [
   "HtmlAnchorElement",
   "HtmlElement",
   "Location",
+  "MediaQueryList",
   "Navigator",
   "Node",
   "PromiseRejectionEvent",

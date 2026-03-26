@@ -8,6 +8,7 @@ use crate::{
     mobile_review_styles::MOBILE_REVIEW_STYLES,
     session_ops::{adjust_zoom, load_sample, open_document, save_as_document, save_document},
     styles::STYLES,
+    theme::{THEME_STYLE_OVERRIDES, runtime_theme_css},
     ui_canvas::render_canvas,
     ui_inspector::{render_inspector, render_palette},
 };
@@ -25,8 +26,10 @@ pub(crate) fn App() -> Element {
         crate::platform::mark_app_rendered();
     });
 
+    let theme_css = runtime_theme_css(snapshot.theme_choice, &snapshot.custom_theme);
+
     rsx! {
-        style { "{STYLES}{MOBILE_REVIEW_STYLES}" }
+        style { "{STYLES}{MOBILE_REVIEW_STYLES}{theme_css}{THEME_STYLE_OVERRIDES}" }
         div { class: "app-shell",
             {render_topbar(&snapshot, state)}
             div { class: "workspace",

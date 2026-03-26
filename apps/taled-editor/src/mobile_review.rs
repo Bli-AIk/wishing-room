@@ -26,6 +26,7 @@ use crate::{
         animate_camera_to_fit_map, apply_redo, apply_undo, load_embedded_sample, load_sample,
         save_document,
     },
+    theme::{ThemeChoice, ThemePalette, export_theme_json, import_theme_json, resolved_theme},
     ui_inspector::collect_palette,
     ui_visuals::{object_icon_style, palette_tile_style},
 };
@@ -82,6 +83,7 @@ pub(crate) fn render_mobile_shell(snapshot: &AppState, state: Signal<AppState>) 
                 MobileScreen::Objects => rsx! { {render_objects(snapshot, state)} },
                 MobileScreen::Properties => rsx! { {render_properties(snapshot, state)} },
                 MobileScreen::Settings => rsx! { {render_settings(snapshot, state)} },
+                MobileScreen::Themes => rsx! { {render_themes(snapshot, state)} },
                 MobileScreen::About => rsx! { {render_about(snapshot, state)} },
             }
         }
@@ -128,6 +130,76 @@ fn apply_language_preference(state: &mut AppState, preference: AppLanguagePrefer
     );
 }
 
+fn theme_choice_label(snapshot: &AppState, choice: ThemeChoice) -> String {
+    theme_choice_label_for_language(snapshot.resolved_language(), choice)
+}
+
+fn theme_choice_label_for_language(
+    language: l10n::SupportedLanguage,
+    choice: ThemeChoice,
+) -> String {
+    let key = match choice {
+        ThemeChoice::System => "settings-theme-system",
+        ThemeChoice::Dark => "settings-theme-dark",
+        ThemeChoice::Light => "settings-theme-light",
+        ThemeChoice::CatppuccinLatte => "settings-theme-catppuccin-latte",
+        ThemeChoice::CatppuccinFrappe => "settings-theme-catppuccin-frappe",
+        ThemeChoice::CatppuccinMacchiato => "settings-theme-catppuccin-macchiato",
+        ThemeChoice::CatppuccinMocha => "settings-theme-catppuccin-mocha",
+        ThemeChoice::Custom => "settings-theme-custom",
+    };
+    l10n::text(language, key)
+}
+
+fn apply_theme_choice(state: &mut AppState, choice: ThemeChoice) {
+    state.theme_choice = choice;
+    let label = theme_choice_label_for_language(state.resolved_language(), choice);
+    state.status = l10n::text_with_args(
+        state.resolved_language(),
+        "settings-theme-status",
+        &[("theme", label)],
+    );
+}
+
+fn export_current_theme_to_buffer(state: &mut AppState) {
+    let theme = resolved_theme(state.theme_choice, &state.custom_theme);
+    match export_theme_json(&theme) {
+        Ok(json) => {
+            state.theme_json_buffer = json;
+            state.status = l10n::text(state.resolved_language(), "settings-theme-status-exported");
+        }
+        Err(error) => {
+            state.status = l10n::text_with_args(
+                state.resolved_language(),
+                "settings-theme-status-invalid",
+                &[("error", error)],
+            );
+        }
+    }
+}
+
+fn import_theme_from_buffer(state: &mut AppState) {
+    match import_theme_json(&state.theme_json_buffer) {
+        Ok(theme) => {
+            let theme_name = theme.name.clone();
+            state.custom_theme = theme;
+            state.theme_choice = ThemeChoice::Custom;
+            state.status = l10n::text_with_args(
+                state.resolved_language(),
+                "settings-theme-status-imported",
+                &[("theme", theme_name)],
+            );
+        }
+        Err(error) => {
+            state.status = l10n::text_with_args(
+                state.resolved_language(),
+                "settings-theme-status-invalid",
+                &[("error", error)],
+            );
+        }
+    }
+}
+
 fn review_page_class(snapshot: &AppState, base: &'static str) -> String {
     let transition_class = match snapshot.mobile_transition {
         MobileTransition::None => "",
@@ -161,6 +233,8 @@ fn navigate_mobile_screen(state: &mut AppState, next: MobileScreen) {
         | (MobileScreen::Layers, MobileScreen::Editor)
         | (MobileScreen::Objects, MobileScreen::Editor)
         | (MobileScreen::Properties, MobileScreen::Editor) => MobileTransition::VerticalBackward,
+        (MobileScreen::Settings, MobileScreen::Themes) => MobileTransition::VerticalForward,
+        (MobileScreen::Themes, MobileScreen::Settings) => MobileTransition::VerticalBackward,
         (MobileScreen::Settings, MobileScreen::About) => MobileTransition::VerticalForward,
         (MobileScreen::About, MobileScreen::Settings) => MobileTransition::VerticalBackward,
         _ => MobileTransition::None,
@@ -1364,6 +1438,7 @@ fn render_properties(snapshot: &AppState, mut state: Signal<AppState>) -> Elemen
 fn render_settings(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
     let page_key = review_page_key(snapshot, "settings");
     let page_class = review_page_class(snapshot, "review-page");
+    let current_theme = resolved_theme(snapshot.theme_choice, &snapshot.custom_theme);
     rsx! {
         div { key: "{page_key}", class: "{page_class}",
             {review_title_only_bar(t(snapshot, "settings-title"))}
@@ -1401,11 +1476,14 @@ fn render_settings(snapshot: &AppState, mut state: Signal<AppState>) -> Element 
                     }
                 }
                 div { class: "review-caption", {t(snapshot, "settings-theme-caption")} }
-                div { class: "review-settings-card single",
-                    div { class: "review-segmented",
-                        button { class: "active", {t(snapshot, "settings-theme-dark")} }
-                        button { {t(snapshot, "settings-theme-light")} }
-                        button { {t(snapshot, "settings-theme-system")} }
+                div { class: "review-info-card review-note-card review-about-entry-card",
+                    div { class: "review-info-title", {theme_choice_label(snapshot, snapshot.theme_choice)} }
+                    div { class: "review-info-meta", "{current_theme.name}" }
+                    div { class: "review-info-meta", {t(snapshot, "settings-theme-description")} }
+                    button {
+                        class: "review-link-button",
+                        onclick: move |_| navigate_mobile_screen(&mut state.write(), MobileScreen::Themes),
+                        {t(snapshot, "settings-theme-open")}
                     }
                 }
                 div { class: "review-caption", {t(snapshot, "settings-diagnostics-caption")} }
@@ -1428,6 +1506,84 @@ fn render_settings(snapshot: &AppState, mut state: Signal<AppState>) -> Element 
                         class: "review-link-button",
                         onclick: move |_| navigate_mobile_screen(&mut state.write(), MobileScreen::About),
                         {t(snapshot, "settings-about-open")}
+                    }
+                }
+            }
+            {review_nav(snapshot, state, true)}
+        }
+    }
+}
+
+fn render_themes(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
+    let page_key = review_page_key(snapshot, "themes");
+    let page_class = review_page_class(snapshot, "review-page");
+    let current_theme = resolved_theme(snapshot.theme_choice, &snapshot.custom_theme);
+    rsx! {
+        div { key: "{page_key}", class: "{page_class}",
+            {review_top_bar(
+                t(snapshot, "themes-title"),
+                Some((t(snapshot, "common-back"), MobileScreen::Settings)),
+                None,
+                state,
+            )}
+            div { class: "review-body review-section-stack",
+                div { class: "review-caption", {t(snapshot, "themes-current-title")} }
+                div { class: "review-info-card review-note-card review-theme-current-card",
+                    div { class: "review-theme-current-copy",
+                        div { class: "review-info-title", {theme_choice_label(snapshot, snapshot.theme_choice)} }
+                        div { class: "review-info-meta", "{current_theme.name}" }
+                    }
+                    {theme_swatches(&current_theme)}
+                }
+
+                div { class: "review-caption", {t(snapshot, "themes-built-in-title")} }
+                div { class: "review-theme-grid",
+                    {theme_choice_button(snapshot, state, ThemeChoice::System)}
+                    {theme_choice_button(snapshot, state, ThemeChoice::Dark)}
+                    {theme_choice_button(snapshot, state, ThemeChoice::Light)}
+                }
+
+                div { class: "review-caption", {t(snapshot, "themes-catppuccin-title")} }
+                div { class: "review-theme-grid",
+                    {theme_choice_button(snapshot, state, ThemeChoice::CatppuccinLatte)}
+                    {theme_choice_button(snapshot, state, ThemeChoice::CatppuccinFrappe)}
+                    {theme_choice_button(snapshot, state, ThemeChoice::CatppuccinMacchiato)}
+                    {theme_choice_button(snapshot, state, ThemeChoice::CatppuccinMocha)}
+                }
+
+                div { class: "review-caption", {t(snapshot, "themes-custom-title")} }
+                div { class: "review-info-card review-note-card",
+                    div { class: "review-info-title", {t(snapshot, "themes-custom-title")} }
+                    div { class: "review-info-meta", {t(snapshot, "themes-custom-description")} }
+                    if snapshot.theme_choice == ThemeChoice::Custom {
+                        div { class: "review-info-meta", "{snapshot.custom_theme.name}" }
+                    }
+                }
+
+                div { class: "review-caption", {t(snapshot, "themes-json-title")} }
+                div { class: "review-info-card review-note-card",
+                    textarea {
+                        class: "review-theme-textarea",
+                        value: snapshot.theme_json_buffer.clone(),
+                        placeholder: "{t(snapshot, \"themes-json-placeholder\")}",
+                        oninput: move |event| state.write().theme_json_buffer = event.value(),
+                    }
+                    div { class: "review-theme-button-row",
+                        button {
+                            class: "review-link-button review-theme-button",
+                            onclick: move |_| export_current_theme_to_buffer(&mut state.write()),
+                            {t(snapshot, "themes-export")}
+                        }
+                        button {
+                            class: "review-link-button review-theme-button",
+                            onclick: move |_| import_theme_from_buffer(&mut state.write()),
+                            {t(snapshot, "themes-import")}
+                        }
+                        button {
+                            class: "review-link-button review-theme-button subtle",
+                            onclick: move |_| state.write().theme_json_buffer.clear(),
+                            {t(snapshot, "themes-clear")}
+                        }
                     }
                 }
             }
@@ -1650,7 +1806,10 @@ fn review_nav_button(
 ) -> Element {
     let label = nav_label(snapshot, item);
     let is_active = snapshot.mobile_screen == screen
-        || (snapshot.mobile_screen == MobileScreen::About && screen == MobileScreen::Settings);
+        || (matches!(
+            snapshot.mobile_screen,
+            MobileScreen::About | MobileScreen::Themes
+        ) && screen == MobileScreen::Settings);
     rsx! {
         button {
             class: if is_active { "review-nav-item active" } else { "review-nav-item" },
@@ -1667,6 +1826,41 @@ fn review_static_nav_item(snapshot: &AppState, item: ReviewNavItem) -> Element {
         div { class: "review-nav-item review-nav-static",
             div { class: "review-nav-icon", {review_nav_icon(item)} }
             span { "{label}" }
+        }
+    }
+}
+
+fn theme_choice_button(
+    snapshot: &AppState,
+    mut state: Signal<AppState>,
+    choice: ThemeChoice,
+) -> Element {
+    let palette = resolved_theme(choice, &snapshot.custom_theme);
+    let active = snapshot.theme_choice == choice;
+    rsx! {
+        button {
+            class: if active {
+                "review-theme-card active"
+            } else {
+                "review-theme-card"
+            },
+            onclick: move |_| apply_theme_choice(&mut state.write(), choice),
+            div { class: "review-theme-card-copy",
+                div { class: "review-info-title", {theme_choice_label(snapshot, choice)} }
+                div { class: "review-info-meta", "{palette.name}" }
+            }
+            {theme_swatches(&palette)}
+        }
+    }
+}
+
+fn theme_swatches(palette: &ThemePalette) -> Element {
+    rsx! {
+        div { class: "review-theme-swatches",
+            div { class: "review-theme-swatch", style: "background:{palette.background_elevated};" }
+            div { class: "review-theme-swatch", style: "background:{palette.surface_elevated};" }
+            div { class: "review-theme-swatch", style: "background:{palette.accent};" }
+            div { class: "review-theme-swatch", style: "background:{palette.text};" }
         }
     }
 }

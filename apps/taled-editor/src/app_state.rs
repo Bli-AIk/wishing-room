@@ -15,6 +15,7 @@ use crate::{
 use crate::l10n::{
     AppLanguagePreference, SupportedLanguage, detect_device_locale_tag, resolve_language,
 };
+use crate::theme::{ThemeChoice, ThemePalette, default_custom_theme};
 #[cfg(target_arch = "wasm32")]
 use web_sys::window;
 
@@ -49,6 +50,7 @@ pub(crate) enum MobileScreen {
     Objects,
     Properties,
     Settings,
+    Themes,
     About,
 }
 
@@ -165,6 +167,9 @@ pub(crate) struct AppState {
     pub(crate) mobile_transition: MobileTransition,
     pub(crate) mobile_transition_nonce: u64,
     pub(crate) language_preference: AppLanguagePreference,
+    pub(crate) theme_choice: ThemeChoice,
+    pub(crate) custom_theme: ThemePalette,
+    pub(crate) theme_json_buffer: String,
     pub(crate) device_locale_tag: String,
     pub(crate) about_contributors_expanded: bool,
     #[cfg(target_arch = "wasm32")]
@@ -221,6 +226,9 @@ impl Default for AppState {
                 mobile_transition: MobileTransition::None,
                 mobile_transition_nonce: 0,
                 language_preference: AppLanguagePreference::Auto,
+                theme_choice: ThemeChoice::System,
+                custom_theme: default_custom_theme(),
+                theme_json_buffer: String::new(),
                 device_locale_tag,
                 about_contributors_expanded: false,
                 show_web_logs: false,
@@ -275,6 +283,9 @@ impl Default for AppState {
                 mobile_transition: MobileTransition::None,
                 mobile_transition_nonce: 0,
                 language_preference: AppLanguagePreference::Auto,
+                theme_choice: ThemeChoice::System,
+                custom_theme: default_custom_theme(),
+                theme_json_buffer: String::new(),
                 device_locale_tag,
                 about_contributors_expanded: false,
                 zoom_percent: 100,
@@ -333,6 +344,9 @@ impl Default for AppState {
                 mobile_transition: MobileTransition::None,
                 mobile_transition_nonce: 0,
                 language_preference: AppLanguagePreference::Auto,
+                theme_choice: ThemeChoice::System,
+                custom_theme: default_custom_theme(),
+                theme_json_buffer: String::new(),
                 device_locale_tag,
                 about_contributors_expanded: false,
                 zoom_percent: 100,
@@ -494,6 +508,7 @@ fn parse_mobile_screen(value: &str) -> MobileScreen {
         "objects" => MobileScreen::Objects,
         "properties" => MobileScreen::Properties,
         "settings" => MobileScreen::Settings,
+        "themes" => MobileScreen::Themes,
         "about" => MobileScreen::About,
         _ => MobileScreen::Dashboard,
     }

@@ -1327,6 +1327,91 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
     border-color: rgba(10, 132, 255, 0.55);
     box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.14);
   }
+  .review-theme-current-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .review-theme-current-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+  }
+  .review-theme-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .review-theme-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+    min-height: 104px;
+    padding: 14px;
+    border-radius: 18px;
+    border: 1px solid #2c2c2e;
+    background: #1c1c1e;
+    color: inherit;
+    text-align: left;
+  }
+  .review-theme-card.active {
+    border-color: rgba(10, 132, 255, 0.45);
+    box-shadow: 0 0 0 1px rgba(10, 132, 255, 0.2);
+  }
+  .review-theme-card-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+  .review-theme-swatches {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+    width: 100%;
+  }
+  .review-theme-swatch {
+    height: 22px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .review-theme-textarea {
+    width: 100%;
+    min-height: 176px;
+    resize: vertical;
+    border-radius: 16px;
+    border: 1px solid #2c2c2e;
+    background: #18181a;
+    color: #f2f2f7;
+    padding: 14px;
+    font: inherit;
+    line-height: 1.45;
+    box-sizing: border-box;
+  }
+  .review-theme-textarea:focus {
+    outline: none;
+    border-color: rgba(10, 132, 255, 0.55);
+    box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.14);
+  }
+  .review-theme-button-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    width: 100%;
+  }
+  .review-theme-button {
+    min-height: 38px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid #2c2c2e;
+    background: #242426;
+    color: #f2f2f7;
+  }
+  .review-theme-button.subtle {
+    color: #8f8f95;
+  }
   .review-about-hero {
     display: flex;
     flex-direction: column;

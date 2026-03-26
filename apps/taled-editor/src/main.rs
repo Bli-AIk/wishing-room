@@ -11,6 +11,7 @@ mod mobile_review_styles;
 mod platform;
 mod session_ops;
 mod styles;
+mod theme;
 mod touch_ops;
 mod ui_canvas;
 mod ui_inspector;
