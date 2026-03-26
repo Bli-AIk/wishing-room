@@ -384,23 +384,28 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
     display: flex;
     align-items: stretch;
     gap: 0;
-    padding: 4px 6px;
-    border-radius: 16px;
+    padding: 3px 4px;
+    border-radius: 14px;
     background: rgba(38, 38, 40, 0.92);
     backdrop-filter: blur(14px);
     border: 1px solid rgba(255, 255, 255, 0.08);
     box-shadow: 0 10px 28px rgba(0, 0, 0, 0.24);
     z-index: 13;
     animation: review-selection-actions-fade 180ms ease-out;
+    max-width: calc(100% - 20px);
+  }
+  .review-selection-actions.closing {
+    pointer-events: none;
+    animation: review-selection-actions-fade-out 170ms ease-out forwards;
   }
   .review-selection-action {
-    min-width: 56px;
-    padding: 7px 6px 6px;
+    min-width: 42px;
+    padding: 6px 4px 5px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 4px;
+    gap: 3px;
     border: none;
     background: transparent;
     color: rgba(255,255,255,0.80);
@@ -409,13 +414,13 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
     border-left: 1px solid rgba(255,255,255,0.06);
   }
   .review-selection-action-icon {
-    width: 20px;
-    height: 20px;
+    width: 16px;
+    height: 16px;
     display: grid;
     place-items: center;
   }
   .review-selection-action span {
-    font-size: 11px;
+    font-size: 9px;
     line-height: 1;
     letter-spacing: -0.02em;
   }
@@ -425,6 +430,14 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
     }
     to {
       opacity: 1;
+    }
+  }
+  @keyframes review-selection-actions-fade-out {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
     }
   }
   .review-history-button {

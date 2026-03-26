@@ -49,6 +49,11 @@ const ZOOM_LOOP_INTERVAL: Duration = Duration::from_millis(28);
 const JOYSTICK_TAP_MAX_DISTANCE: f64 = 0.18;
 const JOYSTICK_STEP_PER_TICK: f64 = 7.0;
 const ZOOM_STEP_PER_TICK: f64 = 3.0;
+const SELECTION_ACTION_BAR_FADE_DURATION: Duration = Duration::from_millis(170);
+const SELECTION_ACTION_BAR_WIDTH: f64 = 264.0;
+const SELECTION_ACTION_BAR_HEIGHT: f64 = 48.0;
+const SELECTION_ACTION_BAR_MARGIN: f64 = 10.0;
+const SELECTION_ACTION_BAR_OFFSET: f64 = 8.0;
 
 pub(crate) fn render_mobile_shell(snapshot: &AppState, state: Signal<AppState>) -> Element {
     rsx! {
@@ -331,12 +336,22 @@ fn tile_selection_action_bar(
     session: &EditorSession,
     state: Signal<AppState>,
 ) -> Element {
-    let Some(selection) = snapshot.tile_selection else {
-        return rsx! { Fragment {} };
-    };
-    if snapshot.tile_selection_preview.is_some() || snapshot.tool != Tool::Select {
+    if snapshot.tool != Tool::Select || snapshot.tile_selection_preview.is_some() {
         return rsx! { Fragment {} };
     }
+    let (selection, closing) = if let Some(selection) = snapshot.tile_selection {
+        (selection, false)
+    } else if snapshot
+        .tile_selection_closing_started_at
+        .is_some_and(|started_at| started_at.elapsed() <= SELECTION_ACTION_BAR_FADE_DURATION)
+    {
+        let Some(selection) = snapshot.tile_selection_closing else {
+            return rsx! { Fragment {} };
+        };
+        (selection, true)
+    } else {
+        return rsx! { Fragment {} };
+    };
     if session
         .document()
         .map
@@ -348,9 +363,14 @@ fn tile_selection_action_bar(
     }
 
     let action_bar_style = tile_selection_action_bar_style(snapshot, session, selection);
+    let action_bar_class = if closing {
+        "review-selection-actions closing"
+    } else {
+        "review-selection-actions"
+    };
 
     rsx! {
-        div { class: "review-selection-actions", style: "{action_bar_style}",
+        div { class: "{action_bar_class}", style: "{action_bar_style}",
             if snapshot.tile_selection_transfer.is_none() {
                 {review_selection_action_button(
                     state,
@@ -413,19 +433,22 @@ fn tile_selection_action_bar_style(
     let right = f64::from(snapshot.pan_x) + f64::from((max_x + 1) * map.tile_width) * zoom;
     let top = f64::from(snapshot.pan_y) + f64::from(min_y * map.tile_height) * zoom;
     let bottom = f64::from(snapshot.pan_y) + f64::from((max_y + 1) * map.tile_height) * zoom;
-    let host_width = snapshot
-        .canvas_host_size
-        .map(|(width, _)| width)
-        .unwrap_or(384.0);
-    let center_x = ((left + right) * 0.5).clamp(92.0, host_width - 92.0);
-
-    if top >= 86.0 {
-        format!(
-            "left:{center_x:.1}px;top:{top:.1}px;transform:translate(-50%, calc(-100% - 10px));"
-        )
+    let (host_width, host_height) = snapshot.canvas_host_size.unwrap_or((384.0, 688.0));
+    let max_left = (host_width - SELECTION_ACTION_BAR_WIDTH - SELECTION_ACTION_BAR_MARGIN)
+        .max(SELECTION_ACTION_BAR_MARGIN);
+    let left_edge = (((left + right) * 0.5) - (SELECTION_ACTION_BAR_WIDTH * 0.5))
+        .clamp(SELECTION_ACTION_BAR_MARGIN, max_left);
+    let preferred_top = if top >= SELECTION_ACTION_BAR_HEIGHT + (SELECTION_ACTION_BAR_MARGIN * 2.0)
+    {
+        top - SELECTION_ACTION_BAR_HEIGHT - SELECTION_ACTION_BAR_OFFSET
     } else {
-        format!("left:{center_x:.1}px;top:{bottom:.1}px;transform:translate(-50%, 10px);")
-    }
+        bottom + SELECTION_ACTION_BAR_OFFSET
+    };
+    let max_top = (host_height - SELECTION_ACTION_BAR_HEIGHT - SELECTION_ACTION_BAR_MARGIN)
+        .max(SELECTION_ACTION_BAR_MARGIN);
+    let top_edge = preferred_top.clamp(SELECTION_ACTION_BAR_MARGIN, max_top);
+
+    format!("left:{left_edge:.1}px;top:{top_edge:.1}px;")
 }
 
 fn selection_bounds(selection: TileSelectionRegion) -> (u32, u32, u32, u32) {
