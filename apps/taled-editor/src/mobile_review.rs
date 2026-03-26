@@ -209,23 +209,27 @@ fn render_editor(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
                 "Settings",
                 state,
             )}
-            div { class: "review-tile-strip review-tile-strip-top",
-                for tile in palette.clone() {
-                    button {
-                        key: "review-top-tile-{tile.gid}",
-                        class: if snapshot.selected_gid == tile.gid {
-                            "review-tile-chip selected live"
-                        } else {
-                            "review-tile-chip live"
-                        },
-                        style: palette_tile_style(session.document(), &snapshot.image_cache, &tile),
-                        onclick: move |_| {
-                            let mut state = state.write();
-                            state.selected_gid = tile.gid;
-                            state.status = format!("Selected gid {}.", tile.gid);
-                        },
+            div { class: "review-tile-strip-top-shell",
+                div { class: "review-tile-strip review-tile-strip-top review-tile-strip-top-main",
+                    for tile in palette.clone() {
+                        button {
+                            key: "review-top-tile-{tile.gid}",
+                            class: if snapshot.selected_gid == tile.gid {
+                                "review-tile-chip selected live"
+                            } else {
+                                "review-tile-chip live"
+                            },
+                            style: palette_tile_style(session.document(), &snapshot.image_cache, &tile),
+                            onclick: move |_| {
+                                let mut state = state.write();
+                                state.selected_gid = tile.gid;
+                                state.status = format!("Selected gid {}.", tile.gid);
+                            },
+                        }
                     }
                 }
+                div { class: "review-tile-strip-side-divider" }
+                {review_tool_side_panel(snapshot, state, toolbar_kind)}
             }
             div { class: "review-editor-canvas", style: grid_style,
                 div { class: "review-map-surface review-map-live",
@@ -1476,6 +1480,56 @@ fn review_static_nav_item(label: &'static str) -> Element {
     }
 }
 
+fn review_tool_side_panel(
+    snapshot: &AppState,
+    state: Signal<AppState>,
+    kind: ReviewToolbarKind,
+) -> Element {
+    rsx! {
+        div { class: "review-tile-strip-side",
+            if kind == ReviewToolbarKind::Tile && snapshot.tool == Tool::Select {
+                {review_selection_mode_button(
+                    true,
+                    "Replace",
+                    "Selection mode: Replace.",
+                    ReviewToolGlyph::SelectionReplace,
+                    false,
+                    state,
+                )}
+                {review_selection_mode_button(
+                    false,
+                    "Add",
+                    "Add Selection is not implemented yet.",
+                    ReviewToolGlyph::SelectionAdd,
+                    true,
+                    state,
+                )}
+                {review_selection_mode_button(
+                    false,
+                    "Subtract",
+                    "Subtract Selection is not implemented yet.",
+                    ReviewToolGlyph::SelectionSubtract,
+                    true,
+                    state,
+                )}
+                {review_selection_mode_button(
+                    false,
+                    "Intersect",
+                    "Intersect Selection is not implemented yet.",
+                    ReviewToolGlyph::SelectionIntersect,
+                    true,
+                    state,
+                )}
+            } else {
+                div { class: "review-tile-strip-side-empty",
+                    span { "No tool" }
+                    span { "options" }
+                }
+            }
+        }
+    }
+}
+
 fn review_nav_icon(label: &'static str) -> Element {
     match label {
         "Projects" => rsx! {
@@ -1895,6 +1949,32 @@ fn review_tool_row(
     }
 }
 
+fn review_selection_mode_button(
+    active: bool,
+    label: &'static str,
+    status: &'static str,
+    glyph: ReviewToolGlyph,
+    placeholder: bool,
+    mut state: Signal<AppState>,
+) -> Element {
+    let class_name = if active {
+        "review-tool-subbutton active"
+    } else if placeholder {
+        "review-tool-subbutton placeholder"
+    } else {
+        "review-tool-subbutton"
+    };
+
+    rsx! {
+        button {
+            class: "{class_name}",
+            onclick: move |_| state.write().status = status.to_string(),
+            div { class: "review-tool-subbutton-icon", {review_tool_icon(&glyph)} }
+            "{label}"
+        }
+    }
+}
+
 fn review_tool_button(
     snapshot: &AppState,
     mut state: Signal<AppState>,
@@ -1949,6 +2029,10 @@ fn review_placeholder_tool_button(
 
 #[derive(Clone, Copy)]
 enum ReviewToolGlyph {
+    SelectionReplace,
+    SelectionAdd,
+    SelectionSubtract,
+    SelectionIntersect,
     Hand,
     StampBrush,
     TerrainBrush,
@@ -1972,6 +2056,58 @@ enum ReviewToolGlyph {
 
 fn review_tool_icon(tool: &ReviewToolGlyph) -> Element {
     match tool {
+        ReviewToolGlyph::SelectionReplace => rsx! {
+            svg {
+                class: "review-tool-icon-svg",
+                view_box: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                stroke_width: "1.8",
+                stroke_linecap: "round",
+                stroke_linejoin: "round",
+                rect { x: "5", y: "5", width: "14", height: "14", rx: "2" }
+            }
+        },
+        ReviewToolGlyph::SelectionAdd => rsx! {
+            svg {
+                class: "review-tool-icon-svg",
+                view_box: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                stroke_width: "1.8",
+                stroke_linecap: "round",
+                stroke_linejoin: "round",
+                rect { x: "4.5", y: "6", width: "9", height: "9", rx: "1.5" }
+                path { d: "M17 8.5v7" }
+                path { d: "M13.5 12h7" }
+            }
+        },
+        ReviewToolGlyph::SelectionSubtract => rsx! {
+            svg {
+                class: "review-tool-icon-svg",
+                view_box: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                stroke_width: "1.8",
+                stroke_linecap: "round",
+                stroke_linejoin: "round",
+                rect { x: "4.5", y: "6", width: "9", height: "9", rx: "1.5" }
+                path { d: "M13.5 12h7" }
+            }
+        },
+        ReviewToolGlyph::SelectionIntersect => rsx! {
+            svg {
+                class: "review-tool-icon-svg",
+                view_box: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                stroke_width: "1.8",
+                stroke_linecap: "round",
+                stroke_linejoin: "round",
+                rect { x: "4.5", y: "6", width: "8.5", height: "8.5", rx: "1.5" }
+                rect { x: "10.5", y: "9.5", width: "8.5", height: "8.5", rx: "1.5" }
+            }
+        },
         ReviewToolGlyph::Hand => rsx! {
             svg {
                 class: "review-tool-icon-svg",

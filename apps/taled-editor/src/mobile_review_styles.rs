@@ -730,6 +730,41 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
   .review-tool-row-object .review-tool {
     flex-basis: 66px;
   }
+  .review-tool-subbutton {
+    min-height: 36px;
+    border-radius: 10px;
+    border: none;
+    background: transparent;
+    color: #d1d1d6;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 4px 2px;
+    font: inherit;
+    font-size: 9px;
+    line-height: 1.05;
+    text-align: center;
+    flex: none;
+  }
+  .review-tool-subbutton.active {
+    background: rgba(142, 142, 147, 0.18);
+    color: #fff;
+  }
+  .review-tool-subbutton.placeholder {
+    color: #8e8e93;
+  }
+  .review-tool-subbutton-icon {
+    width: 15px;
+    height: 15px;
+    display: grid;
+    place-items: center;
+  }
+  .review-tool-subbutton-icon .review-tool-icon-svg {
+    width: 15px;
+    height: 15px;
+  }
   .review-tool-pinned {
     flex: 0 0 52px;
   }
@@ -797,6 +832,16 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
     overflow-y: hidden;
     padding: 0 14px 10px;
   }
+  .review-tile-strip-top-shell {
+    box-sizing: border-box;
+    height: 114px;
+    min-height: 114px;
+    max-height: 114px;
+    display: flex;
+    align-items: stretch;
+    border-bottom: 1px solid #2c2c2e;
+    background: #18181a;
+  }
   .review-tile-strip-live {
     min-height: 68px;
     padding-top: 6px;
@@ -805,16 +850,49 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
     align-items: center;
   }
   .review-tile-strip-top {
-    box-sizing: border-box;
-    height: 114px;
-    min-height: 114px;
-    max-height: 114px;
     padding: 10px 14px 10px;
-    border-bottom: 1px solid #2c2c2e;
-    background: #18181a;
     align-items: start;
     align-content: start;
     justify-items: stretch;
+  }
+  .review-tile-strip-top-main {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding-right: 10px;
+  }
+  .review-tile-strip-side-divider {
+    width: 1px;
+    margin: 10px 0;
+    background: rgba(255,255,255,0.10);
+    border-radius: 999px;
+    flex: none;
+  }
+  .review-tile-strip-side {
+    width: 74px;
+    min-width: 74px;
+    padding: 8px 6px 8px 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .review-tile-strip-side::-webkit-scrollbar {
+    display: none;
+  }
+  .review-tile-strip-side-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-height: 100%;
+    color: #6e6e73;
+    font-size: 9px;
+    line-height: 1.05;
+    text-align: center;
   }
   .review-tile-chip {
     width: 44px;
