@@ -731,8 +731,8 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
     flex-basis: 66px;
   }
   .review-tool-subbutton {
-    min-height: 36px;
-    border-radius: 10px;
+    min-height: 34px;
+    border-radius: 9px;
     border: none;
     background: transparent;
     color: #d1d1d6;
@@ -741,9 +741,9 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
     align-items: center;
     justify-content: center;
     gap: 2px;
-    padding: 4px 2px;
+    padding: 3px 1px;
     font: inherit;
-    font-size: 9px;
+    font-size: 8px;
     line-height: 1.05;
     text-align: center;
     flex: none;
@@ -858,7 +858,7 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
   .review-tile-strip-top-main {
     flex: 1 1 auto;
     min-width: 0;
-    padding-right: 10px;
+    padding-right: 6px;
   }
   .review-tile-strip-side-divider {
     width: 1px;
@@ -868,12 +868,12 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
     flex: none;
   }
   .review-tile-strip-side {
-    width: 74px;
-    min-width: 74px;
-    padding: 8px 6px 8px 6px;
+    width: 62px;
+    min-width: 62px;
+    padding: 8px 4px 8px 4px;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 3px;
     overflow-y: auto;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
