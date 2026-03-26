@@ -333,7 +333,9 @@ fn active_tile_layer(state: &AppState) -> Option<&taled_core::TileLayer> {
 }
 
 pub(crate) fn active_tile_gid(state: &AppState, x: u32, y: u32) -> Option<u32> {
-    active_tile_layer(state)?.tile_at(x, y)
+    active_tile_layer(state)?
+        .tile_at(x, y)
+        .filter(|gid| *gid != 0)
 }
 
 fn magic_wand_cells(
@@ -1801,6 +1803,33 @@ mod tests {
         assert!(cells.contains(&(2, 1)));
         assert!(cells.contains(&(4, 3)));
         assert!(!cells.contains(&(4, 4)));
+    }
+
+    #[test]
+    fn sampling_tools_ignore_empty_tiles() {
+        let mut magic_state = test_state(Tool::MagicWand, 1);
+        let mut same_state = test_state(Tool::SelectSameTile, 1);
+
+        for state in [&mut magic_state, &mut same_state] {
+            state
+                .session
+                .as_mut()
+                .expect("session")
+                .edit(|document| {
+                    let layer = document.map.layers[0].as_tile_mut().expect("tile layer");
+                    layer.set_tile(1, 1, 0)?;
+                    Ok(())
+                })
+                .expect("clear sample tile");
+        }
+
+        assert!(!apply_magic_wand_selection(&mut magic_state, 1, 1, None));
+        assert!(magic_state.tile_selection.is_none());
+        assert!(magic_state.tile_selection_cells.is_none());
+
+        assert!(!apply_select_same_tile_selection(&mut same_state, 1, 1, None));
+        assert!(same_state.tile_selection.is_none());
+        assert!(same_state.tile_selection_cells.is_none());
     }
 
     #[test]

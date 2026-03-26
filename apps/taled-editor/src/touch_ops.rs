@@ -81,10 +81,14 @@ pub(crate) fn handle_touch_pointer_down(state: &mut AppState, event: Event<Point
     } else {
         None
     };
+    let hit_has_tile = hit_cell
+        .and_then(|(cell_x, cell_y)| active_tile_gid(state, cell_x, cell_y))
+        .is_some();
     let outside_existing_selection = uses_tile_selection_tool(state)
         && state.tile_selection_mode == TileSelectionMode::Replace
         && state.tile_selection_transfer.is_none()
         && selection_resize_handle.is_none()
+        && (state.tool == Tool::Select || hit_has_tile)
         && state.tile_selection.is_some()
         && hit_cell.is_none_or(|cell| {
             state
@@ -537,12 +541,18 @@ fn should_clear_replace_selection_at_surface(state: &AppState, x: f64, y: f64) -
     if state.tile_selection_mode != TileSelectionMode::Replace || state.tile_selection_transfer.is_some() {
         return false;
     }
+    if !is_preview_tile_selection_tool(state.tool) {
+        return false;
+    }
     let Some(selection_cells) = state.tile_selection_cells.as_ref() else {
         return false;
     };
     let Some((cell_x, cell_y)) = clamped_cell_from_surface(state, x, y) else {
         return false;
     };
+    if active_tile_gid(state, cell_x, cell_y).is_none() {
+        return false;
+    }
     !selection_cells.contains(&(cell_x as i32, cell_y as i32))
 }
 
@@ -1367,7 +1377,7 @@ mod tests {
     };
     use crate::app_state::{
         ActiveTouchPointer, AppState, SingleTouchGesture, TileSelectionHandle, TileSelectionMode,
-        TileSelectionRegion,
+        TileSelectionRegion, Tool,
     };
 
     fn sample_map_path() -> PathBuf {
@@ -1550,6 +1560,7 @@ mod tests {
             session: Some(EditorSession::load(sample_map_path()).expect("sample map should load")),
             ..AppState::default()
         };
+        state.tool = Tool::SelectSameTile;
         state.tile_selection_mode = TileSelectionMode::Replace;
         state.tile_selection = Some(TileSelectionRegion {
             start_cell: (0, 0),
