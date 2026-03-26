@@ -7,11 +7,13 @@ use taled_core::ObjectShape;
 use crate::platform::log;
 use crate::{
     app_state::{
-        ActiveTouchPointer, AppState, PinchGesture, ShapeFillPreview, SingleTouchGesture,
-        TileSelectionHandle, TileSelectionRegion, Tool,
+        selection_cells_are_rectangular, selection_cells_from_mask, ActiveTouchPointer, AppState,
+        PinchGesture, ShapeFillPreview, SingleTouchGesture, TileSelectionHandle,
+        TileSelectionRegion, Tool,
     },
     edit_ops::{
-        apply_cell_tool, apply_shape_fill_rect, handle_tile_selection_tap, select_tile_region,
+        apply_cell_tool, apply_shape_fill_rect, apply_tile_selection_mode_region,
+        handle_tile_selection_tap,
     },
 };
 
@@ -73,12 +75,13 @@ pub(crate) fn handle_touch_pointer_down(state: &mut AppState, event: Event<Point
         None
     };
     let outside_existing_selection = selects_tile_region(state)
+        && state.tile_selection_mode == crate::app_state::TileSelectionMode::Replace
         && state.tile_selection_transfer.is_none()
         && selection_resize_handle.is_none()
         && state.tile_selection.is_some()
         && hit_cell.is_none_or(|cell| {
-            state.tile_selection.is_some_and(|selection| {
-                !selection_contains_cell(selection, (cell.0 as i32, cell.1 as i32))
+            state.tile_selection_cells.as_ref().is_some_and(|selection_cells| {
+                !selection_cells.contains(&(cell.0 as i32, cell.1 as i32))
             })
         });
     let anchor_cell = selection_resize_handle
@@ -125,6 +128,8 @@ pub(crate) fn handle_touch_pointer_down(state: &mut AppState, event: Event<Point
         && let Some(selection) = anchor_cell.map(|origin| selection_from_origin(state, origin))
     {
         state.tile_selection = Some(selection);
+        state.tile_selection_cells =
+            anchor_cell.map(|origin| selection_cells_from_transfer_origin(state, origin));
     }
 }
 
@@ -190,6 +195,7 @@ pub(crate) fn handle_touch_pointer_move(state: &mut AppState, event: Event<Point
         }
         gesture.drag_active = true;
         state.tile_selection = Some(selection_from_origin(state, origin));
+        state.tile_selection_cells = Some(selection_cells_from_transfer_origin(state, origin));
         return;
     }
 
@@ -440,7 +446,7 @@ fn apply_tile_region_touch_tool(
     {
         return;
     }
-    select_tile_region(state, start_x, start_y, end_x, end_y);
+    apply_tile_selection_mode_region(state, start_x, start_y, end_x, end_y);
 }
 
 fn apply_touch_tool(
@@ -498,6 +504,7 @@ fn select_at_point(state: &mut AppState, x: f64, y: f64) {
         state.selected_cell = None;
         state.selected_object = None;
         state.tile_selection = None;
+        state.tile_selection_cells = None;
         state.tile_selection_preview = None;
         return;
     };
@@ -507,6 +514,7 @@ fn select_at_point(state: &mut AppState, x: f64, y: f64) {
         state.selected_object = Some(object_id);
         state.selected_cell = cell_from_surface(state, x, y);
         state.tile_selection = None;
+        state.tile_selection_cells = None;
         state.tile_selection_preview = None;
         state.status = format!("Selected object {object_id}.");
         return;
@@ -514,6 +522,7 @@ fn select_at_point(state: &mut AppState, x: f64, y: f64) {
 
     state.selected_object = None;
     state.tile_selection = None;
+    state.tile_selection_cells = None;
     state.tile_selection_preview = None;
     state.selected_cell = cell_from_surface(state, x, y);
     if let Some((cell_x, cell_y)) = state.selected_cell {
@@ -536,6 +545,10 @@ fn selection_resize_handle_from_surface(
     surface_y: f64,
 ) -> Option<TileSelectionHandle> {
     let selection = state.tile_selection?;
+    let selection_cells = state.tile_selection_cells.as_ref()?;
+    if !selection_cells_are_rectangular(selection, selection_cells) {
+        return None;
+    }
     let session = state.session.as_ref()?;
     let map = &session.document().map;
     let (min_x, min_y, max_x, max_y) = selection_bounds(selection);
@@ -627,18 +640,18 @@ fn selection_resize_anchor_cell(
     }
 }
 
-fn selection_contains_cell(selection: TileSelectionRegion, cell: (i32, i32)) -> bool {
-    let (min_x, min_y, max_x, max_y) = selection_bounds(selection);
-    cell.0 >= min_x && cell.0 <= max_x && cell.1 >= min_y && cell.1 <= max_y
-}
-
 fn selection_drag_offset(selection: TileSelectionRegion, cell: (i32, i32)) -> (i32, i32) {
     let (min_x, min_y, _, _) = selection_bounds(selection);
-    if selection_contains_cell(selection, cell) {
+    if selection_contains_cell_for_region(selection, cell) {
         (cell.0 - min_x, cell.1 - min_y)
     } else {
         (0, 0)
     }
+}
+
+fn selection_contains_cell_for_region(selection: TileSelectionRegion, cell: (i32, i32)) -> bool {
+    let (min_x, min_y, max_x, max_y) = selection_bounds(selection);
+    cell.0 >= min_x && cell.0 <= max_x && cell.1 >= min_y && cell.1 <= max_y
 }
 
 fn selection_move_origin_from_cell(state: &AppState, cell: (i32, i32)) -> Option<(i32, i32)> {
@@ -680,6 +693,17 @@ fn selection_from_origin(state: &AppState, origin: (i32, i32)) -> TileSelectionR
             origin.1 + transfer.height.saturating_sub(1) as i32,
         ),
     }
+}
+
+fn selection_cells_from_transfer_origin(
+    state: &AppState,
+    origin: (i32, i32),
+) -> std::collections::BTreeSet<(i32, i32)> {
+    let transfer = state
+        .tile_selection_transfer
+        .as_ref()
+        .expect("selection-cells-from-origin requires transfer state");
+    selection_cells_from_mask(origin.0, origin.1, transfer.width, transfer.height, &transfer.mask)
 }
 
 fn clamp_selection_origin(

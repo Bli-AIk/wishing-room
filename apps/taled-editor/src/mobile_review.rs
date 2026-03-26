@@ -8,7 +8,10 @@ use futures_timer::Delay;
 use taled_core::{EditorSession, Layer, ObjectShape};
 
 use crate::{
-    app_state::{AppState, MobileScreen, MobileTransition, PaletteTile, TileSelectionRegion, Tool},
+    app_state::{
+        selection_bounds, AppState, MobileScreen, MobileTransition, PaletteTile,
+        TileSelectionMode, Tool,
+    },
     edit_ops::{
         cancel_tile_selection_transfer, copy_tile_selection, create_object, cut_tile_selection,
         delete_selected_object, delete_tile_selection, flip_tile_selection_horizontally,
@@ -425,11 +428,7 @@ fn tile_selection_action_bar(
     }
 }
 
-fn tile_selection_action_bar_style(
-    snapshot: &AppState,
-    session: &EditorSession,
-    selection: TileSelectionRegion,
-) -> String {
+fn tile_selection_action_bar_style(snapshot: &AppState, session: &EditorSession, selection: crate::app_state::TileSelectionRegion) -> String {
     let map = &session.document().map;
     let (min_x, min_y, max_x, max_y) = selection_bounds(selection);
     let zoom = f64::from(snapshot.zoom_percent) / 100.0;
@@ -455,15 +454,6 @@ fn tile_selection_action_bar_style(
     let top_edge = preferred_top.clamp(SELECTION_ACTION_BAR_MARGIN, max_top);
 
     format!("left:{left_edge:.1}px;top:{top_edge:.1}px;")
-}
-
-fn selection_bounds(selection: TileSelectionRegion) -> (i32, i32, i32, i32) {
-    (
-        selection.start_cell.0.min(selection.end_cell.0),
-        selection.start_cell.1.min(selection.end_cell.1),
-        selection.start_cell.0.max(selection.end_cell.0),
-        selection.start_cell.1.max(selection.end_cell.1),
-    )
 }
 
 #[derive(Clone, Copy)]
@@ -1140,8 +1130,10 @@ fn render_objects(snapshot: &AppState, mut state: Signal<AppState>) -> Element {
                                     );
                                     state.selected_object = Some(entry.object_id);
                                     state.tile_selection = None;
+                                    state.tile_selection_cells = None;
                                     state.tile_selection_preview = None;
                                     state.tile_selection_closing = None;
+                                    state.tile_selection_closing_cells = None;
                                     state.tile_selection_closing_started_at = None;
                                     state.tile_selection_last_tap_at = None;
                                 }
@@ -1501,35 +1493,35 @@ fn review_tool_side_panel(
                 },
                 aria_hidden: (!selection_mode_active).to_string(),
                 {review_selection_mode_button(
-                    true,
+                    snapshot.tile_selection_mode == TileSelectionMode::Replace,
                     "Replace",
                     "Selection mode: Replace.",
                     ReviewToolGlyph::SelectionReplace,
-                    false,
+                    TileSelectionMode::Replace,
                     state,
                 )}
                 {review_selection_mode_button(
-                    false,
+                    snapshot.tile_selection_mode == TileSelectionMode::Add,
                     "Add",
-                    "Add Selection is not implemented yet.",
+                    "Selection mode: Add.",
                     ReviewToolGlyph::SelectionAdd,
-                    true,
+                    TileSelectionMode::Add,
                     state,
                 )}
                 {review_selection_mode_button(
-                    false,
+                    snapshot.tile_selection_mode == TileSelectionMode::Subtract,
                     "Subtract",
-                    "Subtract Selection is not implemented yet.",
+                    "Selection mode: Subtract.",
                     ReviewToolGlyph::SelectionSubtract,
-                    true,
+                    TileSelectionMode::Subtract,
                     state,
                 )}
                 {review_selection_mode_button(
-                    false,
+                    snapshot.tile_selection_mode == TileSelectionMode::Intersect,
                     "Intersect",
-                    "Intersect Selection is not implemented yet.",
+                    "Selection mode: Intersect.",
                     ReviewToolGlyph::SelectionIntersect,
-                    true,
+                    TileSelectionMode::Intersect,
                     state,
                 )}
             }
@@ -1971,13 +1963,11 @@ fn review_selection_mode_button(
     label: &'static str,
     status: &'static str,
     glyph: ReviewToolGlyph,
-    placeholder: bool,
+    mode: TileSelectionMode,
     mut state: Signal<AppState>,
 ) -> Element {
     let class_name = if active {
         "review-tool-subbutton active"
-    } else if placeholder {
-        "review-tool-subbutton placeholder"
     } else {
         "review-tool-subbutton"
     };
@@ -1985,7 +1975,11 @@ fn review_selection_mode_button(
     rsx! {
         button {
             class: "{class_name}",
-            onclick: move |_| state.write().status = status.to_string(),
+            onclick: move |_| {
+                let mut state = state.write();
+                state.tile_selection_mode = mode;
+                state.status = status.to_string();
+            },
             div { class: "review-tool-subbutton-icon", {review_tool_icon(&glyph)} }
             "{label}"
         }
@@ -2513,8 +2507,10 @@ fn set_review_active_layer_kind(state: &mut AppState, layer_index: usize, kind: 
     state.selected_object = None;
     state.shape_fill_preview = None;
     state.tile_selection = None;
+    state.tile_selection_cells = None;
     state.tile_selection_preview = None;
     state.tile_selection_closing = None;
+    state.tile_selection_closing_cells = None;
     state.tile_selection_closing_started_at = None;
     state.tile_selection_last_tap_at = None;
     if !toolbar_supports_tool(kind, state.tool) {

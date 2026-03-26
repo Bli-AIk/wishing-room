@@ -191,6 +191,8 @@ pub(crate) const STYLES: &str = r#"
     background: rgba(203, 213, 225, 0.045);
   }
   .tile-selection-region,
+  .tile-selection-region-cells,
+  .tile-selection-cell-fragment,
   .tile-selection-frame {
     position: absolute;
     box-sizing: border-box;
@@ -214,6 +216,20 @@ pub(crate) const STYLES: &str = r#"
       inset 0 0 0 0.5px rgba(58, 174, 255, 0.92),
       0 0 10px rgba(58, 174, 255, 0.18);
     animation: tile-selection-fade-in 160ms ease-out;
+  }
+  .tile-selection-region-cells {
+    z-index: 6;
+    animation: tile-selection-fade-in 160ms ease-out;
+  }
+  .tile-selection-region-cells.preview {
+    opacity: 0.9;
+  }
+  .tile-selection-region-cells.closing {
+    animation: tile-selection-fade-out 170ms ease-out forwards;
+  }
+  .tile-selection-cell-fragment {
+    background: rgba(58, 174, 255, 0.14);
+    box-shadow: inset 0 0 0 0.5px rgba(90, 196, 255, 0.84);
   }
   .tile-selection-region.preview {
     background: rgba(58, 174, 255, 0.11);

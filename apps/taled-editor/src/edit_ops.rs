@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeSet,
     collections::VecDeque,
     time::{Duration, Instant},
 };
@@ -8,11 +9,98 @@ use taled_core::{
 };
 
 use crate::app_state::{
-    AppState, TileClipboard, TileSelectionRegion, TileSelectionTransfer, TileSelectionTransferMode,
-    Tool,
+    selection_bounds, selection_cells_from_mask, selection_cells_from_region,
+    selection_mask_from_cells, selection_region_from_cells, AppState, TileClipboard,
+    TileSelectionMode, TileSelectionRegion, TileSelectionTransfer,
+    TileSelectionTransferMode, Tool,
 };
 
 const TILE_SELECTION_DOUBLE_TAP_WINDOW: Duration = Duration::from_millis(320);
+
+fn set_tile_selection_cells(state: &mut AppState, cells: BTreeSet<(i32, i32)>) {
+    if let Some(region) = selection_region_from_cells(&cells) {
+        state.tile_selection = Some(region);
+        state.tile_selection_cells = Some(cells);
+        state.tile_selection_closing = None;
+        state.tile_selection_closing_cells = None;
+        state.tile_selection_closing_started_at = None;
+        state.tile_selection_last_tap_at = None;
+        state.tile_selection_preview = None;
+        state.selected_object = None;
+        state.selected_cell = None;
+    } else {
+        dismiss_tile_selection(state);
+    }
+}
+
+pub(crate) fn apply_tile_selection_mode_region(
+    state: &mut AppState,
+    start_x: i32,
+    start_y: i32,
+    end_x: i32,
+    end_y: i32,
+) {
+    let region = TileSelectionRegion {
+        start_cell: (start_x, start_y),
+        end_cell: (end_x, end_y),
+    };
+    let region_cells = selection_cells_from_region(region);
+    let next_cells = match state.tile_selection_mode {
+        TileSelectionMode::Replace => region_cells,
+        TileSelectionMode::Add => state
+            .tile_selection_cells
+            .clone()
+            .unwrap_or_default()
+            .union(&region_cells)
+            .copied()
+            .collect(),
+        TileSelectionMode::Subtract => state
+            .tile_selection_cells
+            .clone()
+            .unwrap_or_default()
+            .difference(&region_cells)
+            .copied()
+            .collect(),
+        TileSelectionMode::Intersect => {
+            let current = state.tile_selection_cells.clone().unwrap_or_default();
+            if current.is_empty() {
+                BTreeSet::new()
+            } else {
+                current.intersection(&region_cells).copied().collect()
+            }
+        }
+    };
+
+    if next_cells.is_empty() {
+        dismiss_tile_selection(state);
+        state.status = format!(
+            "{} selection is empty.",
+            selection_mode_label(state.tile_selection_mode)
+        );
+        return;
+    }
+
+    set_tile_selection_cells(state, next_cells.clone());
+    let region = selection_region_from_cells(&next_cells).expect("selection bounds");
+    let (min_x, min_y, max_x, max_y) = selection_bounds(region);
+    state.status = format!(
+        "{} selection spanning ({}, {}) to ({}, {}).",
+        selection_mode_label(state.tile_selection_mode),
+        min_x,
+        min_y,
+        max_x,
+        max_y
+    );
+}
+
+fn selection_mode_label(mode: TileSelectionMode) -> &'static str {
+    match mode {
+        TileSelectionMode::Replace => "Replace",
+        TileSelectionMode::Add => "Add",
+        TileSelectionMode::Subtract => "Subtract",
+        TileSelectionMode::Intersect => "Intersect",
+    }
+}
 
 pub(crate) fn toggle_layer_visibility(state: &mut AppState, layer_index: usize) {
     apply_edit(state, |document| {
@@ -110,17 +198,11 @@ pub(crate) fn select_tile_region(
     end_x: i32,
     end_y: i32,
 ) {
-    state.tile_selection_closing = None;
-    state.tile_selection_closing_started_at = None;
-    state.tile_selection_last_tap_at = None;
-    state.tile_selection = Some(crate::app_state::TileSelectionRegion {
+    let region = crate::app_state::TileSelectionRegion {
         start_cell: (start_x, start_y),
         end_cell: (end_x, end_y),
-    });
-    state.tile_selection_preview = None;
-    state.selected_object = None;
-    state.selected_cell = None;
-
+    };
+    set_tile_selection_cells(state, selection_cells_from_region(region));
     let width = (start_x - end_x).unsigned_abs() + 1;
     let height = (start_y - end_y).unsigned_abs() + 1;
     state.status = format!(
@@ -134,11 +216,33 @@ pub(crate) fn handle_tile_selection_tap(state: &mut AppState, x: u32, y: u32) ->
         return false;
     }
 
-    let Some(selection) = state.tile_selection else {
+    let Some(selection_cells) = state.tile_selection_cells.as_ref() else {
         return false;
     };
 
-    if selection_contains_cell(selection, (x as i32, y as i32)) {
+    if state.tile_selection_mode != TileSelectionMode::Replace {
+        let already_selected = selection_cells.contains(&(x as i32, y as i32));
+        match state.tile_selection_mode {
+            TileSelectionMode::Add => {
+                if already_selected {
+                    state.status = "Add selection unchanged.".to_string();
+                    return true;
+                }
+            }
+            TileSelectionMode::Subtract => {
+                if !already_selected {
+                    state.status = "Subtract selection unchanged.".to_string();
+                    return true;
+                }
+            }
+            TileSelectionMode::Intersect => {}
+            TileSelectionMode::Replace => {}
+        }
+        apply_tile_selection_mode_region(state, x as i32, y as i32, x as i32, y as i32);
+        return true;
+    }
+
+    if selection_cells.contains(&(x as i32, y as i32)) {
         let now = Instant::now();
         if state
             .tile_selection_last_tap_at
@@ -160,11 +264,15 @@ pub(crate) fn handle_tile_selection_tap(state: &mut AppState, x: u32, y: u32) ->
 pub(crate) fn dismiss_tile_selection(state: &mut AppState) {
     state.tile_selection_last_tap_at = None;
     state.tile_selection_preview = None;
-    if let Some(selection) = state.tile_selection.take() {
+    if let (Some(selection), Some(selection_cells)) =
+        (state.tile_selection.take(), state.tile_selection_cells.take())
+    {
         state.tile_selection_closing = Some(selection);
+        state.tile_selection_closing_cells = Some(selection_cells);
         state.tile_selection_closing_started_at = Some(Instant::now());
     } else {
         state.tile_selection_closing = None;
+        state.tile_selection_closing_cells = None;
         state.tile_selection_closing_started_at = None;
     }
 }
@@ -193,6 +301,7 @@ pub(crate) fn copy_tile_selection(state: &mut AppState) {
     state.tile_selection_transfer = Some(transfer);
     state.tile_selection_preview = None;
     state.tile_selection_closing = None;
+    state.tile_selection_closing_cells = None;
     state.tile_selection_closing_started_at = None;
     state.tile_selection_last_tap_at = None;
     state.selected_object = None;
@@ -207,7 +316,7 @@ pub(crate) fn cut_tile_selection(state: &mut AppState) {
             return;
         }
 
-        let (min_x, min_y, max_x, max_y) = selection_bounds(transfer.source_selection);
+        let (min_x, min_y, _, _) = selection_bounds(transfer.source_selection);
         let Some(session) = state.session.as_mut() else {
             state.status = "No map loaded.".to_string();
             return;
@@ -216,13 +325,21 @@ pub(crate) fn cut_tile_selection(state: &mut AppState) {
         session.begin_history_batch();
         let clear_result = session.edit(|document| {
             let tile_layer = selected_tile_layer_mut(document, transfer.source_layer)?;
-            clear_region_tiles_clipped(tile_layer, min_x, min_y, max_x, max_y)
+            clear_region_tiles_masked(
+                tile_layer,
+                min_x,
+                min_y,
+                transfer.width,
+                transfer.height,
+                &transfer.source_mask,
+            )
         });
 
         match clear_result {
             Ok(()) => {
                 transfer.mode = TileSelectionTransferMode::Cut;
                 state.tile_selection_closing = None;
+                state.tile_selection_closing_cells = None;
                 state.tile_selection_closing_started_at = None;
                 state.tile_selection_last_tap_at = None;
                 state.status = format!(
@@ -241,7 +358,7 @@ pub(crate) fn cut_tile_selection(state: &mut AppState) {
     let Some((transfer, clipboard)) = capture_tile_selection_transfer(state) else {
         return;
     };
-    let (min_x, min_y, max_x, max_y) = selection_bounds(transfer.source_selection);
+    let (min_x, min_y, _, _) = selection_bounds(transfer.source_selection);
     let Some(session) = state.session.as_mut() else {
         state.status = "No map loaded.".to_string();
         return;
@@ -250,7 +367,14 @@ pub(crate) fn cut_tile_selection(state: &mut AppState) {
     session.begin_history_batch();
     let clear_result = session.edit(|document| {
         let tile_layer = selected_tile_layer_mut(document, transfer.source_layer)?;
-        clear_region_tiles_clipped(tile_layer, min_x, min_y, max_x, max_y)
+        clear_region_tiles_masked(
+            tile_layer,
+            min_x,
+            min_y,
+            transfer.width,
+            transfer.height,
+            &transfer.source_mask,
+        )
     });
 
     match clear_result {
@@ -262,6 +386,7 @@ pub(crate) fn cut_tile_selection(state: &mut AppState) {
             });
             state.tile_selection_preview = None;
             state.tile_selection_closing = None;
+            state.tile_selection_closing_cells = None;
             state.tile_selection_closing_started_at = None;
             state.tile_selection_last_tap_at = None;
             state.selected_object = None;
@@ -280,96 +405,88 @@ pub(crate) fn cut_tile_selection(state: &mut AppState) {
 
 pub(crate) fn flip_tile_selection_horizontally(state: &mut AppState) {
     if let Some(transfer) = state.tile_selection_transfer.as_mut() {
-        for local_y in 0..transfer.height {
-            for local_x in 0..(transfer.width / 2) {
-                let left = (local_y * transfer.width + local_x) as usize;
-                let right = (local_y * transfer.width + (transfer.width - 1 - local_x)) as usize;
-                transfer.tiles.swap(left, right);
-            }
-        }
+        transfer.tiles = flip_tiles_horizontally(transfer.width, transfer.height, &transfer.tiles);
+        transfer.mask = flip_mask_horizontally(transfer.width, transfer.height, &transfer.mask);
         sync_clipboard_from_transfer(state);
+        resize_transfer_selection(state);
         state.status = "Flipped moving selection on the X axis.".to_string();
         return;
     }
 
-    let Some((layer_index, selection)) = selected_tile_selection(state) else {
+    let Some((layer_index, selection, selection_cells)) = selected_tile_selection(state) else {
         state.status = "Select a tile region first.".to_string();
         return;
     };
     let (min_x, min_y, _, _) = selection_bounds(selection);
     let (width, height) = selection_dimensions(selection);
+    let mask = selection_mask_from_cells(selection, &selection_cells);
+    let next_mask = flip_mask_horizontally(width, height, &mask);
+    let mask_for_edit = mask.clone();
+    let next_mask_for_edit = next_mask.clone();
 
     apply_edit(state, move |document| {
         let tile_layer = selected_tile_layer_mut(document, layer_index)?;
         let snapshot = capture_region_clipped(tile_layer, min_x, min_y, width, height);
-
-        for local_y in 0..height {
-            for local_x in 0..width {
-                let source_x = width - 1 - local_x;
-                let gid = snapshot[(local_y * width + source_x) as usize];
-                write_region_tiles_clipped(
-                    tile_layer,
-                    min_x + local_x as i32,
-                    min_y + local_y as i32,
-                    1,
-                    1,
-                    &[gid],
-                )?;
-            }
-        }
-
-        Ok(())
+        let flipped_tiles = flip_tiles_horizontally(width, height, &snapshot);
+        clear_region_tiles_masked(tile_layer, min_x, min_y, width, height, &mask_for_edit)?;
+        write_region_tiles_clipped(
+            tile_layer,
+            min_x,
+            min_y,
+            width,
+            height,
+            &flipped_tiles,
+            Some(&next_mask_for_edit),
+        )
     });
 
     if state.status == "Edit applied." {
+        let next_cells = selection_cells_from_mask(min_x, min_y, width, height, &next_mask);
+        set_tile_selection_cells(state, next_cells);
         state.status = "Flipped selection on the X axis.".to_string();
     }
 }
 
 pub(crate) fn flip_tile_selection_vertically(state: &mut AppState) {
     if let Some(transfer) = state.tile_selection_transfer.as_mut() {
-        for local_y in 0..(transfer.height / 2) {
-            for local_x in 0..transfer.width {
-                let top = (local_y * transfer.width + local_x) as usize;
-                let bottom = ((transfer.height - 1 - local_y) * transfer.width + local_x) as usize;
-                transfer.tiles.swap(top, bottom);
-            }
-        }
+        transfer.tiles = flip_tiles_vertically(transfer.width, transfer.height, &transfer.tiles);
+        transfer.mask = flip_mask_vertically(transfer.width, transfer.height, &transfer.mask);
         sync_clipboard_from_transfer(state);
+        resize_transfer_selection(state);
         state.status = "Flipped moving selection on the Y axis.".to_string();
         return;
     }
 
-    let Some((layer_index, selection)) = selected_tile_selection(state) else {
+    let Some((layer_index, selection, selection_cells)) = selected_tile_selection(state) else {
         state.status = "Select a tile region first.".to_string();
         return;
     };
     let (min_x, min_y, _, _) = selection_bounds(selection);
     let (width, height) = selection_dimensions(selection);
+    let mask = selection_mask_from_cells(selection, &selection_cells);
+    let next_mask = flip_mask_vertically(width, height, &mask);
+    let mask_for_edit = mask.clone();
+    let next_mask_for_edit = next_mask.clone();
 
     apply_edit(state, move |document| {
         let tile_layer = selected_tile_layer_mut(document, layer_index)?;
         let snapshot = capture_region_clipped(tile_layer, min_x, min_y, width, height);
-
-        for local_y in 0..height {
-            for local_x in 0..width {
-                let source_y = height - 1 - local_y;
-                let gid = snapshot[(source_y * width + local_x) as usize];
-                write_region_tiles_clipped(
-                    tile_layer,
-                    min_x + local_x as i32,
-                    min_y + local_y as i32,
-                    1,
-                    1,
-                    &[gid],
-                )?;
-            }
-        }
-
-        Ok(())
+        let flipped_tiles = flip_tiles_vertically(width, height, &snapshot);
+        clear_region_tiles_masked(tile_layer, min_x, min_y, width, height, &mask_for_edit)?;
+        write_region_tiles_clipped(
+            tile_layer,
+            min_x,
+            min_y,
+            width,
+            height,
+            &flipped_tiles,
+            Some(&next_mask_for_edit),
+        )
     });
 
     if state.status == "Edit applied." {
+        let next_cells = selection_cells_from_mask(min_x, min_y, width, height, &next_mask);
+        set_tile_selection_cells(state, next_cells);
         state.status = "Flipped selection on the Y axis.".to_string();
     }
 }
@@ -378,55 +495,50 @@ pub(crate) fn rotate_tile_selection_clockwise(state: &mut AppState) {
     if let Some(transfer) = state.tile_selection_transfer.as_mut() {
         let old_width = transfer.width;
         let old_height = transfer.height;
-        let mut rotated = vec![0; (old_width * old_height) as usize];
-        for source_y in 0..old_height {
-            for source_x in 0..old_width {
-                let gid = transfer.tiles[(source_y * old_width + source_x) as usize];
-                let dest_x = old_height - 1 - source_y;
-                let dest_y = source_x;
-                rotated[(dest_y * old_height + dest_x) as usize] = gid;
-            }
-        }
+        transfer.tiles = rotate_tiles_clockwise(old_width, old_height, &transfer.tiles);
+        transfer.mask = rotate_mask_clockwise(old_width, old_height, &transfer.mask);
         transfer.width = old_height;
         transfer.height = old_width;
-        transfer.tiles = rotated;
         sync_clipboard_from_transfer(state);
         resize_transfer_selection(state);
         state.status = "Rotated moving selection clockwise.".to_string();
         return;
     }
 
-    let Some((layer_index, selection)) = selected_tile_selection(state) else {
+    let Some((layer_index, selection, selection_cells)) = selected_tile_selection(state) else {
         state.status = "Select a tile region first.".to_string();
         return;
     };
-    let (min_x, min_y, max_x, max_y) = selection_bounds(selection);
+    let (min_x, min_y, _, _) = selection_bounds(selection);
     let (width, height) = selection_dimensions(selection);
     let new_width = height;
     let new_height = width;
+    let mask = selection_mask_from_cells(selection, &selection_cells);
+    let next_mask = rotate_mask_clockwise(width, height, &mask);
+    let mask_for_edit = mask.clone();
+    let next_mask_for_edit = next_mask.clone();
 
     apply_edit(state, move |document| {
         let tile_layer = selected_tile_layer_mut(document, layer_index)?;
         let snapshot = capture_region_clipped(tile_layer, min_x, min_y, width, height);
-        clear_region_tiles_clipped(tile_layer, min_x, min_y, max_x, max_y)?;
-
-        for source_y in 0..height {
-            for source_x in 0..width {
-                let gid = snapshot[(source_y * width + source_x) as usize];
-                let dest_x = min_x + (height - 1 - source_y) as i32;
-                let dest_y = min_y + source_x as i32;
-                write_region_tiles_clipped(tile_layer, dest_x, dest_y, 1, 1, &[gid])?;
-            }
-        }
-
-        Ok(())
+        let rotated_tiles = rotate_tiles_clockwise(width, height, &snapshot);
+        clear_region_tiles_masked(tile_layer, min_x, min_y, width, height, &mask_for_edit)?;
+        write_region_tiles_clipped(
+            tile_layer,
+            min_x,
+            min_y,
+            new_width,
+            new_height,
+            &rotated_tiles,
+            Some(&next_mask_for_edit),
+        )
     });
 
     if state.status == "Edit applied." {
-        state.tile_selection = Some(TileSelectionRegion {
-            start_cell: (min_x, min_y),
-            end_cell: (min_x + new_width as i32 - 1, min_y + new_height as i32 - 1),
-        });
+        set_tile_selection_cells(
+            state,
+            selection_cells_from_mask(min_x, min_y, new_width, new_height, &next_mask),
+        );
         state.status = "Rotated selection clockwise.".to_string();
     }
 }
@@ -437,15 +549,17 @@ pub(crate) fn delete_tile_selection(state: &mut AppState) {
         return;
     }
 
-    let Some((layer_index, selection)) = selected_tile_selection(state) else {
+    let Some((layer_index, selection, selection_cells)) = selected_tile_selection(state) else {
         state.status = "Select a tile region first.".to_string();
         return;
     };
-    let (min_x, min_y, max_x, max_y) = selection_bounds(selection);
+    let (min_x, min_y, _, _) = selection_bounds(selection);
+    let (width, height) = selection_dimensions(selection);
+    let mask = selection_mask_from_cells(selection, &selection_cells);
 
     apply_edit(state, move |document| {
         let tile_layer = selected_tile_layer_mut(document, layer_index)?;
-        clear_region_tiles_clipped(tile_layer, min_x, min_y, max_x, max_y)
+        clear_region_tiles_masked(tile_layer, min_x, min_y, width, height, &mask)
     });
 
     if state.status == "Edit applied." {
@@ -483,6 +597,7 @@ pub(crate) fn cancel_tile_selection_transfer(state: &mut AppState) {
                     transfer.width,
                     transfer.height,
                     &transfer.tiles,
+                    Some(&transfer.source_mask),
                 )
             })
         };
@@ -497,6 +612,7 @@ pub(crate) fn cancel_tile_selection_transfer(state: &mut AppState) {
     }
 
     state.tile_selection_closing = None;
+    state.tile_selection_closing_cells = None;
     state.tile_selection_closing_started_at = None;
     state.tile_selection_last_tap_at = None;
 }
@@ -891,28 +1007,15 @@ pub(crate) fn update_object_property_value(
     });
 }
 
-fn selected_tile_selection(state: &AppState) -> Option<(usize, TileSelectionRegion)> {
+fn selected_tile_selection(state: &AppState) -> Option<(usize, TileSelectionRegion, BTreeSet<(i32, i32)>)> {
     let selection = state.tile_selection?;
+    let selection_cells = state.tile_selection_cells.clone()?;
     state
         .session
         .as_ref()
         .and_then(|session| session.document().map.layer(state.active_layer))
         .and_then(Layer::as_tile)
-        .map(|_| (state.active_layer, selection))
-}
-
-fn selection_bounds(selection: TileSelectionRegion) -> (i32, i32, i32, i32) {
-    (
-        selection.start_cell.0.min(selection.end_cell.0),
-        selection.start_cell.1.min(selection.end_cell.1),
-        selection.start_cell.0.max(selection.end_cell.0),
-        selection.start_cell.1.max(selection.end_cell.1),
-    )
-}
-
-fn selection_contains_cell(selection: TileSelectionRegion, cell: (i32, i32)) -> bool {
-    let (min_x, min_y, max_x, max_y) = selection_bounds(selection);
-    cell.0 >= min_x && cell.0 <= max_x && cell.1 >= min_y && cell.1 <= max_y
+        .map(|_| (state.active_layer, selection, selection_cells))
 }
 
 fn selection_dimensions(selection: TileSelectionRegion) -> (u32, u32) {
@@ -963,12 +1066,89 @@ fn capture_region_clipped(
     tiles
 }
 
+fn flip_tiles_horizontally(width: u32, height: u32, tiles: &[u32]) -> Vec<u32> {
+    let mut flipped = vec![0; (width * height) as usize];
+    for local_y in 0..height {
+        for local_x in 0..width {
+            let source_index = (local_y * width + (width - 1 - local_x)) as usize;
+            let dest_index = (local_y * width + local_x) as usize;
+            flipped[dest_index] = tiles[source_index];
+        }
+    }
+    flipped
+}
+
+fn flip_tiles_vertically(width: u32, height: u32, tiles: &[u32]) -> Vec<u32> {
+    let mut flipped = vec![0; (width * height) as usize];
+    for local_y in 0..height {
+        for local_x in 0..width {
+            let source_index = ((height - 1 - local_y) * width + local_x) as usize;
+            let dest_index = (local_y * width + local_x) as usize;
+            flipped[dest_index] = tiles[source_index];
+        }
+    }
+    flipped
+}
+
+fn rotate_tiles_clockwise(width: u32, height: u32, tiles: &[u32]) -> Vec<u32> {
+    let mut rotated = vec![0; (width * height) as usize];
+    for source_y in 0..height {
+        for source_x in 0..width {
+            let source_index = (source_y * width + source_x) as usize;
+            let dest_x = height - 1 - source_y;
+            let dest_y = source_x;
+            let dest_index = (dest_y * height + dest_x) as usize;
+            rotated[dest_index] = tiles[source_index];
+        }
+    }
+    rotated
+}
+
+fn flip_mask_horizontally(width: u32, height: u32, mask: &[bool]) -> Vec<bool> {
+    let mut flipped = vec![false; (width * height) as usize];
+    for local_y in 0..height {
+        for local_x in 0..width {
+            let source_index = (local_y * width + (width - 1 - local_x)) as usize;
+            let dest_index = (local_y * width + local_x) as usize;
+            flipped[dest_index] = mask.get(source_index).copied().unwrap_or(false);
+        }
+    }
+    flipped
+}
+
+fn flip_mask_vertically(width: u32, height: u32, mask: &[bool]) -> Vec<bool> {
+    let mut flipped = vec![false; (width * height) as usize];
+    for local_y in 0..height {
+        for local_x in 0..width {
+            let source_index = ((height - 1 - local_y) * width + local_x) as usize;
+            let dest_index = (local_y * width + local_x) as usize;
+            flipped[dest_index] = mask.get(source_index).copied().unwrap_or(false);
+        }
+    }
+    flipped
+}
+
+fn rotate_mask_clockwise(width: u32, height: u32, mask: &[bool]) -> Vec<bool> {
+    let mut rotated = vec![false; (width * height) as usize];
+    for source_y in 0..height {
+        for source_x in 0..width {
+            let source_index = (source_y * width + source_x) as usize;
+            let dest_x = height - 1 - source_y;
+            let dest_y = source_x;
+            let dest_index = (dest_y * height + dest_x) as usize;
+            rotated[dest_index] = mask.get(source_index).copied().unwrap_or(false);
+        }
+    }
+    rotated
+}
+
 fn sync_clipboard_from_transfer(state: &mut AppState) {
     if let Some(transfer) = state.tile_selection_transfer.as_ref() {
         state.tile_clipboard = Some(TileClipboard {
             width: transfer.width,
             height: transfer.height,
             tiles: transfer.tiles.clone(),
+            mask: transfer.mask.clone(),
         });
     }
 }
@@ -981,29 +1161,9 @@ fn resize_transfer_selection(state: &mut AppState) {
         return;
     };
     let (min_x, min_y, _, _) = selection_bounds(selection);
-    state.tile_selection = Some(transfer_selection_from_origin(
-        state,
-        min_x,
-        min_y,
-        transfer.width,
-        transfer.height,
-    ));
-}
-
-fn transfer_selection_from_origin(
-    _state: &AppState,
-    origin_x: i32,
-    origin_y: i32,
-    width: u32,
-    height: u32,
-) -> TileSelectionRegion {
-    TileSelectionRegion {
-        start_cell: (origin_x, origin_y),
-        end_cell: (
-            origin_x + width.saturating_sub(1) as i32,
-            origin_y + height.saturating_sub(1) as i32,
-        ),
-    }
+    let selection_cells =
+        selection_cells_from_mask(min_x, min_y, transfer.width, transfer.height, &transfer.mask);
+    set_tile_selection_cells(state, selection_cells);
 }
 
 fn apply_tile_selection_transfer(state: &mut AppState, finalize: bool) -> bool {
@@ -1029,17 +1189,18 @@ fn apply_tile_selection_transfer(state: &mut AppState, finalize: bool) -> bool {
             state.status = "No map loaded.".to_string();
             return false;
         };
-        let result = session.edit(|document| {
-            let tile_layer = selected_tile_layer_mut(document, target_layer)?;
-            write_region_tiles_clipped(
-                tile_layer,
-                min_x,
-                min_y,
-                transfer.width,
-                transfer.height,
-                &transfer.tiles,
-            )
-        });
+            let result = session.edit(|document| {
+                let tile_layer = selected_tile_layer_mut(document, target_layer)?;
+                write_region_tiles_clipped(
+                    tile_layer,
+                    min_x,
+                    min_y,
+                    transfer.width,
+                    transfer.height,
+                    &transfer.tiles,
+                    Some(&transfer.mask),
+                )
+            });
         match (result.is_ok(), finalize) {
             (true, true) => {
                 session.finish_history_batch();
@@ -1054,23 +1215,23 @@ fn apply_tile_selection_transfer(state: &mut AppState, finalize: bool) -> bool {
         let tiles = transfer.tiles.clone();
         let width = transfer.width;
         let height = transfer.height;
+        let mask = transfer.mask.clone();
         apply_edit_result(state, move |document| {
             let tile_layer = selected_tile_layer_mut(document, target_layer)?;
-            write_region_tiles_clipped(tile_layer, min_x, min_y, width, height, &tiles)
+            write_region_tiles_clipped(tile_layer, min_x, min_y, width, height, &tiles, Some(&mask))
         })
     };
 
     match apply_result {
         Ok(()) => {
-            let end_cell = (
-                min_x + transfer.width.saturating_sub(1) as i32,
-                min_y + transfer.height.saturating_sub(1) as i32,
+            let selection_cells = selection_cells_from_mask(
+                min_x,
+                min_y,
+                transfer.width,
+                transfer.height,
+                &transfer.mask,
             );
-            state.tile_selection = Some(TileSelectionRegion {
-                start_cell: (min_x, min_y),
-                end_cell,
-            });
-            state.tile_selection_preview = None;
+            set_tile_selection_cells(state, selection_cells);
             if finalize {
                 state.tile_selection_transfer = None;
             }
@@ -1091,7 +1252,7 @@ fn delete_tile_selection_source_and_exit(state: &mut AppState) {
         state.status = "Nothing to delete.".to_string();
         return;
     };
-    let (min_x, min_y, max_x, max_y) = selection_bounds(transfer.source_selection);
+    let (min_x, min_y, _, _) = selection_bounds(transfer.source_selection);
 
     if matches!(transfer.mode, TileSelectionTransferMode::Cut) {
         if let Some(session) = state.session.as_mut() {
@@ -1099,6 +1260,7 @@ fn delete_tile_selection_source_and_exit(state: &mut AppState) {
         }
         state.tile_selection_transfer = None;
         state.tile_selection = None;
+        state.tile_selection_cells = None;
         state.tile_selection_preview = None;
         state.status = "Deleted the source selection and exited move mode.".to_string();
         return;
@@ -1106,13 +1268,21 @@ fn delete_tile_selection_source_and_exit(state: &mut AppState) {
 
     let deleted = apply_edit_result(state, move |document| {
         let tile_layer = selected_tile_layer_mut(document, transfer.source_layer)?;
-        clear_region_tiles_clipped(tile_layer, min_x, min_y, max_x, max_y)
+        clear_region_tiles_masked(
+            tile_layer,
+            min_x,
+            min_y,
+            transfer.width,
+            transfer.height,
+            &transfer.source_mask,
+        )
     });
 
     match deleted {
         Ok(()) => {
             state.tile_selection_transfer = None;
             state.tile_selection = None;
+            state.tile_selection_cells = None;
             state.tile_selection_preview = None;
             state.status = "Deleted the source selection and exited move mode.".to_string();
         }
@@ -1129,10 +1299,15 @@ fn write_region_tiles_clipped(
     width: u32,
     height: u32,
     tiles: &[u32],
+    mask: Option<&[bool]>,
 ) -> Result<(), EditorError> {
     for local_y in 0..height {
         for local_x in 0..width {
-            let gid = tiles[(local_y * width + local_x) as usize];
+            let index = (local_y * width + local_x) as usize;
+            if mask.is_some_and(|mask| !mask.get(index).copied().unwrap_or(false)) {
+                continue;
+            }
+            let gid = tiles[index];
             let x = min_x + local_x as i32;
             let y = min_y + local_y as i32;
             if tile_layer_contains_cell(tile_layer, x, y) {
@@ -1143,15 +1318,22 @@ fn write_region_tiles_clipped(
     Ok(())
 }
 
-fn clear_region_tiles_clipped(
+fn clear_region_tiles_masked(
     tile_layer: &mut taled_core::TileLayer,
     min_x: i32,
     min_y: i32,
-    max_x: i32,
-    max_y: i32,
+    width: u32,
+    height: u32,
+    mask: &[bool],
 ) -> Result<(), EditorError> {
-    for y in min_y..=max_y {
-        for x in min_x..=max_x {
+    for local_y in 0..height {
+        for local_x in 0..width {
+            let index = (local_y * width + local_x) as usize;
+            if !mask.get(index).copied().unwrap_or(false) {
+                continue;
+            }
+            let x = min_x + local_x as i32;
+            let y = min_y + local_y as i32;
             if tile_layer_contains_cell(tile_layer, x, y) {
                 tile_layer.set_tile(x as u32, y as u32, 0)?;
             }
@@ -1163,7 +1345,7 @@ fn clear_region_tiles_clipped(
 fn capture_tile_selection_transfer(
     state: &mut AppState,
 ) -> Option<(TileSelectionTransfer, TileClipboard)> {
-    let Some((layer_index, selection)) = selected_tile_selection(state) else {
+    let Some((layer_index, selection, selection_cells)) = selected_tile_selection(state) else {
         state.status = "Select a tile region first.".to_string();
         return None;
     };
@@ -1183,18 +1365,27 @@ fn capture_tile_selection_transfer(
 
     let (min_x, min_y, _, _) = selection_bounds(selection);
     let (width, height) = selection_dimensions(selection);
-    let tiles = capture_region_clipped(tile_layer, min_x, min_y, width, height);
+    let mask = selection_mask_from_cells(selection, &selection_cells);
+    let mut tiles = capture_region_clipped(tile_layer, min_x, min_y, width, height);
+    for (index, selected) in mask.iter().copied().enumerate() {
+        if !selected {
+            tiles[index] = 0;
+        }
+    }
     let clipboard = TileClipboard {
         width,
         height,
         tiles: tiles.clone(),
+        mask: mask.clone(),
     };
     let transfer = TileSelectionTransfer {
         source_layer: layer_index,
         source_selection: selection,
+        source_mask: mask.clone(),
         width,
         height,
         tiles,
+        mask,
         mode: TileSelectionTransferMode::Copy,
     };
 
@@ -1241,12 +1432,15 @@ mod tests {
     use taled_core::EditorSession;
 
     use super::{
-        apply_cell_tool, apply_shape_fill_rect, copy_tile_selection, cut_tile_selection,
-        delete_tile_selection, flip_tile_selection_horizontally, flip_tile_selection_vertically,
+        apply_cell_tool, apply_shape_fill_rect, apply_tile_selection_mode_region,
+        copy_tile_selection, cut_tile_selection, delete_tile_selection,
+        flip_tile_selection_horizontally, flip_tile_selection_vertically,
         handle_tile_selection_tap, place_tile_selection_transfer, rotate_tile_selection_clockwise,
         select_tile_region,
     };
-    use crate::app_state::{AppState, TileSelectionRegion, TileSelectionTransferMode, Tool};
+    use crate::app_state::{
+        AppState, TileSelectionMode, TileSelectionRegion, TileSelectionTransferMode, Tool,
+    };
 
     fn sample_map_path() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -1341,6 +1535,84 @@ mod tests {
         assert_eq!(state.tile_selection_preview, None);
         assert_eq!(state.selected_cell, None);
         assert!(state.status.contains("4x5"));
+    }
+
+    #[test]
+    fn add_selection_mode_unions_the_new_region() {
+        let mut state = test_state(Tool::Select, 1);
+        select_tile_region(&mut state, 1, 1, 2, 2);
+        state.tile_selection_mode = TileSelectionMode::Add;
+
+        apply_tile_selection_mode_region(&mut state, 3, 2, 4, 3);
+
+        let selection = state.tile_selection.expect("selection");
+        assert_eq!(selection.start_cell, (1, 1));
+        assert_eq!(selection.end_cell, (4, 3));
+        let cells = state.tile_selection_cells.expect("selection cells");
+        assert!(cells.contains(&(1, 1)));
+        assert!(cells.contains(&(4, 3)));
+        assert_eq!(cells.len(), 8);
+    }
+
+    #[test]
+    fn subtract_selection_mode_removes_overlapping_cells() {
+        let mut state = test_state(Tool::Select, 1);
+        select_tile_region(&mut state, 1, 1, 3, 3);
+        state.tile_selection_mode = TileSelectionMode::Subtract;
+
+        apply_tile_selection_mode_region(&mut state, 2, 2, 3, 3);
+
+        let cells = state.tile_selection_cells.expect("selection cells");
+        assert!(!cells.contains(&(2, 2)));
+        assert!(!cells.contains(&(3, 3)));
+        assert!(cells.contains(&(1, 1)));
+        assert_eq!(cells.len(), 5);
+    }
+
+    #[test]
+    fn intersect_selection_mode_keeps_only_the_overlap() {
+        let mut state = test_state(Tool::Select, 1);
+        select_tile_region(&mut state, 1, 1, 4, 3);
+        state.tile_selection_mode = TileSelectionMode::Intersect;
+
+        apply_tile_selection_mode_region(&mut state, 3, 2, 5, 4);
+
+        let selection = state.tile_selection.expect("selection");
+        assert_eq!(selection.start_cell, (3, 2));
+        assert_eq!(selection.end_cell, (4, 3));
+        let cells = state.tile_selection_cells.expect("selection cells");
+        assert_eq!(cells.len(), 4);
+        assert!(cells.contains(&(3, 2)));
+        assert!(cells.contains(&(4, 3)));
+        assert!(!cells.contains(&(2, 2)));
+    }
+
+    #[test]
+    fn add_mode_tap_outside_selection_adds_a_single_cell() {
+        let mut state = test_state(Tool::Select, 1);
+        select_tile_region(&mut state, 1, 1, 2, 2);
+        state.tile_selection_mode = TileSelectionMode::Add;
+
+        assert!(handle_tile_selection_tap(&mut state, 4, 4));
+
+        let cells = state.tile_selection_cells.expect("selection cells");
+        assert!(cells.contains(&(1, 1)));
+        assert!(cells.contains(&(4, 4)));
+        assert_eq!(cells.len(), 5);
+    }
+
+    #[test]
+    fn subtract_mode_tap_inside_selection_removes_a_single_cell() {
+        let mut state = test_state(Tool::Select, 1);
+        select_tile_region(&mut state, 1, 1, 2, 2);
+        state.tile_selection_mode = TileSelectionMode::Subtract;
+
+        assert!(handle_tile_selection_tap(&mut state, 2, 2));
+
+        let cells = state.tile_selection_cells.expect("selection cells");
+        assert!(!cells.contains(&(2, 2)));
+        assert!(cells.contains(&(1, 1)));
+        assert_eq!(cells.len(), 3);
     }
 
     #[test]

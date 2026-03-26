@@ -4,7 +4,10 @@ use dioxus::prelude::*;
 use taled_core::{EditorDocument, ObjectShape};
 
 use crate::{
-    app_state::{AppState, TileSelectionRegion, Tool},
+    app_state::{
+        selection_bounds, selection_cells_are_rectangular, selection_cells_from_region, AppState,
+        TileSelectionRegion, Tool,
+    },
     edit_ops::{apply_cell_tool, dismiss_tile_selection},
     platform::log,
     touch_ops::{
@@ -175,6 +178,7 @@ pub(crate) fn render_canvas(snapshot: &AppState, mut state: Signal<AppState>) ->
                                                 state.active_layer = layer_index;
                                                 state.selected_object = Some(object_id);
                                                 state.tile_selection = None;
+                                                state.tile_selection_cells = None;
                                                 state.tile_selection_preview = None;
                                             }
                                         }
@@ -203,23 +207,42 @@ pub(crate) fn render_canvas(snapshot: &AppState, mut state: Signal<AppState>) ->
                     })}
 
                     {tile_selection_overlay.as_ref().map(|overlay| rsx! {
-                        div {
-                            class: if overlay.closing {
-                                "tile-selection-region closing"
-                            } else if overlay.preview {
-                                "tile-selection-region preview"
-                            } else {
-                                "tile-selection-region"
-                            },
-                            style: "{overlay.region_style}",
-                            div { class: "tile-selection-frame" }
-                            if overlay.show_handles {
-                                for handle in &overlay.handles {
+                        if overlay.irregular {
+                            div {
+                                class: if overlay.closing {
+                                    "tile-selection-region-cells closing"
+                                } else if overlay.preview {
+                                    "tile-selection-region-cells preview"
+                                } else {
+                                    "tile-selection-region-cells"
+                                },
+                                for (index, cell_style) in overlay.cell_styles.iter().enumerate() {
                                     div {
-                                        key: "tile-selection-handle-{handle.position}",
-                                        class: "tile-selection-handle {handle.position}",
-                                        style: "{handle.style}",
-                                        div { class: "tile-selection-handle-dot" }
+                                        key: "tile-selection-cell-{index}",
+                                        class: "tile-selection-cell-fragment",
+                                        style: "{cell_style}",
+                                    }
+                                }
+                            }
+                        } else {
+                            div {
+                                class: if overlay.closing {
+                                    "tile-selection-region closing"
+                                } else if overlay.preview {
+                                    "tile-selection-region preview"
+                                } else {
+                                    "tile-selection-region"
+                                },
+                                style: "{overlay.region_style}",
+                                div { class: "tile-selection-frame" }
+                                if overlay.show_handles {
+                                    for handle in &overlay.handles {
+                                        div {
+                                            key: "tile-selection-handle-{handle.position}",
+                                            class: "tile-selection-handle {handle.position}",
+                                            style: "{handle.style}",
+                                            div { class: "tile-selection-handle-dot" }
+                                        }
                                     }
                                 }
                             }
@@ -478,21 +501,40 @@ fn active_tile_selection_overlay(
     let active_layer = document.map.layer(snapshot.active_layer)?;
     active_layer.as_tile()?;
 
-    let (selection, preview, closing) = if let Some(selection) = snapshot.tile_selection_preview {
-        (selection, true, false)
-    } else if let Some(selection) = snapshot.tile_selection {
-        (selection, false, false)
+    let closing_region = snapshot.tile_selection_closing;
+    let (selection, selection_cells, preview, closing) =
+        if let Some(selection) = snapshot.tile_selection_preview {
+            (
+                selection,
+                selection_cells_from_region(selection),
+                true,
+                false,
+            )
+        } else if let (Some(selection), Some(selection_cells)) =
+            (snapshot.tile_selection, snapshot.tile_selection_cells.clone())
+        {
+            (selection, selection_cells, false, false)
     } else if snapshot
         .tile_selection_closing_started_at
         .is_some_and(|started_at| started_at.elapsed() <= TILE_SELECTION_FADE_DURATION)
     {
-        (snapshot.tile_selection_closing?, false, true)
+        let selection = closing_region?;
+        (
+            selection,
+            snapshot
+                .tile_selection_closing_cells
+                .clone()
+                .unwrap_or_else(|| selection_cells_from_region(selection)),
+            false,
+            true,
+        )
     } else {
         return None;
     };
     Some(build_tile_selection_overlay(
         document,
         selection,
+        selection_cells,
         preview,
         closing,
         snapshot.tile_selection_transfer.is_some(),
@@ -502,6 +544,7 @@ fn active_tile_selection_overlay(
 fn build_tile_selection_overlay(
     document: &EditorDocument,
     selection: TileSelectionRegion,
+    selection_cells: std::collections::BTreeSet<(i32, i32)>,
     preview: bool,
     closing: bool,
     transfer_active: bool,
@@ -509,7 +552,9 @@ fn build_tile_selection_overlay(
     let (min_x, min_y, max_x, max_y) = selection_bounds(selection);
     let width_in_cells = max_x - min_x + 1;
     let height_in_cells = max_y - min_y + 1;
-    let show_handles = !transfer_active && (width_in_cells > 1 || height_in_cells > 1);
+    let irregular = !selection_cells_are_rectangular(selection, &selection_cells);
+    let show_handles =
+        !irregular && !transfer_active && (width_in_cells > 1 || height_in_cells > 1);
     let region_style = signed_preview_frame_style(
         document.map.tile_width,
         document.map.tile_height,
@@ -522,7 +567,25 @@ fn build_tile_selection_overlay(
     TileSelectionOverlayVisual {
         preview,
         closing,
+        irregular,
         region_style,
+        cell_styles: if irregular {
+            selection_cells
+                .into_iter()
+                .map(|(x, y)| {
+                    signed_preview_frame_style(
+                        document.map.tile_width,
+                        document.map.tile_height,
+                        x,
+                        y,
+                        x,
+                        y,
+                    )
+                })
+                .collect()
+        } else {
+            Vec::new()
+        },
         show_handles,
         handles: if show_handles {
             vec![
@@ -570,19 +633,12 @@ fn active_tile_selection_transfer_preview(
     Some(TileSelectionTransferPreviewVisual { tiles })
 }
 
-fn selection_bounds(selection: TileSelectionRegion) -> (i32, i32, i32, i32) {
-    (
-        selection.start_cell.0.min(selection.end_cell.0),
-        selection.start_cell.1.min(selection.end_cell.1),
-        selection.start_cell.0.max(selection.end_cell.0),
-        selection.start_cell.1.max(selection.end_cell.1),
-    )
-}
-
 struct TileSelectionOverlayVisual {
     preview: bool,
     closing: bool,
+    irregular: bool,
     region_style: String,
+    cell_styles: Vec<String>,
     show_handles: bool,
     handles: Vec<TileSelectionHandleVisual>,
 }

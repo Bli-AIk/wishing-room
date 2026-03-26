@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::time::Instant;
 
 use taled_core::EditorSession;
@@ -25,6 +25,14 @@ pub(crate) enum Tool {
     Select,
     AddRectangle,
     AddPoint,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TileSelectionMode {
+    Replace,
+    Add,
+    Subtract,
+    Intersect,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -101,6 +109,7 @@ pub(crate) struct TileClipboard {
     pub(crate) width: u32,
     pub(crate) height: u32,
     pub(crate) tiles: Vec<u32>,
+    pub(crate) mask: Vec<bool>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -113,9 +122,11 @@ pub(crate) enum TileSelectionTransferMode {
 pub(crate) struct TileSelectionTransfer {
     pub(crate) source_layer: usize,
     pub(crate) source_selection: TileSelectionRegion,
+    pub(crate) source_mask: Vec<bool>,
     pub(crate) width: u32,
     pub(crate) height: u32,
     pub(crate) tiles: Vec<u32>,
+    pub(crate) mask: Vec<bool>,
     pub(crate) mode: TileSelectionTransferMode,
 }
 
@@ -132,11 +143,14 @@ pub(crate) struct AppState {
     pub(crate) shape_fill_preview: Option<ShapeFillPreview>,
     pub(crate) tile_clipboard: Option<TileClipboard>,
     pub(crate) tile_selection: Option<TileSelectionRegion>,
+    pub(crate) tile_selection_cells: Option<BTreeSet<(i32, i32)>>,
     pub(crate) tile_selection_preview: Option<TileSelectionRegion>,
     pub(crate) tile_selection_closing: Option<TileSelectionRegion>,
+    pub(crate) tile_selection_closing_cells: Option<BTreeSet<(i32, i32)>>,
     pub(crate) tile_selection_closing_started_at: Option<Instant>,
     pub(crate) tile_selection_last_tap_at: Option<Instant>,
     pub(crate) tile_selection_transfer: Option<TileSelectionTransfer>,
+    pub(crate) tile_selection_mode: TileSelectionMode,
     pub(crate) tool: Tool,
     pub(crate) layers_panel_expanded: bool,
     pub(crate) mobile_screen: MobileScreen,
@@ -180,11 +194,14 @@ impl Default for AppState {
                 shape_fill_preview: None,
                 tile_clipboard: None,
                 tile_selection: None,
+                tile_selection_cells: None,
                 tile_selection_preview: None,
                 tile_selection_closing: None,
+                tile_selection_closing_cells: None,
                 tile_selection_closing_started_at: None,
                 tile_selection_last_tap_at: None,
                 tile_selection_transfer: None,
+                tile_selection_mode: TileSelectionMode::Replace,
                 tool: Tool::Paint,
                 layers_panel_expanded: false,
                 mobile_screen,
@@ -226,11 +243,14 @@ impl Default for AppState {
                 shape_fill_preview: None,
                 tile_clipboard: None,
                 tile_selection: None,
+                tile_selection_cells: None,
                 tile_selection_preview: None,
                 tile_selection_closing: None,
+                tile_selection_closing_cells: None,
                 tile_selection_closing_started_at: None,
                 tile_selection_last_tap_at: None,
                 tile_selection_transfer: None,
+                tile_selection_mode: TileSelectionMode::Replace,
                 tool: Tool::Paint,
                 layers_panel_expanded: false,
                 mobile_screen: MobileScreen::Dashboard,
@@ -276,11 +296,14 @@ impl Default for AppState {
                 shape_fill_preview: None,
                 tile_clipboard: None,
                 tile_selection: None,
+                tile_selection_cells: None,
                 tile_selection_preview: None,
                 tile_selection_closing: None,
+                tile_selection_closing_cells: None,
                 tile_selection_closing_started_at: None,
                 tile_selection_last_tap_at: None,
                 tile_selection_transfer: None,
+                tile_selection_mode: TileSelectionMode::Replace,
                 tool: Tool::Paint,
                 layers_panel_expanded: false,
                 mobile_screen: MobileScreen::Editor,
@@ -303,6 +326,88 @@ impl Default for AppState {
             }
         }
     }
+}
+
+pub(crate) fn selection_bounds(region: TileSelectionRegion) -> (i32, i32, i32, i32) {
+    (
+        region.start_cell.0.min(region.end_cell.0),
+        region.start_cell.1.min(region.end_cell.1),
+        region.start_cell.0.max(region.end_cell.0),
+        region.start_cell.1.max(region.end_cell.1),
+    )
+}
+
+pub(crate) fn selection_region_from_cells(
+    cells: &BTreeSet<(i32, i32)>,
+) -> Option<TileSelectionRegion> {
+    let mut iter = cells.iter().copied();
+    let first = iter.next()?;
+    let (mut min_x, mut min_y, mut max_x, mut max_y) = (first.0, first.1, first.0, first.1);
+    for (x, y) in iter {
+        min_x = min_x.min(x);
+        min_y = min_y.min(y);
+        max_x = max_x.max(x);
+        max_y = max_y.max(y);
+    }
+    Some(TileSelectionRegion {
+        start_cell: (min_x, min_y),
+        end_cell: (max_x, max_y),
+    })
+}
+
+pub(crate) fn selection_cells_from_region(region: TileSelectionRegion) -> BTreeSet<(i32, i32)> {
+    let (min_x, min_y, max_x, max_y) = selection_bounds(region);
+    let mut cells = BTreeSet::new();
+    for y in min_y..=max_y {
+        for x in min_x..=max_x {
+            cells.insert((x, y));
+        }
+    }
+    cells
+}
+
+pub(crate) fn selection_mask_from_cells(
+    region: TileSelectionRegion,
+    cells: &BTreeSet<(i32, i32)>,
+) -> Vec<bool> {
+    let (min_x, min_y, max_x, max_y) = selection_bounds(region);
+    let width = (max_x - min_x + 1) as usize;
+    let height = (max_y - min_y + 1) as usize;
+    let mut mask = Vec::with_capacity(width * height);
+    for local_y in 0..height {
+        for local_x in 0..width {
+            mask.push(cells.contains(&(min_x + local_x as i32, min_y + local_y as i32)));
+        }
+    }
+    mask
+}
+
+pub(crate) fn selection_cells_from_mask(
+    origin_x: i32,
+    origin_y: i32,
+    width: u32,
+    height: u32,
+    mask: &[bool],
+) -> BTreeSet<(i32, i32)> {
+    let mut cells = BTreeSet::new();
+    for local_y in 0..height {
+        for local_x in 0..width {
+            let index = (local_y * width + local_x) as usize;
+            if mask.get(index).copied().unwrap_or(false) {
+                cells.insert((origin_x + local_x as i32, origin_y + local_y as i32));
+            }
+        }
+    }
+    cells
+}
+
+pub(crate) fn selection_cells_are_rectangular(
+    region: TileSelectionRegion,
+    cells: &BTreeSet<(i32, i32)>,
+) -> bool {
+    let (min_x, min_y, max_x, max_y) = selection_bounds(region);
+    let expected = ((max_x - min_x + 1) * (max_y - min_y + 1)) as usize;
+    cells.len() == expected
 }
 
 fn default_status_message() -> String {

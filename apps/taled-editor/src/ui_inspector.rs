@@ -92,8 +92,10 @@ pub(crate) fn render_inspector(snapshot: &AppState, mut state: Signal<AppState>)
                                             let mut state = state.write();
                                             state.selected_object = Some(object_id);
                                             state.tile_selection = None;
+                                            state.tile_selection_cells = None;
                                             state.tile_selection_preview = None;
                                             state.tile_selection_closing = None;
+                                            state.tile_selection_closing_cells = None;
                                             state.tile_selection_closing_started_at = None;
                                             state.tile_selection_last_tap_at = None;
                                         }
