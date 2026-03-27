@@ -165,6 +165,9 @@ pub(crate) const STYLES: &str = r#"
       #142131;
     box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
     transform-origin: top left;
+    will-change: transform;
+    contain: layout paint style;
+    backface-visibility: hidden;
     touch-action: none;
   }
   .tile-sprite, .tile-preview, .shape-fill-preview-frame, .cell-hitbox, .object-overlay {
@@ -177,6 +180,9 @@ pub(crate) const STYLES: &str = r#"
     pointer-events: none;
     display: block;
     image-rendering: pixelated;
+    will-change: transform;
+    transform: translateZ(0);
+    contain: strict;
   }
   .tile-sprite {
     z-index: 1;

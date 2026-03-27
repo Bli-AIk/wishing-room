@@ -29,6 +29,8 @@ const MIN_PINCH_DISTANCE: f64 = 12.0;
 const SELECTION_PRESERVE_DRAG_DISTANCE: f64 = 8.0;
 const TILE_SELECTION_HANDLE_INTERIOR_BIAS: f64 = 0.5;
 const TILE_SELECTION_HANDLE_HIT_RADIUS: f64 = 18.0;
+#[cfg(target_os = "android")]
+const TOUCH_TRACE_ENABLED: bool = false;
 
 pub(crate) fn should_ignore_synthetic_click(state: &mut AppState) -> bool {
     let Some(deadline) = state.suppress_click_until else {
@@ -211,7 +213,6 @@ pub(crate) fn handle_touch_pointer_move(state: &mut AppState, event: Event<Point
             state.pan_x += delta_x.round() as i32;
             state.pan_y += delta_y.round() as i32;
             refresh_flat_tile_layer_cache_if_needed(state);
-            log_touch_resolution(state, "hand-pan", point.x, point.y);
         }
         return;
     }
@@ -1143,7 +1144,6 @@ fn update_pinch_gesture(state: &mut AppState) {
     state.pan_x = (current_center_x - gesture.world_center_x * new_zoom).round() as i32;
     state.pan_y = (current_center_y - gesture.world_center_y * new_zoom).round() as i32;
     refresh_flat_tile_layer_cache_if_needed(state);
-    state.status = format!("Zoom {}%.", state.zoom_percent);
     log_pinch_probe(
         state,
         "pinch-update",
@@ -1163,6 +1163,9 @@ fn log_touch_probe(
     surface_x: f64,
     surface_y: f64,
 ) {
+    if !TOUCH_TRACE_ENABLED {
+        return;
+    }
     let client = event.client_coordinates();
     let element = event.element_coordinates();
     let (origin_x, origin_y) = state
@@ -1215,6 +1218,9 @@ fn log_touch_probe(
 
 #[cfg(target_os = "android")]
 fn log_touch_resolution(state: &AppState, phase: &'static str, surface_x: f64, surface_y: f64) {
+    if !TOUCH_TRACE_ENABLED {
+        return;
+    }
     log(format!(
         "touch:{phase} tool={:?} surface=({:.1},{:.1}) pan=({}, {}) zoom={} world={} cell={}",
         state.tool,
@@ -1242,6 +1248,9 @@ fn log_pinch_probe(
     center_y: f64,
     distance: f64,
 ) {
+    if !TOUCH_TRACE_ENABLED {
+        return;
+    }
     log(format!(
         "touch:{phase} first=({:.1},{:.1}) second=({:.1},{:.1}) center=({:.1},{:.1}) distance={:.2} pan=({}, {}) zoom={}",
         first.x,

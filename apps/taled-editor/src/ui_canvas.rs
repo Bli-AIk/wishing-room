@@ -34,7 +34,7 @@ pub(crate) fn render_canvas(snapshot: &AppState, mut state: Signal<AppState>) ->
     let map = &document.map;
     let zoom = snapshot.zoom_percent as f32 / 100.0;
     let canvas_style = format!(
-        "width:{}px;height:{}px;transform:translate({}px, {}px) scale({zoom});",
+        "width:{}px;height:{}px;transform:translate3d({}px, {}px, 0) scale({zoom});",
         map.total_pixel_width(),
         map.total_pixel_height(),
         snapshot.pan_x,
@@ -355,6 +355,59 @@ fn expanded_visible_cell_bounds(snapshot: &AppState, map: &taled_core::Map) -> V
     }
 }
 
+fn full_map_cell_bounds(map: &taled_core::Map) -> VisibleCellBounds {
+    VisibleCellBounds {
+        min_x: 0,
+        max_x: map.width,
+        min_y: 0,
+        max_y: map.height,
+    }
+}
+
+fn visible_painted_tile_count(map: &taled_core::Map) -> usize {
+    map.layers
+        .iter()
+        .filter_map(|layer| layer.as_tile())
+        .filter(|layer| layer.visible)
+        .map(|layer| {
+            (0..layer.height)
+                .flat_map(|y| (0..layer.width).map(move |x| (x, y)))
+                .filter(|(x, y)| layer.tile_at(*x, *y).is_some_and(|gid| gid != 0))
+                .count()
+        })
+        .sum()
+}
+
+fn prefers_full_flat_tile_cache(map: &taled_core::Map) -> bool {
+    const MAX_FULL_CACHE_AXIS_PX: u32 = 4_096;
+    const MAX_FULL_CACHE_PAINTED_TILES: usize = 12_000;
+
+    map.total_pixel_width() <= MAX_FULL_CACHE_AXIS_PX
+        && map.total_pixel_height() <= MAX_FULL_CACHE_AXIS_PX
+        && visible_painted_tile_count(map) <= MAX_FULL_CACHE_PAINTED_TILES
+}
+
+fn flat_tile_cache_bounds(snapshot: &AppState, map: &taled_core::Map) -> VisibleCellBounds {
+    if prefers_full_flat_tile_cache(map) {
+        full_map_cell_bounds(map)
+    } else {
+        expanded_visible_cell_bounds(snapshot, map)
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn perf_now_ms() -> f64 {
+    js_sys::Date::now()
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn perf_now_ms() -> f64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_secs_f64() * 1_000.0)
+        .unwrap_or_default()
+}
+
 fn flat_tile_layers_style(snapshot: &AppState, map: &taled_core::Map) -> Option<String> {
     let (min_x, max_x, min_y, max_y) = snapshot.flat_tile_layers_cell_bounds?;
     Some(format!(
@@ -373,9 +426,51 @@ pub(crate) fn rebuild_flat_tile_layer_cache(state: &mut AppState) {
         return;
     };
 
+    let started_at_ms = perf_now_ms();
     let document = session.document();
     let map = &document.map;
-    let cache_bounds = expanded_visible_cell_bounds(state, map);
+    let cache_bounds = flat_tile_cache_bounds(state, map);
+    let strategy = if cache_bounds.min_x == 0
+        && cache_bounds.min_y == 0
+        && cache_bounds.max_x == map.width
+        && cache_bounds.max_y == map.height
+    {
+        "full-map"
+    } else {
+        "slice"
+    };
+
+    let Some(svg) = build_flat_tile_layer_svg(map, &state.image_cache, cache_bounds) else {
+        state.flat_tile_layers_data_url = None;
+        state.flat_tile_layers_cell_bounds = None;
+        return;
+    };
+    let svg_bytes = svg.len();
+    let encoded = base64::engine::general_purpose::STANDARD.encode(svg);
+
+    state.flat_tile_layers_data_url = Some(format!("data:image/svg+xml;base64,{encoded}"));
+    state.flat_tile_layers_cell_bounds = Some((
+        cache_bounds.min_x,
+        cache_bounds.max_x,
+        cache_bounds.min_y,
+        cache_bounds.max_y,
+    ));
+    log(format!(
+        "perf: flat-cache rebuilt strategy={strategy} format=svg bounds=({}, {})..({}, {}) cache_bytes={} duration_ms={:.1}",
+        cache_bounds.min_x,
+        cache_bounds.min_y,
+        cache_bounds.max_x,
+        cache_bounds.max_y,
+        svg_bytes,
+        perf_now_ms() - started_at_ms,
+    ));
+}
+
+fn build_flat_tile_layer_svg(
+    map: &taled_core::Map,
+    image_cache: &BTreeMap<usize, String>,
+    cache_bounds: VisibleCellBounds,
+) -> Option<String> {
     let slice_width = (cache_bounds.max_x.saturating_sub(cache_bounds.min_x)).max(1) * map.tile_width;
     let slice_height =
         (cache_bounds.max_y.saturating_sub(cache_bounds.min_y)).max(1) * map.tile_height;
@@ -397,22 +492,16 @@ pub(crate) fn rebuild_flat_tile_layer_cache(state: &mut AppState) {
         if !tile_layer.visible {
             continue;
         }
-        if let Some(layer_svg) = flat_tile_layer_slice_svg(
-            map,
-            &state.image_cache,
-            tile_layer,
-            cache_bounds,
-            &mut defs,
-        ) {
+        if let Some(layer_svg) =
+            flat_tile_layer_slice_svg(map, image_cache, tile_layer, cache_bounds, &mut defs)
+        {
             body.push_str(&layer_svg);
             wrote_any = true;
         }
     }
 
     if !wrote_any {
-        state.flat_tile_layers_data_url = None;
-        state.flat_tile_layers_cell_bounds = None;
-        return;
+        return None;
     }
 
     if !defs.is_empty() {
@@ -424,14 +513,7 @@ pub(crate) fn rebuild_flat_tile_layer_cache(state: &mut AppState) {
     }
     svg.push_str(&body);
     svg.push_str("</svg>");
-    let encoded = base64::engine::general_purpose::STANDARD.encode(svg);
-    state.flat_tile_layers_data_url = Some(format!("data:image/svg+xml;base64,{encoded}"));
-    state.flat_tile_layers_cell_bounds = Some((
-        cache_bounds.min_x,
-        cache_bounds.max_x,
-        cache_bounds.min_y,
-        cache_bounds.max_y,
-    ));
+    Some(svg)
 }
 
 fn flat_tile_symbol_svg(
@@ -543,6 +625,11 @@ pub(crate) fn refresh_flat_tile_layer_cache_if_needed(state: &mut AppState) {
         rebuild_flat_tile_layer_cache(state);
         return;
     };
+
+    let map = &session.document().map;
+    if cache_min_x == 0 && cache_min_y == 0 && cache_max_x == map.width && cache_max_y == map.height {
+        return;
+    }
 
     let fits_horizontally = visible.min_x >= cache_min_x && visible.max_x <= cache_max_x;
     let fits_vertically = visible.min_y >= cache_min_y && visible.max_y <= cache_max_y;

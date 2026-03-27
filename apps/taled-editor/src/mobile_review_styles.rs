@@ -310,6 +310,7 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
     flex: 1;
     min-height: 0;
     overflow: hidden;
+    contain: strict;
     --grid-line-width: 0.5px;
     --grid-size-x: 16px;
     --grid-size-y: 16px;
@@ -342,6 +343,7 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
     overflow: hidden;
     background: transparent;
     box-shadow: none;
+    contain: layout paint style;
   }
   .review-map-grass,
   .review-map-path,
@@ -359,8 +361,9 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
   .review-zoom-control,
   .review-layer-float {
     position: absolute;
-    background: rgba(28, 28, 30, 0.86);
-    backdrop-filter: blur(10px);
+    background: rgba(24, 24, 26, 0.96);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
     border: 1px solid rgba(255, 255, 255, 0.08);
   }
   .review-pan-joystick {
@@ -399,10 +402,11 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
     gap: 0;
     padding: 3px 4px;
     border-radius: 14px;
-    background: rgba(38, 38, 40, 0.92);
-    backdrop-filter: blur(14px);
+    background: rgba(33, 33, 35, 0.96);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
     border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.24);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
     z-index: 13;
     animation: review-selection-actions-fade 180ms ease-out;
     max-width: calc(100% - 20px);
@@ -460,10 +464,11 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
     place-items: center;
     border: none;
     border-radius: 999px;
-    background: rgba(28, 28, 30, 0.86);
-    backdrop-filter: blur(10px);
+    background: rgba(24, 24, 26, 0.96);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
     border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.22);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.16);
     color: rgba(255,255,255,0.92);
     padding: 0;
   }
@@ -707,8 +712,9 @@ pub(crate) const MOBILE_REVIEW_STYLES: &str = r#"
   }
   .review-editor-toolbar {
     flex: none;
-    background: rgba(28, 28, 30, 0.94);
-    backdrop-filter: blur(14px);
+    background: rgba(24, 24, 26, 0.98);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
     border-top: 1px solid #2c2c2e;
     display: flex;
     flex-direction: column;
