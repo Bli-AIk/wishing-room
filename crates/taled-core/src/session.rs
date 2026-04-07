@@ -245,6 +245,25 @@ impl EditorSession {
         ))
     }
 
+    /// Returns the raw image bytes for a tileset (PNG/JPEG/etc).
+    pub fn tileset_image_bytes(&self, tileset_index: usize) -> Result<Vec<u8>> {
+        let tileset = self
+            .document
+            .map
+            .tilesets
+            .get(tileset_index)
+            .ok_or_else(|| {
+                crate::error::EditorError::Invalid(format!(
+                    "unknown tileset index: {tileset_index}"
+                ))
+            })?;
+        let image_path = tileset.resolved_image_path(&self.document.file_path);
+        match &self.asset_source {
+            AssetSource::FileSystem => Ok(fs::read(&image_path)?),
+            AssetSource::Embedded(assets) => Ok(assets.read_bytes(&image_path)?.to_vec()),
+        }
+    }
+
     pub fn sample_path_from_root(root: impl AsRef<Path>) -> PathBuf {
         root.as_ref()
             .join("assets")

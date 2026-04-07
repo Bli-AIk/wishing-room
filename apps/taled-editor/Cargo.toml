@@ -4,45 +4,10 @@ version = "0.0.1"
 edition = "2024"
 
 [dependencies]
-base64.workspace = true
 fluent-bundle.workspace = true
-futures-timer.workspace = true
+ply-engine.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sys-locale.workspace = true
 taled-core = { path = "../../crates/taled-core" }
 unic-langid.workspace = true
-
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-console_error_panic_hook = "0.1.7"
-dioxus = { workspace = true, features = ["minimal", "web", "logger", "document"] }
-gloo-timers = { version = "0.3.0", features = ["futures"] }
-js-sys = "0.3.91"
-wasm-bindgen = "0.2.114"
-web-sys = { version = "0.3.91", features = [
-  "Blob",
-  "BlobPropertyBag",
-  "Document",
-  "Element",
-  "ErrorEvent",
-  "Event",
-  "EventTarget",
-  "HtmlAnchorElement",
-  "HtmlElement",
-  "Location",
-  "MediaQueryList",
-  "Navigator",
-  "Node",
-  "PromiseRejectionEvent",
-  "Url",
-  "Window",
-  "console",
-] }
-
-[target.'cfg(target_os = "android")'.dependencies]
-dioxus = { workspace = true, features = ["minimal", "mobile", "logger", "document"] }
-jni = "0.21.1"
-ndk-context = "0.1.1"
-
-[target.'cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))'.dependencies]
-dioxus = { workspace = true, features = ["minimal", "desktop", "logger", "document"] }

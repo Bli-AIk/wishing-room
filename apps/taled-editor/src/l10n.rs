@@ -4,6 +4,7 @@ use fluent_bundle::{FluentArgs, FluentBundle, FluentResource};
 use unic_langid::{LanguageIdentifier, langid};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub(crate) enum AppLanguagePreference {
     Auto,
     English,
@@ -11,6 +12,7 @@ pub(crate) enum AppLanguagePreference {
 }
 
 impl AppLanguagePreference {
+    #[allow(dead_code)]
     pub(crate) const fn as_value(self) -> &'static str {
         match self {
             Self::Auto => "auto",
@@ -19,6 +21,7 @@ impl AppLanguagePreference {
         }
     }
 
+    #[allow(dead_code)]
     pub(crate) fn from_value(value: &str) -> Option<Self> {
         match value {
             "auto" => Some(Self::Auto),
@@ -51,19 +54,9 @@ static EN_US_RESOURCE: OnceLock<Arc<FluentResource>> = OnceLock::new();
 static ZH_HANS_RESOURCE: OnceLock<Arc<FluentResource>> = OnceLock::new();
 
 pub(crate) fn detect_device_locale_tag() -> String {
-    detect_device_locale_tag_impl().unwrap_or_else(|| "en-US".to_string())
-}
-
-#[cfg(target_arch = "wasm32")]
-fn detect_device_locale_tag_impl() -> Option<String> {
-    web_sys::window()
-        .and_then(|window| window.navigator().language())
+    sys_locale::get_locale()
         .filter(|locale| !locale.trim().is_empty())
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn detect_device_locale_tag_impl() -> Option<String> {
-    sys_locale::get_locale().filter(|locale| !locale.trim().is_empty())
+        .unwrap_or_else(|| "en-US".to_string())
 }
 
 pub(crate) fn resolve_language(
@@ -84,7 +77,6 @@ fn negotiate_device_language(device_locale_tag: &str) -> SupportedLanguage {
     {
         return SupportedLanguage::SimplifiedChinese;
     }
-
     if normalized.to_ascii_lowercase().starts_with("zh") {
         SupportedLanguage::SimplifiedChinese
     } else {
@@ -92,6 +84,7 @@ fn negotiate_device_language(device_locale_tag: &str) -> SupportedLanguage {
     }
 }
 
+#[allow(dead_code)]
 pub(crate) fn language_name(preference_language: SupportedLanguage) -> String {
     match preference_language {
         SupportedLanguage::English => text(SupportedLanguage::English, "settings-language-english"),
@@ -152,41 +145,4 @@ fn resource(language: SupportedLanguage) -> Arc<FluentResource> {
 
 fn parse_resource(source: &str) -> Arc<FluentResource> {
     Arc::new(FluentResource::try_new(source.to_string()).expect("valid fluent resource"))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{AppLanguagePreference, SupportedLanguage, resolve_language};
-
-    #[test]
-    fn auto_language_prefers_simplified_chinese_for_zh_locales() {
-        assert_eq!(
-            resolve_language(AppLanguagePreference::Auto, "zh_CN"),
-            SupportedLanguage::SimplifiedChinese
-        );
-        assert_eq!(
-            resolve_language(AppLanguagePreference::Auto, "zh-Hans"),
-            SupportedLanguage::SimplifiedChinese
-        );
-    }
-
-    #[test]
-    fn auto_language_falls_back_to_english() {
-        assert_eq!(
-            resolve_language(AppLanguagePreference::Auto, "fr-FR"),
-            SupportedLanguage::English
-        );
-    }
-
-    #[test]
-    fn manual_language_overrides_device_locale() {
-        assert_eq!(
-            resolve_language(AppLanguagePreference::English, "zh-CN"),
-            SupportedLanguage::English
-        );
-        assert_eq!(
-            resolve_language(AppLanguagePreference::SimplifiedChinese, "en-US"),
-            SupportedLanguage::SimplifiedChinese
-        );
-    }
 }

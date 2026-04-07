@@ -8,9 +8,8 @@ version = "0.0.1"
 
 [workspace.dependencies]
 base64 = "0.22.1"
-dioxus = { version = "0.7.3", default-features = false }
 fluent-bundle = "0.16.0"
-futures-timer = "3.0.3"
+ply-engine = { version = "1.1.0", features = ["storage"] }
 quick-xml = "0.38.4"
 roxmltree = "0.20.0"
 serde = { version = "1.0.228", features = ["derive"] }

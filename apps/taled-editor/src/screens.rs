@@ -1,0 +1,10 @@
+pub(crate) mod about;
+pub(crate) mod dashboard;
+pub(crate) mod editor;
+pub(crate) mod layers;
+pub(crate) mod objects;
+pub(crate) mod properties;
+pub(crate) mod settings;
+pub(crate) mod themes;
+pub(crate) mod tilesets;
+pub(crate) mod widgets;

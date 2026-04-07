@@ -1,261 +1,98 @@
-use std::collections::BTreeMap;
-
 use taled_core::{EditorSession, Layer};
 
-#[cfg(any(target_arch = "wasm32", target_os = "android"))]
-use crate::embedded_samples::{embedded_sample, embedded_samples};
-#[cfg(target_os = "android")]
-use crate::platform::log_path;
-use crate::{
-    app_state::AppState,
-    edit_ops::cancel_tile_selection_transfer,
-    platform::log,
-    ui_canvas::{preload_tileset_images, rebuild_render_caches, rebuild_viewport_caches},
+use crate::app_state::AppState;
+use crate::embedded_samples::{
+    DEFAULT_EMBEDDED_SAMPLE_PATH, embedded_sample, embedded_sample_assets,
 };
-#[cfg(any(target_arch = "wasm32", target_os = "android"))]
-use crate::{demo::load_embedded_demo_session, platform::EMBEDDED_DEMO_MAP_PATH};
 
-#[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
-pub(crate) fn open_document(state: &mut AppState) {
-    match EditorSession::load(&state.path_input) {
+pub(crate) fn load_embedded_sample(state: &mut AppState) {
+    load_sample_by_path(state, DEFAULT_EMBEDDED_SAMPLE_PATH);
+}
+
+pub(crate) fn load_sample_by_path(state: &mut AppState, path: &str) {
+    match EditorSession::load_embedded(path, embedded_sample_assets()) {
         Ok(session) => {
-            state.status = format!("Opened {}.", state.path_input);
-            state.save_as_input = state.path_input.clone();
+            let label = embedded_sample(path).map_or(path, |s| s.title);
+            state.status = format!("Loaded embedded sample {label} ({path}).");
             install_session(state, session);
-        }
-        Err(error) => state.status = format!("Open failed: {error}"),
-    }
-}
-
-#[cfg(target_arch = "wasm32")]
-pub(crate) fn open_document(state: &mut AppState) {
-    let requested = state.path_input.trim().to_string();
-    if requested.is_empty() {
-        load_sample(state);
-        return;
-    }
-    if embedded_sample(&requested).is_some() {
-        log(format!(
-            "boot: requested embedded demo map from web preview: {requested}"
-        ));
-        load_embedded_sample(state, &requested);
-        return;
-    }
-
-    log(format!(
-        "boot: rejected web open request for unsupported path {requested}"
-    ));
-    state.status = format!(
-        "Web preview only ships embedded samples: {}.",
-        embedded_sample_paths()
-    );
-}
-
-#[cfg(target_os = "android")]
-pub(crate) fn open_document(state: &mut AppState) {
-    let requested = state.path_input.trim().to_string();
-    if requested.is_empty() {
-        load_sample(state);
-        return;
-    }
-    if embedded_sample(&requested).is_some() {
-        log(format!(
-            "boot: requested embedded demo map from android app: {requested}"
-        ));
-        load_embedded_sample(state, &requested);
-        return;
-    }
-
-    log(format!(
-        "boot: rejected android open request for unsupported path {requested}"
-    ));
-    state.status = format!(
-        "Android build only ships embedded samples: {}.",
-        embedded_sample_paths()
-    );
-}
-
-#[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
-pub(crate) fn load_sample(state: &mut AppState) {
-    state.path_input = std::env::current_dir()
-        .ok()
-        .map(EditorSession::sample_path_from_root)
-        .map(|path| path.display().to_string())
-        .unwrap_or_default();
-    open_document(state);
-}
-
-#[cfg(target_arch = "wasm32")]
-pub(crate) fn load_sample(state: &mut AppState) {
-    load_embedded_sample(state, EMBEDDED_DEMO_MAP_PATH);
-}
-
-#[cfg(target_os = "android")]
-pub(crate) fn load_sample(state: &mut AppState) {
-    load_embedded_sample(state, EMBEDDED_DEMO_MAP_PATH);
-}
-
-#[cfg(any(target_arch = "wasm32", target_os = "android"))]
-pub(crate) fn load_embedded_sample(state: &mut AppState, path: &str) {
-    state.path_input = path.to_string();
-    state.save_as_input = path.to_string();
-    log("boot: starting embedded demo load");
-    match load_embedded_demo_session(path) {
-        Ok(session) => {
-            install_session(state, session);
-            state.status = embedded_loaded_status(path);
-            log("boot: embedded demo load completed");
         }
         Err(error) => {
             state.status = format!("Embedded demo load failed: {error}");
-            log(format!("boot: embedded demo load failed: {error}"));
         }
     }
 }
 
-#[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
-pub(crate) fn load_embedded_sample(state: &mut AppState, path: &str) {
-    state.path_input = path.to_string();
-    state.status = "Embedded sample loading is only wired for web/android previews.".to_string();
-}
-
-#[cfg(target_arch = "wasm32")]
-fn embedded_loaded_status(path: &str) -> String {
-    let label = embedded_sample(path).map_or(path, |sample| sample.title);
-    format!("Loaded embedded sample {label} ({path}).")
-}
-
-#[cfg(target_os = "android")]
-fn embedded_loaded_status(path: &str) -> String {
-    let label = embedded_sample(path).map_or(path, |sample| sample.title);
-    let log_path = log_path().unwrap_or_default();
-    format!("Loaded embedded sample {label} ({path}). Logs: {log_path}")
-}
-
-#[cfg(any(target_arch = "wasm32", target_os = "android"))]
-fn embedded_sample_paths() -> String {
-    embedded_samples()
-        .iter()
-        .map(|sample| sample.path)
-        .collect::<Vec<_>>()
-        .join(", ")
+fn install_session(state: &mut AppState, session: EditorSession) {
+    let selected_gid = default_selected_gid(&session);
+    let (pan_x, pan_y) = default_center_pan(&session, state.zoom_percent);
+    state.active_layer = 0;
+    state.selected_gid = selected_gid;
+    state.selected_cell = None;
+    state.selected_object = None;
+    state.shape_fill_preview = None;
+    state.tile_selection = None;
+    state.tile_selection_cells = None;
+    state.tile_selection_preview = None;
+    state.tile_selection_preview_cells = None;
+    state.tile_selection_closing = None;
+    state.tile_selection_closing_cells = None;
+    state.tile_selection_closing_started_at = None;
+    state.tile_selection_last_tap_at = None;
+    state.tile_selection_transfer = None;
+    state.layers_panel_expanded = false;
+    state.zoom_percent = 100;
+    state.pan_x = pan_x;
+    state.pan_y = pan_y;
+    state.camera_transition_active = false;
+    state.active_touch_points.clear();
+    state.single_touch_gesture = None;
+    state.pinch_gesture = None;
+    state.touch_edit_batch_active = false;
+    state.canvas_dirty = true;
+    state.session = Some(session);
+    crate::canvas::load_tileset_textures(state);
 }
 
 pub(crate) fn adjust_zoom(state: &mut AppState, delta: i32) {
-    state.zoom_percent = (state.zoom_percent + delta).clamp(25, 400);
-    rebuild_viewport_caches(state);
+    state.zoom_percent = (state.zoom_percent + delta).clamp(25, 800);
+    state.canvas_dirty = true;
 }
 
-pub(crate) fn adjust_zoom_around_view_center(state: &mut AppState, delta: i32) {
-    if state.session.is_none() {
-        return;
-    }
-    let Some((host_width, host_height)) = canvas_host_size_or_default(state) else {
-        return;
-    };
-
-    let current_zoom = f64::from(state.zoom_percent) / 100.0;
-    let new_zoom_percent = (state.zoom_percent + delta).clamp(25, 400);
-    let new_zoom = f64::from(new_zoom_percent) / 100.0;
-    let center_x = host_width * 0.5;
-    let center_y = host_height * 0.5;
-    let world_center_x = (center_x - f64::from(state.pan_x)) / current_zoom;
-    let world_center_y = (center_y - f64::from(state.pan_y)) / current_zoom;
-
-    state.zoom_percent = new_zoom_percent;
-    state.pan_x = (center_x - world_center_x * new_zoom).round() as i32;
-    state.pan_y = (center_y - world_center_y * new_zoom).round() as i32;
-    rebuild_viewport_caches(state);
-    state.status = format!("Zoom {}%.", state.zoom_percent);
-}
-
-pub(crate) fn animate_camera_to_center(state: &mut AppState) {
-    let Some((target_pan_x, target_pan_y)) = centered_pan_for_current_zoom(state) else {
-        return;
-    };
-    state.pan_x = target_pan_x;
-    state.pan_y = target_pan_y;
-    rebuild_viewport_caches(state);
-    state.camera_transition_active = true;
-    state.status = "Centered camera.".to_string();
-}
-
-pub(crate) fn animate_camera_to_fit_map(state: &mut AppState) {
-    let Some((target_zoom_percent, target_pan_x, target_pan_y)) = fit_map_view(state) else {
-        return;
-    };
-    state.zoom_percent = target_zoom_percent;
-    state.pan_x = target_pan_x;
-    state.pan_y = target_pan_y;
-    rebuild_viewport_caches(state);
-    state.camera_transition_active = true;
-    state.status = format!("Fit map to view at {}%.", state.zoom_percent);
-}
-
-pub(crate) fn save_document(state: &mut AppState) {
-    let Some(session) = state.session.as_mut() else {
-        state.status = "Nothing to save.".to_string();
-        return;
-    };
-
-    match session.save() {
-        Ok(()) => state.status = format!("Saved {}.", session.document().file_path.display()),
-        Err(error) => state.status = format!("Save failed: {error}"),
-    }
-}
-
+#[allow(dead_code)]
 pub(crate) fn apply_undo(state: &mut AppState) {
-    cancel_tile_selection_transfer(state);
     let Some(session) = state.session.as_mut() else {
         state.status = "Nothing to undo.".to_string();
         return;
     };
-
     if session.undo() {
         normalize_after_history_change(state);
-        rebuild_render_caches(state);
+        state.canvas_dirty = true;
         state.status = "Undo applied.".to_string();
     } else {
         state.status = "Nothing to undo.".to_string();
     }
 }
 
+#[allow(dead_code)]
 pub(crate) fn apply_redo(state: &mut AppState) {
-    cancel_tile_selection_transfer(state);
     let Some(session) = state.session.as_mut() else {
         state.status = "Nothing to redo.".to_string();
         return;
     };
-
     if session.redo() {
         normalize_after_history_change(state);
-        rebuild_render_caches(state);
+        state.canvas_dirty = true;
         state.status = "Redo applied.".to_string();
     } else {
         state.status = "Nothing to redo.".to_string();
     }
 }
 
-pub(crate) fn save_as_document(state: &mut AppState) {
-    let Some(session) = state.session.as_mut() else {
-        state.status = "Nothing to save.".to_string();
-        return;
-    };
-
-    match session.save_as(&state.save_as_input) {
-        Ok(()) => {
-            state.path_input = state.save_as_input.clone();
-            state.status = format!("Saved as {}.", state.save_as_input);
-        }
-        Err(error) => state.status = format!("Save-as failed: {error}"),
-    }
-}
-
+#[allow(dead_code)]
 fn normalize_after_history_change(state: &mut AppState) {
     let Some(session) = state.session.as_ref() else {
         return;
     };
-
     let layer_count = session.document().map.layers.len();
     if layer_count == 0 {
         state.active_layer = 0;
@@ -273,20 +110,18 @@ fn normalize_after_history_change(state: &mut AppState) {
         state.tile_selection_transfer = None;
         return;
     }
-
     if state.active_layer >= layer_count {
         state.active_layer = layer_count - 1;
     }
-
     if let Some(object_id) = state.selected_object {
-        let object_still_exists = session
+        let exists = session
             .document()
             .map
             .layer(state.active_layer)
             .and_then(Layer::as_object)
-            .and_then(|layer| layer.object(object_id))
+            .and_then(|l| l.object(object_id))
             .is_some();
-        if !object_still_exists {
+        if !exists {
             state.selected_object = None;
         }
     }
@@ -298,241 +133,40 @@ fn normalize_after_history_change(state: &mut AppState) {
     state.tile_selection_closing_started_at = None;
     state.tile_selection_last_tap_at = None;
     state.tile_selection_transfer = None;
-    if state.tile_selection.is_some()
-        && session
-            .document()
-            .map
-            .layer(state.active_layer)
-            .is_none_or(|layer| layer.as_tile().is_none())
-    {
-        state.tile_selection = None;
-        state.tile_selection_cells = None;
-    }
 }
 
-fn install_session(state: &mut AppState, session: EditorSession) {
-    let install_started_at_ms = perf_now_ms();
-    let image_cache_started_at_ms = perf_now_ms();
-    let mut image_cache = BTreeMap::new();
-    for (index, _) in session.document().map.tilesets.iter().enumerate() {
-        match session.tileset_image_data_uri(index) {
-            Ok(uri) => {
-                image_cache.insert(index, uri);
-            }
-            Err(error) => {
-                state.status = format!("Loaded map, but image cache failed: {error}");
-                log(format!(
-                    "boot: image cache failed for tileset {index}: {error}"
-                ));
-            }
-        }
-    }
-    let image_cache_duration_ms = perf_now_ms() - image_cache_started_at_ms;
-
-    #[cfg(any(target_arch = "wasm32", target_os = "android"))]
-    log_session_summary(&session, image_cache.len());
-
-    let selected_gid_started_at_ms = perf_now_ms();
-    let selected_gid = default_selected_gid(&session);
-    let selected_gid_duration_ms = perf_now_ms() - selected_gid_started_at_ms;
-    state.active_layer = 0;
-    state.selected_gid = selected_gid;
-    state.selected_cell = None;
-    state.selected_object = None;
-    state.shape_fill_preview = None;
-    state.tile_selection = None;
-    state.tile_selection_cells = None;
-    state.tile_selection_preview = None;
-    state.tile_selection_preview_cells = None;
-    state.tile_selection_closing = None;
-    state.tile_selection_closing_cells = None;
-    state.tile_selection_closing_started_at = None;
-    state.tile_selection_last_tap_at = None;
-    state.tile_selection_transfer = None;
-    state.layers_panel_expanded = false;
-    state.zoom_percent = 100;
-    let (default_pan_x, default_pan_y) = default_mobile_center_pan(&session, state.zoom_percent);
-    state.pan_x = default_pan_x;
-    state.pan_y = default_pan_y;
-    state.pending_canvas_center = true;
-    state.camera_transition_active = false;
-    state.active_touch_points.clear();
-    state.single_touch_gesture = None;
-    state.pinch_gesture = None;
-    state.touch_edit_batch_active = false;
-    state.suppress_click_until = None;
-    state.canvas_host_scroll_offset = (0.0, 0.0);
-    state.canvas_host_size = None;
-    crate::ui_canvas::revoke_cache_urls(state);
-    state.flat_tile_layers_data_url = None;
-    state.flat_tile_layers_cell_bounds = None;
-    state.flat_object_layers_data_url = None;
-    state.flat_object_layers_cell_bounds = None;
-    state.active_tile_layer_data_url = None;
-    state.active_tile_layer_cell_bounds = None;
-    state.active_tile_layer_cache_dirty = false;
-    state.active_tile_layer_separated = false;
-    state.image_cache = image_cache;
-    preload_tileset_images(&state.image_cache);
-    state.palette_styles = BTreeMap::new();
-    state.session = Some(session);
-    log(format!(
-        "perf: install-session pre-cache image_cache_ms={image_cache_duration_ms:.1} default_gid_ms={selected_gid_duration_ms:.1} total_ms={:.1}",
-        perf_now_ms() - install_started_at_ms,
-    ));
-    rebuild_render_caches(state);
-    log(format!(
-        "perf: install-session complete total_ms={:.1}",
-        perf_now_ms() - install_started_at_ms,
-    ));
-}
-
-#[cfg(target_arch = "wasm32")]
-fn perf_now_ms() -> f64 {
-    js_sys::Date::now()
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn perf_now_ms() -> f64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|duration| duration.as_secs_f64() * 1_000.0)
-        .unwrap_or_default()
-}
-
-fn default_mobile_center_pan(session: &EditorSession, zoom_percent: i32) -> (i32, i32) {
-    #[cfg(any(target_arch = "wasm32", target_os = "android"))]
-    {
-        const DEFAULT_HOST_WIDTH: f64 = 384.0;
-        const DEFAULT_HOST_HEIGHT: f64 = 241.0;
-
-        let map = &session.document().map;
-        let zoom = f64::from(zoom_percent) / 100.0;
-        let map_width = f64::from(map.total_pixel_width()) * zoom;
-        let map_height = f64::from(map.total_pixel_height()) * zoom;
-        let pan_x = ((DEFAULT_HOST_WIDTH - map_width) * 0.5).round() as i32;
-        let pan_y = ((DEFAULT_HOST_HEIGHT - map_height) * 0.5).round() as i32;
-        return (pan_x, pan_y);
-    }
-
-    #[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
-    {
-        let _ = (session, zoom_percent);
-        (0, 0)
-    }
-}
-
-fn centered_pan_for_current_zoom(state: &AppState) -> Option<(i32, i32)> {
-    let session = state.session.as_ref()?;
-    let (host_width, host_height) = canvas_host_size_or_default(state)?;
+fn default_center_pan(session: &EditorSession, zoom_percent: i32) -> (f32, f32) {
+    const HOST_WIDTH: f32 = 384.0;
+    const HOST_HEIGHT: f32 = 400.0;
     let map = &session.document().map;
-    let zoom = f64::from(state.zoom_percent) / 100.0;
-    let map_width = f64::from(map.total_pixel_width()) * zoom;
-    let map_height = f64::from(map.total_pixel_height()) * zoom;
-    let pan_x = ((host_width - map_width) * 0.5).round() as i32;
-    let pan_y = ((host_height - map_height) * 0.5).round() as i32;
-    Some((pan_x, pan_y))
-}
-
-fn fit_map_view(state: &AppState) -> Option<(i32, i32, i32)> {
-    let session = state.session.as_ref()?;
-    let (host_width, host_height) = canvas_host_size_or_default(state)?;
-    let map = &session.document().map;
-    let map_width = f64::from(map.total_pixel_width()).max(1.0);
-    let map_height = f64::from(map.total_pixel_height()).max(1.0);
-    let fit_scale = (host_width / map_width).min(host_height / map_height);
-    let target_zoom_percent = (fit_scale * 100.0).floor() as i32;
-    let target_zoom_percent = target_zoom_percent.clamp(25, 400);
-    let zoom = f64::from(target_zoom_percent) / 100.0;
-    let scaled_width = map_width * zoom;
-    let scaled_height = map_height * zoom;
-    let pan_x = ((host_width - scaled_width) * 0.5).round() as i32;
-    let pan_y = ((host_height - scaled_height) * 0.5).round() as i32;
-    Some((target_zoom_percent, pan_x, pan_y))
-}
-
-fn canvas_host_size_or_default(state: &AppState) -> Option<(f64, f64)> {
-    if let Some(size) = state.canvas_host_size {
-        return Some(size);
-    }
-
-    #[cfg(any(target_arch = "wasm32", target_os = "android"))]
-    {
-        return Some((384.0, 241.0));
-    }
-
-    #[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
-    {
-        let _ = state;
-        None
-    }
-}
-
-#[cfg(any(target_arch = "wasm32", target_os = "android"))]
-fn log_session_summary(session: &EditorSession, image_cache_len: usize) {
-    let document = session.document();
-    let map = &document.map;
-    let tile_count: usize = map
-        .layers
-        .iter()
-        .filter_map(Layer::as_tile)
-        .map(|layer| layer.tiles.iter().filter(|gid| **gid != 0).count())
-        .sum();
-    let object_count: usize = map
-        .layers
-        .iter()
-        .filter_map(Layer::as_object)
-        .map(|layer| layer.objects.len())
-        .sum();
-    let width_px = map.total_pixel_width();
-    let height_px = map.total_pixel_height();
-
-    log(format!(
-        "boot: map loaded path={} size={}x{} tiles surface={}x{} px layers={} tilesets={} painted_tiles={} objects={} cached_images={}",
-        document.file_path.display(),
-        map.width,
-        map.height,
-        width_px,
-        height_px,
-        map.layers.len(),
-        map.tilesets.len(),
-        tile_count,
-        object_count,
-        image_cache_len,
-    ));
-
-    if width_px > 2048 || height_px > 2048 {
-        log(format!(
-            "boot: warning surface {}x{} px exceeds 2048 on at least one axis; this matches the suspected Android rendering limit on your device",
-            width_px, height_px,
-        ));
-    }
+    let zoom = zoom_percent as f32 / 100.0;
+    let map_w = map.total_pixel_width() as f32 * zoom;
+    let map_h = map.total_pixel_height() as f32 * zoom;
+    let px = ((HOST_WIDTH - map_w) * 0.5).round();
+    let py = ((HOST_HEIGHT - map_h) * 0.5).round();
+    (px, py)
 }
 
 fn default_selected_gid(session: &EditorSession) -> u32 {
     let map = &session.document().map;
-
     for layer in map.layers.iter().filter_map(Layer::as_tile) {
         for gid in layer.tiles.iter().copied() {
             if gid == 0 {
                 continue;
             }
-
             let Some(reference) = map.tile_reference_for_gid(gid) else {
                 continue;
             };
-
             if reference.tileset.tileset.name != "collision" {
                 return gid;
             }
         }
     }
-
     map.tilesets
         .iter()
-        .find(|tileset| tileset.tileset.name != "collision" && tileset.tileset.tile_count > 1)
+        .find(|ts| ts.tileset.name != "collision" && ts.tileset.tile_count > 1)
         .or_else(|| map.tilesets.first())
-        .map(|tileset| tileset.first_gid)
+        .map(|ts| ts.first_gid)
         .unwrap_or(0)
 }
 
@@ -557,7 +191,6 @@ mod tests {
             .map
             .tile_reference_for_gid(gid)
             .expect("selected gid should resolve");
-
         assert_ne!(gid, 0);
         assert_ne!(reference.tileset.tileset.name, "collision");
     }
@@ -571,7 +204,6 @@ mod tests {
             .map
             .tile_reference_for_gid(gid)
             .expect("selected gid should resolve");
-
         assert_ne!(gid, 0);
         assert_ne!(reference.tileset.tileset.name, "collision");
         assert_ne!(reference.local_id, 0);

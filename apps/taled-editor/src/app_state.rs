@@ -1,25 +1,16 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Instant;
 
+use ply_engine::prelude::Texture2D;
 use taled_core::EditorSession;
 
 use crate::l10n::{
     AppLanguagePreference, SupportedLanguage, detect_device_locale_tag, resolve_language,
 };
-#[cfg(target_os = "android")]
-use crate::platform::log_path;
-#[cfg(target_arch = "wasm32")]
-use crate::session_ops::load_sample;
-use crate::theme::{ThemeChoice, ThemePalette, default_custom_theme};
-#[cfg(any(target_arch = "wasm32", target_os = "android"))]
-use crate::{
-    embedded_samples::embedded_samples,
-    platform::{EMBEDDED_DEMO_MAP_PATH, log},
-};
-#[cfg(target_arch = "wasm32")]
-use web_sys::window;
+use crate::theme::{ThemeChoice, ThemePaletteData, default_custom_theme};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub(crate) enum Tool {
     Hand,
     Paint,
@@ -34,6 +25,7 @@ pub(crate) enum Tool {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub(crate) enum TileSelectionMode {
     Replace,
     Add,
@@ -42,12 +34,14 @@ pub(crate) enum TileSelectionMode {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub(crate) enum ShapeFillMode {
     Rectangle,
     Ellipse,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub(crate) enum MobileScreen {
     Dashboard,
     Editor,
@@ -60,16 +54,8 @@ pub(crate) enum MobileScreen {
     About,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum MobileTransition {
-    None,
-    HorizontalForward,
-    HorizontalBackward,
-    VerticalForward,
-    VerticalBackward,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[allow(dead_code)]
 pub(crate) struct ActiveTouchPointer {
     pub(crate) pointer_id: i32,
     pub(crate) x: f64,
@@ -77,15 +63,12 @@ pub(crate) struct ActiveTouchPointer {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub(crate) struct SingleTouchGesture {
     pub(crate) pointer_id: i32,
     pub(crate) started_at: Instant,
     pub(crate) drag_active: bool,
-    pub(crate) outside_existing_selection: bool,
     pub(crate) anchor_cell: Option<(i32, i32)>,
-    pub(crate) selection_match_gids: BTreeSet<u32>,
-    pub(crate) resize_handle: Option<TileSelectionHandle>,
-    pub(crate) selection_move_drag_offset: Option<(i32, i32)>,
     pub(crate) last_applied_cell: Option<(u32, u32)>,
     pub(crate) last_surface_x: f64,
     pub(crate) last_surface_y: f64,
@@ -114,6 +97,7 @@ pub(crate) struct TileSelectionRegion {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub(crate) enum TileSelectionHandle {
     TopLeft,
     TopRight,
@@ -122,6 +106,7 @@ pub(crate) enum TileSelectionHandle {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(dead_code)]
 pub(crate) struct TileClipboard {
     pub(crate) width: u32,
     pub(crate) height: u32,
@@ -130,6 +115,7 @@ pub(crate) struct TileClipboard {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub(crate) enum TileSelectionTransferMode {
     Copy,
     Cut,
@@ -147,22 +133,10 @@ pub(crate) struct TileSelectionTransfer {
     pub(crate) mode: TileSelectionTransferMode,
 }
 
-#[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub(crate) struct AppState {
-    pub(crate) path_input: String,
-    pub(crate) save_as_input: String,
-    pub(crate) loading_sample_path: Option<String>,
     pub(crate) session: Option<EditorSession>,
-    pub(crate) image_cache: BTreeMap<usize, String>,
-    pub(crate) palette_styles: BTreeMap<u32, String>,
-    pub(crate) flat_tile_layers_data_url: Option<String>,
-    pub(crate) flat_tile_layers_cell_bounds: Option<(u32, u32, u32, u32)>,
-    pub(crate) flat_object_layers_data_url: Option<String>,
-    pub(crate) flat_object_layers_cell_bounds: Option<(u32, u32, u32, u32)>,
-    pub(crate) active_tile_layer_data_url: Option<String>,
-    pub(crate) active_tile_layer_cell_bounds: Option<(u32, u32, u32, u32)>,
-    pub(crate) active_tile_layer_cache_dirty: bool,
-    pub(crate) active_tile_layer_separated: bool,
+    pub(crate) tileset_textures: BTreeMap<usize, Texture2D>,
     pub(crate) active_layer: usize,
     pub(crate) selected_gid: u32,
     pub(crate) selected_cell: Option<(u32, u32)>,
@@ -183,451 +157,92 @@ pub(crate) struct AppState {
     pub(crate) tool: Tool,
     pub(crate) layers_panel_expanded: bool,
     pub(crate) mobile_screen: MobileScreen,
-    pub(crate) mobile_transition: MobileTransition,
-    pub(crate) mobile_transition_nonce: u64,
     pub(crate) language_preference: AppLanguagePreference,
     pub(crate) theme_choice: ThemeChoice,
-    pub(crate) custom_theme: ThemePalette,
+    pub(crate) custom_theme: ThemePaletteData,
     pub(crate) theme_json_buffer: String,
     pub(crate) device_locale_tag: String,
     pub(crate) about_contributors_expanded: bool,
-    #[cfg(target_arch = "wasm32")]
-    pub(crate) show_web_logs: bool,
     pub(crate) zoom_percent: i32,
-    pub(crate) pan_x: i32,
-    pub(crate) pan_y: i32,
-    pub(crate) pending_canvas_center: bool,
-    pub(crate) canvas_stage_client_origin: Option<(f64, f64)>,
-    pub(crate) canvas_host_size: Option<(f64, f64)>,
-    pub(crate) canvas_host_scroll_offset: (f64, f64),
+    pub(crate) pan_x: f32,
+    pub(crate) pan_y: f32,
     pub(crate) active_touch_points: Vec<ActiveTouchPointer>,
     pub(crate) single_touch_gesture: Option<SingleTouchGesture>,
     pub(crate) pinch_gesture: Option<PinchGesture>,
     pub(crate) touch_edit_batch_active: bool,
-    pub(crate) suppress_click_until: Option<Instant>,
     pub(crate) camera_transition_active: bool,
     pub(crate) status: String,
-}
-
-impl Default for AppState {
-    fn default() -> Self {
-        #[cfg(target_arch = "wasm32")]
-        {
-            let mobile_screen = web_query_param("screen")
-                .map(|value| parse_mobile_screen(&value))
-                .unwrap_or(MobileScreen::Dashboard);
-            let path_input = EMBEDDED_DEMO_MAP_PATH.to_string();
-            let device_locale_tag = detect_device_locale_tag();
-            let mut state = Self {
-                path_input: path_input.clone(),
-                save_as_input: path_input,
-                loading_sample_path: None,
-                session: None,
-                image_cache: BTreeMap::new(),
-                palette_styles: BTreeMap::new(),
-                flat_tile_layers_data_url: None,
-                flat_tile_layers_cell_bounds: None,
-                flat_object_layers_data_url: None,
-                flat_object_layers_cell_bounds: None,
-                active_tile_layer_data_url: None,
-                active_tile_layer_cell_bounds: None,
-                active_tile_layer_cache_dirty: false,
-                active_tile_layer_separated: false,
-                active_layer: 0,
-                selected_gid: 0,
-                selected_cell: None,
-                selected_object: None,
-                shape_fill_preview: None,
-                tile_clipboard: None,
-                tile_selection: None,
-                tile_selection_cells: None,
-                tile_selection_preview: None,
-                tile_selection_preview_cells: None,
-                tile_selection_closing: None,
-                tile_selection_closing_cells: None,
-                tile_selection_closing_started_at: None,
-                tile_selection_last_tap_at: None,
-                tile_selection_transfer: None,
-                tile_selection_mode: TileSelectionMode::Replace,
-                shape_fill_mode: ShapeFillMode::Rectangle,
-                tool: Tool::Paint,
-                layers_panel_expanded: false,
-                mobile_screen,
-                mobile_transition: MobileTransition::None,
-                mobile_transition_nonce: 0,
-                language_preference: AppLanguagePreference::Auto,
-                theme_choice: ThemeChoice::System,
-                custom_theme: default_custom_theme(),
-                theme_json_buffer: String::new(),
-                device_locale_tag,
-                about_contributors_expanded: false,
-                show_web_logs: false,
-                zoom_percent: 100,
-                pan_x: 0,
-                pan_y: 0,
-                pending_canvas_center: false,
-                canvas_stage_client_origin: None,
-                canvas_host_size: None,
-                canvas_host_scroll_offset: (0.0, 0.0),
-                active_touch_points: Vec::new(),
-                single_touch_gesture: None,
-                pinch_gesture: None,
-                touch_edit_batch_active: false,
-                suppress_click_until: None,
-                camera_transition_active: false,
-                status: default_status_message(),
-            };
-            log("boot: constructing default web state");
-            load_sample(&mut state);
-            return state;
-        }
-
-        #[cfg(target_os = "android")]
-        {
-            let path_input = EMBEDDED_DEMO_MAP_PATH.to_string();
-            let device_locale_tag = detect_device_locale_tag();
-            let state = Self {
-                path_input: path_input.clone(),
-                save_as_input: path_input,
-                loading_sample_path: None,
-                session: None,
-                image_cache: BTreeMap::new(),
-                palette_styles: BTreeMap::new(),
-                flat_tile_layers_data_url: None,
-                flat_tile_layers_cell_bounds: None,
-                flat_object_layers_data_url: None,
-                flat_object_layers_cell_bounds: None,
-                active_tile_layer_data_url: None,
-                active_tile_layer_cell_bounds: None,
-                active_tile_layer_cache_dirty: false,
-                active_tile_layer_separated: false,
-                active_layer: 0,
-                selected_gid: 0,
-                selected_cell: None,
-                selected_object: None,
-                shape_fill_preview: None,
-                tile_clipboard: None,
-                tile_selection: None,
-                tile_selection_cells: None,
-                tile_selection_preview: None,
-                tile_selection_preview_cells: None,
-                tile_selection_closing: None,
-                tile_selection_closing_cells: None,
-                tile_selection_closing_started_at: None,
-                tile_selection_last_tap_at: None,
-                tile_selection_transfer: None,
-                tile_selection_mode: TileSelectionMode::Replace,
-                shape_fill_mode: ShapeFillMode::Rectangle,
-                tool: Tool::Paint,
-                layers_panel_expanded: false,
-                mobile_screen: MobileScreen::Dashboard,
-                mobile_transition: MobileTransition::None,
-                mobile_transition_nonce: 0,
-                language_preference: AppLanguagePreference::Auto,
-                theme_choice: ThemeChoice::System,
-                custom_theme: default_custom_theme(),
-                theme_json_buffer: String::new(),
-                device_locale_tag,
-                about_contributors_expanded: false,
-                zoom_percent: 100,
-                pan_x: 0,
-                pan_y: 0,
-                pending_canvas_center: false,
-                canvas_stage_client_origin: None,
-                canvas_host_size: None,
-                canvas_host_scroll_offset: (0.0, 0.0),
-                active_touch_points: Vec::new(),
-                single_touch_gesture: None,
-                pinch_gesture: None,
-                touch_edit_batch_active: false,
-                suppress_click_until: None,
-                camera_transition_active: false,
-                status: default_status_message(),
-            };
-            log("boot: constructing default android state");
-            log("boot: android startup skips auto-loading the demo map");
-            return state;
-        }
-
-        #[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
-        {
-            let path_input = std::env::current_dir()
-                .ok()
-                .map(EditorSession::sample_path_from_root)
-                .map(|path| path.display().to_string())
-                .unwrap_or_default();
-            let device_locale_tag = detect_device_locale_tag();
-
-            Self {
-                path_input: path_input.clone(),
-                save_as_input: path_input,
-                loading_sample_path: None,
-                session: None,
-                image_cache: BTreeMap::new(),
-                palette_styles: BTreeMap::new(),
-                flat_tile_layers_data_url: None,
-                flat_tile_layers_cell_bounds: None,
-                flat_object_layers_data_url: None,
-                flat_object_layers_cell_bounds: None,
-                active_tile_layer_data_url: None,
-                active_tile_layer_cell_bounds: None,
-                active_tile_layer_cache_dirty: false,
-                active_tile_layer_separated: false,
-                active_layer: 0,
-                selected_gid: 0,
-                selected_cell: None,
-                selected_object: None,
-                shape_fill_preview: None,
-                tile_clipboard: None,
-                tile_selection: None,
-                tile_selection_cells: None,
-                tile_selection_preview: None,
-                tile_selection_preview_cells: None,
-                tile_selection_closing: None,
-                tile_selection_closing_cells: None,
-                tile_selection_closing_started_at: None,
-                tile_selection_last_tap_at: None,
-                tile_selection_transfer: None,
-                tile_selection_mode: TileSelectionMode::Replace,
-                shape_fill_mode: ShapeFillMode::Rectangle,
-                tool: Tool::Paint,
-                layers_panel_expanded: false,
-                mobile_screen: MobileScreen::Editor,
-                mobile_transition: MobileTransition::None,
-                mobile_transition_nonce: 0,
-                language_preference: AppLanguagePreference::Auto,
-                theme_choice: ThemeChoice::System,
-                custom_theme: default_custom_theme(),
-                theme_json_buffer: String::new(),
-                device_locale_tag,
-                about_contributors_expanded: false,
-                zoom_percent: 100,
-                pan_x: 0,
-                pan_y: 0,
-                pending_canvas_center: false,
-                canvas_stage_client_origin: None,
-                canvas_host_size: None,
-                canvas_host_scroll_offset: (0.0, 0.0),
-                active_touch_points: Vec::new(),
-                single_touch_gesture: None,
-                pinch_gesture: None,
-                touch_edit_batch_active: false,
-                suppress_click_until: None,
-                camera_transition_active: false,
-                status: default_status_message(),
-            }
-        }
-    }
+    pub(crate) canvas_texture: Option<Texture2D>,
+    pub(crate) canvas_dirty: bool,
+    pub(crate) show_grid: bool,
 }
 
 impl AppState {
+    pub(crate) fn new() -> Self {
+        let device_locale_tag = detect_device_locale_tag();
+        Self {
+            session: None,
+            tileset_textures: BTreeMap::new(),
+            active_layer: 0,
+            selected_gid: 0,
+            selected_cell: None,
+            selected_object: None,
+            shape_fill_preview: None,
+            tile_clipboard: None,
+            tile_selection: None,
+            tile_selection_cells: None,
+            tile_selection_preview: None,
+            tile_selection_preview_cells: None,
+            tile_selection_closing: None,
+            tile_selection_closing_cells: None,
+            tile_selection_closing_started_at: None,
+            tile_selection_last_tap_at: None,
+            tile_selection_transfer: None,
+            tile_selection_mode: TileSelectionMode::Replace,
+            shape_fill_mode: ShapeFillMode::Rectangle,
+            tool: Tool::Paint,
+            layers_panel_expanded: false,
+            mobile_screen: MobileScreen::Dashboard,
+            language_preference: AppLanguagePreference::Auto,
+            theme_choice: ThemeChoice::Dark,
+            custom_theme: default_custom_theme(),
+            theme_json_buffer: String::new(),
+            device_locale_tag,
+            about_contributors_expanded: false,
+            zoom_percent: 100,
+            pan_x: 0.0,
+            pan_y: 0.0,
+            active_touch_points: Vec::new(),
+            single_touch_gesture: None,
+            pinch_gesture: None,
+            touch_edit_batch_active: false,
+            camera_transition_active: false,
+            status: "Welcome to Taled".to_string(),
+            canvas_texture: None,
+            canvas_dirty: true,
+            show_grid: true,
+        }
+    }
+
     pub(crate) fn resolved_language(&self) -> SupportedLanguage {
         resolve_language(self.language_preference, &self.device_locale_tag)
     }
-}
 
-pub(crate) fn selection_bounds(region: TileSelectionRegion) -> (i32, i32, i32, i32) {
-    (
-        region.start_cell.0.min(region.end_cell.0),
-        region.start_cell.1.min(region.end_cell.1),
-        region.start_cell.0.max(region.end_cell.0),
-        region.start_cell.1.max(region.end_cell.1),
-    )
-}
-
-pub(crate) fn selection_region_from_cells(
-    cells: &BTreeSet<(i32, i32)>,
-) -> Option<TileSelectionRegion> {
-    let mut iter = cells.iter().copied();
-    let first = iter.next()?;
-    let (mut min_x, mut min_y, mut max_x, mut max_y) = (first.0, first.1, first.0, first.1);
-    for (x, y) in iter {
-        min_x = min_x.min(x);
-        min_y = min_y.min(y);
-        max_x = max_x.max(x);
-        max_y = max_y.max(y);
+    pub(crate) fn navigate(&mut self, screen: MobileScreen) {
+        self.mobile_screen = screen;
     }
-    Some(TileSelectionRegion {
-        start_cell: (min_x, min_y),
-        end_cell: (max_x, max_y),
-    })
 }
 
-pub(crate) fn selection_cells_from_region(region: TileSelectionRegion) -> BTreeSet<(i32, i32)> {
-    let (min_x, min_y, max_x, max_y) = selection_bounds(region);
-    let mut cells = BTreeSet::new();
-    for y in min_y..=max_y {
-        for x in min_x..=max_x {
-            cells.insert((x, y));
-        }
-    }
-    cells
-}
-
-pub(crate) fn selection_mask_from_cells(
-    region: TileSelectionRegion,
-    cells: &BTreeSet<(i32, i32)>,
-) -> Vec<bool> {
-    let (min_x, min_y, max_x, max_y) = selection_bounds(region);
-    let width = (max_x - min_x + 1) as usize;
-    let height = (max_y - min_y + 1) as usize;
-    let mut mask = Vec::with_capacity(width * height);
-    for local_y in 0..height {
-        for local_x in 0..width {
-            mask.push(cells.contains(&(min_x + local_x as i32, min_y + local_y as i32)));
-        }
-    }
-    mask
-}
-
-pub(crate) fn selection_cells_from_mask(
-    origin_x: i32,
-    origin_y: i32,
-    width: u32,
-    height: u32,
-    mask: &[bool],
-) -> BTreeSet<(i32, i32)> {
-    let mut cells = BTreeSet::new();
-    for local_y in 0..height {
-        for local_x in 0..width {
-            let index = (local_y * width + local_x) as usize;
-            if mask.get(index).copied().unwrap_or(false) {
-                cells.insert((origin_x + local_x as i32, origin_y + local_y as i32));
-            }
-        }
-    }
-    cells
-}
-
-pub(crate) fn selection_cells_are_rectangular(
-    region: TileSelectionRegion,
-    cells: &BTreeSet<(i32, i32)>,
-) -> bool {
-    let (min_x, min_y, max_x, max_y) = selection_bounds(region);
-    let expected = ((max_x - min_x + 1) * (max_y - min_y + 1)) as usize;
-    cells.len() == expected
-}
-
-pub(crate) fn shape_fill_cells(
-    mode: ShapeFillMode,
-    start_x: u32,
-    start_y: u32,
-    end_x: u32,
-    end_y: u32,
-) -> BTreeSet<(u32, u32)> {
-    let min_x = start_x.min(end_x);
-    let max_x = start_x.max(end_x);
-    let min_y = start_y.min(end_y);
-    let max_y = start_y.max(end_y);
-    let mut cells = BTreeSet::new();
-
-    match mode {
-        ShapeFillMode::Rectangle => {
-            for y in min_y..=max_y {
-                for x in min_x..=max_x {
-                    cells.insert((x, y));
-                }
-            }
-        }
-        ShapeFillMode::Ellipse => {
-            let width = (max_x - min_x + 1) as f32;
-            let height = (max_y - min_y + 1) as f32;
-            let center_x = min_x as f32 + width / 2.0;
-            let center_y = min_y as f32 + height / 2.0;
-            let radius_x = width / 2.0;
-            let radius_y = height / 2.0;
-
-            cells.extend((min_y..=max_y).flat_map(|tile_y| {
-                (min_x..=max_x)
-                    .filter(move |&tile_x| {
-                        ellipse_contains_tile(
-                            center_x, center_y, radius_x, radius_y, tile_x, tile_y,
-                        )
-                    })
-                    .map(move |tile_x| (tile_x, tile_y))
-            }));
-        }
-    }
-
-    cells
-}
-
-fn ellipse_contains_tile(
-    center_x: f32,
-    center_y: f32,
-    radius_x: f32,
-    radius_y: f32,
-    tile_x: u32,
-    tile_y: u32,
-) -> bool {
-    let tile_center_x = tile_x as f32 + 0.5;
-    let tile_center_y = tile_y as f32 + 0.5;
-    let normalized_x = (tile_center_x - center_x) / radius_x.max(f32::EPSILON);
-    let normalized_y = (tile_center_y - center_y) / radius_y.max(f32::EPSILON);
-    normalized_x * normalized_x + normalized_y * normalized_y <= 1.0
-}
-
+#[allow(dead_code)]
 pub(crate) fn is_tile_selection_tool(tool: Tool) -> bool {
     matches!(tool, Tool::Select | Tool::MagicWand | Tool::SelectSameTile)
 }
 
-fn default_status_message() -> String {
-    #[cfg(target_arch = "wasm32")]
-    {
-        return format!(
-            "Web preview ships {} embedded TMX samples. Default: {EMBEDDED_DEMO_MAP_PATH}.",
-            embedded_samples().len()
-        );
-    }
-
-    #[cfg(target_os = "android")]
-    {
-        let log_path = log_path().unwrap_or_default();
-        return format!(
-            "Android booted. Pick one of {} embedded TMX samples from Dashboard. Default: {EMBEDDED_DEMO_MAP_PATH}. Logs: {log_path}",
-            embedded_samples().len()
-        );
-    }
-
-    #[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
-    {
-        "Load a Stage-1 compatible TMX file to begin.".to_string()
-    }
-}
-
-#[cfg(target_arch = "wasm32")]
-fn web_query_param(name: &str) -> Option<String> {
-    let search = window()?.location().search().ok()?;
-    let query = search.strip_prefix('?').unwrap_or(&search);
-    for entry in query.split('&') {
-        let Some((key, value)) = entry.split_once('=') else {
-            continue;
-        };
-        if key == name {
-            return Some(value.to_string());
-        }
-    }
-    None
-}
-
-#[cfg(target_arch = "wasm32")]
-fn parse_mobile_screen(value: &str) -> MobileScreen {
-    match value {
-        "editor" => MobileScreen::Editor,
-        "tilesets" => MobileScreen::Tilesets,
-        "layers" => MobileScreen::Layers,
-        "objects" => MobileScreen::Objects,
-        "properties" => MobileScreen::Properties,
-        "settings" => MobileScreen::Settings,
-        "themes" => MobileScreen::Themes,
-        "about" => MobileScreen::About,
-        _ => MobileScreen::Dashboard,
-    }
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct PaletteTile {
-    pub(crate) gid: u32,
-    pub(crate) tileset_index: usize,
-    pub(crate) local_id: u32,
+#[allow(dead_code)]
+pub(crate) fn selection_bounds(region: &TileSelectionRegion) -> (i32, i32, i32, i32) {
+    let min_x = region.start_cell.0.min(region.end_cell.0);
+    let min_y = region.start_cell.1.min(region.end_cell.1);
+    let max_x = region.start_cell.0.max(region.end_cell.0);
+    let max_y = region.start_cell.1.max(region.end_cell.1);
+    (min_x, min_y, max_x, max_y)
 }
