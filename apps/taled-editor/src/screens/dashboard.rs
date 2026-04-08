@@ -66,12 +66,12 @@ pub(crate) fn render(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
                         ui.element()
                             .id(("project-row", i as u32))
                             .width(grow!())
-                            .height(fixed!(90.0))
+                            .height(fixed!(104.0))
                             .layout(|l| {
                                 l.direction(LeftToRight)
                                     .align(Left, CenterY)
                                     .gap(14)
-                                    .padding((13, 14, 13, 14))
+                                    .padding((22, 14, 22, 14))
                             })
                             .border(|b| {
                                 if is_first {

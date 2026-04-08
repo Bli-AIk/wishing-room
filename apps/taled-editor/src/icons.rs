@@ -4,7 +4,6 @@ use ply_engine::prelude::*;
 
 #[derive(Clone, Copy)]
 #[repr(u16)]
-#[expect(dead_code)] // reason: utility variants used as screens adopt icons
 pub(crate) enum IconId {
     NavProjects,
     NavAssets,

@@ -34,15 +34,15 @@ pub(crate) fn render(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
             ui.element()
                 .id("obj-search")
                 .width(grow!())
-                .height(fixed!(40.0))
+                .height(fixed!(52.0))
                 .background_color(theme.surface)
-                .corner_radius(10.0)
+                .corner_radius(16.0)
                 .border(|b| b.all(1).color(theme.border))
                 .layout(|l| {
                     l.direction(LeftToRight)
                         .align(Left, CenterY)
-                        .padding((0, 12, 0, 12))
-                        .gap(8)
+                        .padding((0, 16, 0, 16))
+                        .gap(10)
                 })
                 .children(|ui| {
                     ui.text("🔍", |t| t.font_size(14).color(theme.muted_text));
@@ -94,8 +94,8 @@ pub(crate) fn render(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
                 ui.element()
                     .id(("obj-row", row_i as u32))
                     .width(grow!())
-                    .height(fixed!(110.0))
-                    .layout(|l| l.direction(LeftToRight).gap(10))
+                    .height(fixed!(150.0))
+                    .layout(|l| l.direction(LeftToRight).gap(12))
                     .children(|ui| {
                         for (col_i, (name, kind)) in row.iter().enumerate() {
                             let idx = row_i * 3 + col_i;
@@ -103,26 +103,26 @@ pub(crate) fn render(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
                                 .id(("obj-card", idx as u32))
                                 .width(grow!())
                                 .height(grow!())
-                                .background_color(theme.surface_elevated)
-                                .corner_radius(12.0)
+                                .background_color(theme.surface)
+                                .corner_radius(18.0)
                                 .border(|b| b.all(1).color(theme.border))
                                 .layout(|l| {
                                     l.direction(TopToBottom)
                                         .align(CenterX, CenterY)
-                                        .gap(6)
-                                        .padding((8, 8, 8, 8))
+                                        .gap(14)
+                                        .padding((16, 10, 16, 10))
                                 })
                                 .children(|ui| {
                                     // Icon placeholder
                                     ui.element()
-                                        .width(fixed!(36.0))
-                                        .height(fixed!(36.0))
-                                        .background_color(theme.surface)
-                                        .corner_radius(8.0)
+                                        .width(fixed!(58.0))
+                                        .height(fixed!(58.0))
+                                        .background_color(theme.surface_elevated)
+                                        .corner_radius(16.0)
                                         .layout(|l| l.align(Left, CenterY))
                                         .children(|ui| {
                                             ui.text("◇", |t| {
-                                                t.font_size(18)
+                                                t.font_size(24)
                                                     .color(theme.accent)
                                                     .alignment(CenterX)
                                             });

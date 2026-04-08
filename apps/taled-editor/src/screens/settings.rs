@@ -47,16 +47,7 @@ pub(crate) fn render(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
                 theme,
                 &l10n::text(state.resolved_language(), "settings-theme-caption"),
             );
-            about_entry_card(
-                ui,
-                state,
-                theme,
-                &crate::theme::theme_choice_display_label(state),
-                &theme.name.clone(),
-                &l10n::text(state.resolved_language(), "settings-theme-description"),
-                &l10n::text(state.resolved_language(), "settings-theme-open"),
-                MobileScreen::Themes,
-            );
+            segmented_theme_control(ui, state, theme);
 
             // ── Diagnostics ──
             section_label(
@@ -316,4 +307,59 @@ fn separator_row(ui: &mut Ui, theme: &PlyTheme) {
         .height(fixed!(1.0))
         .background_color(theme.border)
         .empty();
+}
+
+/// Dioxus `.review-segmented` — 3-button segmented control for Dark / Light / System.
+fn segmented_theme_control(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
+    let labels = [
+        l10n::text(state.resolved_language(), "settings-theme-dark"),
+        l10n::text(state.resolved_language(), "settings-theme-light"),
+        l10n::text(state.resolved_language(), "settings-theme-system"),
+    ];
+    ui.element()
+        .width(grow!())
+        .height(fit!())
+        .background_color(theme.surface)
+        .corner_radius(20.0)
+        .border(|b| b.all(1).color(theme.border))
+        .layout(|l| l.direction(TopToBottom).padding((8, 8, 8, 8)))
+        .children(|ui| {
+            segmented_bar(ui, theme, &labels, 0);
+        });
+}
+
+#[expect(clippy::excessive_nesting)] // reason: Ply UI requires nested closures for element builders
+fn segmented_bar(ui: &mut Ui, theme: &PlyTheme, labels: &[String], active_idx: usize) {
+    let seg_bg = Color::from(0x2c2c2e_u32);
+    let active_bg = Color::from(0x4d4d52_u32);
+    ui.element()
+        .width(grow!())
+        .height(fixed!(48.0))
+        .background_color(seg_bg)
+        .corner_radius(16.0)
+        .layout(|l| {
+            l.direction(LeftToRight)
+                .align(Left, CenterY)
+                .padding((4, 4, 4, 4))
+                .gap(2)
+        })
+        .children(|ui| {
+            for (i, label) in labels.iter().enumerate() {
+                let is_active = i == active_idx;
+                let btn_bg = if is_active { active_bg } else { seg_bg };
+                let text_color = if is_active { theme.text } else { theme.muted_text };
+                ui.element()
+                    .id(("seg-btn", i as u32))
+                    .width(grow!())
+                    .height(fixed!(40.0))
+                    .background_color(btn_bg)
+                    .corner_radius(12.0)
+                    .layout(|l| l.align(Left, CenterY))
+                    .children(|ui| {
+                        ui.text(label, |t| {
+                            t.font_size(14).color(text_color).alignment(CenterX)
+                        });
+                    });
+            }
+        });
 }
