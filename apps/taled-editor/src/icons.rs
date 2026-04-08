@@ -53,7 +53,6 @@ fn icon_bytes(id: IconId) -> &'static [u8] {
 
 // ── Public label-key lookups ────────────────────────────────────────
 
-#[expect(dead_code)] // reason: will be used when nav bar switches to icon textures
 pub(crate) fn nav_icon_id(label_key: &str) -> IconId {
     match label_key {
         "nav-projects" => IconId::NavProjects,

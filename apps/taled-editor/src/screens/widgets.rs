@@ -1,6 +1,7 @@
 use ply_engine::prelude::*;
 
 use crate::app_state::{AppState, MobileScreen};
+use crate::icons::nav_icon_id;
 use crate::l10n;
 use crate::theme::PlyTheme;
 
@@ -212,8 +213,14 @@ pub(crate) fn bottom_nav(
                 .gap(8)
         })
         .children(|ui| {
+            let mut active_found = false;
             for (i, item) in items.iter().enumerate() {
-                let is_active = item.screen == active;
+                let is_active = if !active_found && item.screen == active {
+                    active_found = true;
+                    true
+                } else {
+                    false
+                };
                 let label = l10n::text(state.resolved_language(), item.label_key);
                 let color = if is_active {
                     theme.accent
@@ -231,37 +238,24 @@ pub(crate) fn bottom_nav(
                         if ui.just_released() {
                             state.navigate(target);
                         }
-                        // Icon placeholder (24x24)
+                        // Nav icon (24x24)
+                        let icon_id = nav_icon_id(item.label_key);
+                        let icon_tex = state.icon_cache.get(icon_id);
                         ui.element()
                             .width(fixed!(24.0))
                             .height(fixed!(24.0))
-                            .layout(|l| l.align(CenterX, CenterY))
-                            .children(|ui| {
-                                let icon = nav_icon_text(item.label_key);
-                                ui.text(icon, |t| t.font_size(16).color(color).alignment(CenterX));
-                            });
-                        ui.text(&label, |t| t.font_size(12).color(color).alignment(CenterX));
+                            .background_color(color)
+                            .image(icon_tex)
+                            .empty();
+                        ui.text(&label, |t| t.font_size(12).color(color));
                     });
             }
         });
 }
 
-fn nav_icon_text(key: &str) -> &str {
-    match key {
-        "nav-projects" => "☰",
-        "nav-assets" => "📁",
-        "nav-tilesets" => "⊞",
-        "nav-layers" => "≡",
-        "nav-objects" => "◇",
-        "nav-properties" => "☰",
-        "nav-settings" => "⚙",
-        _ => "●",
-    }
-}
-
 // ── Reusable button ────────────────────────────────────────────────
 
-#[allow(dead_code)]
+#[expect(dead_code)] // reason: will be used for interactive buttons on various screens
 pub(crate) fn action_button(ui: &mut Ui, id: &'static str, label: &str, theme: &PlyTheme) -> bool {
     let mut clicked = false;
     ui.element()
