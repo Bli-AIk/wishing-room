@@ -141,16 +141,24 @@ fn row_card(ui: &mut Ui, theme: &PlyTheme, left: &str, right: &str) {
         .width(grow!())
         .height(fit!())
         .background_color(theme.surface)
-        .corner_radius(14.0)
+        .corner_radius(20.0)
+        .border(|b| b.all(1).color(theme.border))
         .layout(|l| {
             l.direction(LeftToRight)
                 .align(Left, CenterY)
-                .padding((14, 16, 14, 16))
+                .padding((0, 16, 0, 16))
         })
         .children(|ui| {
-            ui.text(left, |t| t.font_size(15).color(theme.text));
-            ui.element().width(grow!()).height(fixed!(1.0)).empty();
-            ui.text(right, |t| t.font_size(13).color(theme.muted_text));
+            // Inner row (matching .review-setting-row min-height 44px)
+            ui.element()
+                .width(grow!())
+                .height(fixed!(44.0))
+                .layout(|l| l.direction(LeftToRight).align(Left, CenterY).gap(10))
+                .children(|ui| {
+                    ui.text(left, |t| t.font_size(15).color(theme.text));
+                    ui.element().width(grow!()).height(fixed!(1.0)).empty();
+                    ui.text(right, |t| t.font_size(13).color(theme.muted_text));
+                });
         });
 }
 
