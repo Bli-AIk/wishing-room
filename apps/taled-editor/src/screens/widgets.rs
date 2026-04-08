@@ -95,7 +95,6 @@ pub(crate) fn page_header(
             // Left column (92px)
             if let Some((label, target)) = left_action {
                 ui.element()
-                    .id("header-left")
                     .width(fixed!(92.0))
                     .height(grow!())
                     .layout(|l| l.align(Left, CenterY))
@@ -124,7 +123,6 @@ pub(crate) fn page_header(
             // Right column (92px)
             if let Some((label, target)) = right_action {
                 ui.element()
-                    .id("header-right")
                     .width(fixed!(92.0))
                     .height(grow!())
                     .layout(|l| l.align(Right, CenterY))

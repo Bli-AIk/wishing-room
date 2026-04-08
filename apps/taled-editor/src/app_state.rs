@@ -10,6 +10,22 @@ use crate::l10n::{
 };
 use crate::theme::{ThemeChoice, ThemePaletteData, default_custom_theme};
 
+/// Read the initial screen index set by JS (`window.taled_initial_screen`).
+#[cfg(target_arch = "wasm32")]
+fn read_initial_screen() -> MobileScreen {
+    unsafe extern "C" {
+        fn taled_get_initial_screen() -> i32;
+    }
+    // SAFETY: `taled_get_initial_screen` is provided by ply_bundle.js.
+    let idx = unsafe { taled_get_initial_screen() };
+    MobileScreen::from_index(idx)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn read_initial_screen() -> MobileScreen {
+    MobileScreen::Dashboard
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(dead_code)]
 pub(crate) enum Tool {
@@ -53,6 +69,23 @@ pub(crate) enum MobileScreen {
     Settings,
     Themes,
     About,
+}
+
+impl MobileScreen {
+    #[cfg(target_arch = "wasm32")]
+    fn from_index(idx: i32) -> Self {
+        match idx {
+            1 => Self::Editor,
+            2 => Self::Tilesets,
+            3 => Self::Layers,
+            4 => Self::Objects,
+            5 => Self::Properties,
+            6 => Self::Settings,
+            7 => Self::Themes,
+            8 => Self::About,
+            _ => Self::Dashboard,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -180,6 +213,7 @@ pub(crate) struct AppState {
     pub(crate) camera_x: f32,
     pub(crate) camera_y: f32,
     pub(crate) icon_cache: IconTintCache,
+    pub(crate) logo_texture: Option<Texture2D>,
 }
 
 impl AppState {
@@ -207,7 +241,7 @@ impl AppState {
             shape_fill_mode: ShapeFillMode::Rectangle,
             tool: Tool::Paint,
             layers_panel_expanded: false,
-            mobile_screen: MobileScreen::Dashboard,
+            mobile_screen: read_initial_screen(),
             language_preference: AppLanguagePreference::Auto,
             theme_choice: ThemeChoice::Dark,
             custom_theme: default_custom_theme(),
@@ -230,6 +264,7 @@ impl AppState {
             camera_x: 0.0,
             camera_y: 0.0,
             icon_cache: IconTintCache::new(),
+            logo_texture: None,
         }
     }
 

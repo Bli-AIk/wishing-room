@@ -148,6 +148,7 @@ fn title_only_header(ui: &mut Ui, theme: &PlyTheme, title: &str) {
         });
 }
 
+#[expect(clippy::excessive_nesting)] // reason: Ply UI requires nested closures for element builders
 fn about_entry_card(
     ui: &mut Ui,
     state: &mut AppState,
@@ -167,7 +168,7 @@ fn about_entry_card(
         .border(|b| b.all(1).color(theme.border))
         .layout(|l| {
             l.direction(TopToBottom)
-                .align(CenterX, Top)
+                .align(Left, Top)
                 .padding((14, 14, 14, 14))
                 .gap(14)
         })
@@ -183,28 +184,37 @@ fn about_entry_card(
                     t.font_size(13).color(theme.muted_text).alignment(CenterX)
                 });
             }
+            // Center the link button via a full-width wrapper
             ui.element()
-                .id("entry-link")
-                .width(fit!())
+                .width(grow!())
                 .height(fixed!(24.0))
-                .layout(|l| {
-                    l.direction(LeftToRight)
-                        .align(CenterX, CenterY)
-                        .gap(4)
-                })
-                .on_press(move |_, _| {})
+                .layout(|l| l.align(CenterX, CenterY))
                 .children(|ui| {
-                    if ui.just_released() {
-                        state.navigate(target);
-                    }
-                    ui.text(link_label, |t| t.font_size(14).color(HEADER_ACTION_COLOR));
-                    let chev_tex = state.icon_cache.get(IconId::ChevronRight);
                     ui.element()
-                        .width(fixed!(14.0))
-                        .height(fixed!(14.0))
-                        .background_color(HEADER_ACTION_COLOR)
-                        .image(chev_tex)
-                        .empty();
+                        .id("entry-link")
+                        .width(fit!())
+                        .height(fixed!(24.0))
+                        .layout(|l| {
+                            l.direction(LeftToRight)
+                                .align(CenterX, CenterY)
+                                .gap(4)
+                        })
+                        .on_press(move |_, _| {})
+                        .children(|ui| {
+                            if ui.just_released() {
+                                state.navigate(target);
+                            }
+                            ui.text(link_label, |t| {
+                                t.font_size(14).color(HEADER_ACTION_COLOR)
+                            });
+                            let chev_tex = state.icon_cache.get(IconId::ChevronRight);
+                            ui.element()
+                                .width(fixed!(14.0))
+                                .height(fixed!(14.0))
+                                .background_color(HEADER_ACTION_COLOR)
+                                .image(chev_tex)
+                                .empty();
+                        });
                 });
         });
 }

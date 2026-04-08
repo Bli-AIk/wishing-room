@@ -7,12 +7,15 @@ use crate::theme::PlyTheme;
 
 use super::widgets::{bottom_nav, dashboard_nav_items, page_header};
 
-static LOGO_ASSET: GraphicAsset = GraphicAsset::Bytes {
-    file_name: "taled.png",
-    data: include_bytes!("../../../../assets/branding/taled.png"),
-};
+static LOGO_BYTES: &[u8] = include_bytes!("../../../../assets/branding/taled.png");
 
 pub(crate) fn render(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
+    // Lazily create the logo texture with nearest-neighbor filtering
+    if state.logo_texture.is_none() {
+        let tex = Texture2D::from_file_with_format(LOGO_BYTES, None);
+        tex.set_filter(FilterMode::Nearest);
+        state.logo_texture = Some(tex);
+    }
     let title = l10n::text(state.resolved_language(), "settings-about-caption");
     page_header(
         ui,
@@ -106,6 +109,10 @@ pub(crate) fn render(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
 }
 
 fn hero_section(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
+    let logo_tex = state
+        .logo_texture
+        .clone()
+        .unwrap_or_else(Texture2D::empty);
     ui.element()
         .id("about-hero")
         .width(grow!())
@@ -115,17 +122,23 @@ fn hero_section(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
         .border(|b| b.all(1).color(theme.border))
         .layout(|l| {
             l.direction(TopToBottom)
-                .align(CenterX, Top)
+                .align(Left, Top)
                 .gap(12)
                 .padding((20, 18, 18, 18))
         })
         .children(|ui| {
-            // Logo (20x20 PNG scaled to 84x84 with pixelated rendering)
+            // Logo centered in a full-width wrapper
             ui.element()
-                .width(fixed!(84.0))
+                .width(grow!())
                 .height(fixed!(84.0))
-                .image(&LOGO_ASSET)
-                .empty();
+                .layout(|l| l.align(CenterX, CenterY))
+                .children(|ui| {
+                    ui.element()
+                        .width(fixed!(84.0))
+                        .height(fixed!(84.0))
+                        .image(logo_tex)
+                        .empty();
+                });
             ui.text("Taled", |t| {
                 t.font_size(16).color(theme.text).alignment(CenterX)
             });
