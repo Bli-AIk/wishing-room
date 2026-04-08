@@ -70,7 +70,7 @@ pub(crate) fn render(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
                     "settings-about-stack-description",
                 ],
                 &[
-                    ("settings-about-dioxus", "https://dioxuslabs.com/"),
+                    ("settings-about-ply", "https://ply.0xhiro.com/"),
                     ("settings-about-rust", "https://www.rust-lang.org/community"),
                     (
                         "settings-about-rs-tiled",
@@ -250,7 +250,7 @@ fn disclosure_card(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
         });
 }
 
-/// Dioxus CSS `.review-about-link-url` color across all themes.
+/// Reference CSS `.review-about-link-url` link color used across all themes.
 const LINK_URL_COLOR: Color = Color::u_rgb(0x74, 0xa8, 0xff);
 
 #[expect(clippy::excessive_nesting)] // reason: Ply UI requires nested closures for element builders

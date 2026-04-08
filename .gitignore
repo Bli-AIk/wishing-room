@@ -53,3 +53,6 @@ crates/taled-bevy-renderer/
 apps/taled-editor/public/bevy/
 apps/taled-editor/build/
 apps/taled-editor/index.html
+node_modules/
+package.json
+package-lock.json
