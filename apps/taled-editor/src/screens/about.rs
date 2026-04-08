@@ -26,14 +26,12 @@ pub(crate) fn render(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
         state,
     );
 
-    // clip_x prevents long URLs (no whitespace = can't word-wrap) from
-    // expanding min_dimensions.width and pushing content past the right edge.
     ui.element()
         .id("about-body")
         .width(grow!())
         .height(grow!())
         .layout(|l| l.direction(TopToBottom).gap(12).padding((14, 14, 0, 14)))
-        .overflow(|o| o.scroll_y().clip_x())
+        .overflow(|o| o.scroll_y())
         .children(|ui| {
             about_body_content(ui, state, theme);
         });
@@ -314,10 +312,12 @@ fn info_card_with_links(
                                     if ui.just_released() {
                                         crate::platform::open_url(&url_owned);
                                     }
-                                    // Left: title + URL stacked
+                                    // Left: title + URL stacked; clip_x prevents
+                                    // long URL min_width from expanding the layout.
                                     ui.element()
                                         .width(grow!())
                                         .height(fit!())
+                                        .overflow(|o| o.clip_x())
                                         .layout(|l| l.direction(TopToBottom).gap(2))
                                         .children(|ui| {
                                             ui.text(&title, |t| {
