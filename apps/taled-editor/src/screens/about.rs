@@ -26,21 +26,16 @@ pub(crate) fn render(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
         state,
     );
 
-    // Scroll container has NO padding — padding goes on the inner wrapper to
-    // prevent Ply's scroll_y from eating the right-side padding.
+    // clip_x prevents long URLs (no whitespace = can't word-wrap) from
+    // expanding min_dimensions.width and pushing content past the right edge.
     ui.element()
         .id("about-body")
         .width(grow!())
         .height(grow!())
-        .overflow(|o| o.scroll_y())
+        .layout(|l| l.direction(TopToBottom).gap(12).padding((14, 14, 0, 14)))
+        .overflow(|o| o.scroll_y().clip_x())
         .children(|ui| {
-            ui.element()
-                .width(grow!())
-                .height(fit!())
-                .layout(|l| l.direction(TopToBottom).gap(12).padding((14, 14, 0, 14)))
-                .children(|ui| {
-                    about_body_content(ui, state, theme);
-                });
+            about_body_content(ui, state, theme);
         });
 
     let items = dashboard_nav_items();
