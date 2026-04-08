@@ -1,6 +1,7 @@
 use ply_engine::prelude::*;
 
 use crate::app_state::{AppState, MobileScreen};
+use crate::icons::IconId;
 use crate::theme::PlyTheme;
 
 use super::widgets::{bottom_nav, editor_nav_items, page_header};
@@ -132,12 +133,28 @@ pub(crate) fn render(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
                                             });
                                     });
 
-                                // Visibility icon
-                                let vis = if layer.visible() { "👁" } else { "—" };
-                                ui.text(vis, |t| t.font_size(16).color(theme.muted_text));
+                                // Visibility icon (eye-on / eye-off)
+                                let vis_icon = if layer.visible() {
+                                    IconId::EyeOn
+                                } else {
+                                    IconId::EyeOff
+                                };
+                                let vis_tex = state.icon_cache.get(vis_icon);
+                                ui.element()
+                                    .width(fixed!(20.0))
+                                    .height(fixed!(20.0))
+                                    .background_color(theme.muted_text)
+                                    .image(vis_tex)
+                                    .empty();
 
                                 // Lock icon
-                                ui.text("🔓", |t| t.font_size(14).color(theme.muted_text));
+                                let lock_tex = state.icon_cache.get(IconId::Unlock);
+                                ui.element()
+                                    .width(fixed!(18.0))
+                                    .height(fixed!(18.0))
+                                    .background_color(theme.muted_text)
+                                    .image(lock_tex)
+                                    .empty();
                             });
                     }
                 });

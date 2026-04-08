@@ -1,6 +1,7 @@
 use ply_engine::prelude::*;
 
 use crate::app_state::{AppState, MobileScreen};
+use crate::icons::IconId;
 use crate::l10n;
 use crate::theme::PlyTheme;
 
@@ -186,13 +187,24 @@ fn about_entry_card(
                 .id("entry-link")
                 .width(fit!())
                 .height(fixed!(24.0))
-                .layout(|l| l.align(CenterX, CenterY))
+                .layout(|l| {
+                    l.direction(LeftToRight)
+                        .align(CenterX, CenterY)
+                        .gap(4)
+                })
                 .on_press(move |_, _| {})
                 .children(|ui| {
                     if ui.just_released() {
                         state.navigate(target);
                     }
                     ui.text(link_label, |t| t.font_size(14).color(HEADER_ACTION_COLOR));
+                    let chev_tex = state.icon_cache.get(IconId::ChevronRight);
+                    ui.element()
+                        .width(fixed!(14.0))
+                        .height(fixed!(14.0))
+                        .background_color(HEADER_ACTION_COLOR)
+                        .image(chev_tex)
+                        .empty();
                 });
         });
 }

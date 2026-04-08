@@ -2,6 +2,7 @@ use ply_engine::prelude::*;
 
 use crate::app_state::{AppState, MobileScreen};
 use crate::embedded_samples::embedded_samples;
+use crate::icons::IconId;
 use crate::session_ops::load_sample_by_path;
 use crate::theme::PlyTheme;
 
@@ -36,7 +37,13 @@ pub(crate) fn render(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
                 .border(|b| b.all(1).color(theme.border))
                 .layout(|l| l.direction(LeftToRight).align(CenterX, CenterY).gap(10))
                 .children(|ui| {
-                    ui.text("+", |t| t.font_size(24).color(theme.text));
+                    let plus_tex = state.icon_cache.get(IconId::Plus);
+                    ui.element()
+                        .width(fixed!(22.0))
+                        .height(fixed!(22.0))
+                        .background_color(theme.text)
+                        .image(plus_tex)
+                        .empty();
                     ui.text("Create New Project", |t| t.font_size(17).color(theme.text));
                 });
 

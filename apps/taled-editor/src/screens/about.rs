@@ -1,6 +1,7 @@
 use ply_engine::prelude::*;
 
 use crate::app_state::{AppState, MobileScreen};
+use crate::icons::IconId;
 use crate::l10n;
 use crate::theme::PlyTheme;
 
@@ -261,7 +262,6 @@ fn info_card_with_links(
                 }
             }
             if !links.is_empty() {
-                // Link list (gap 6px between links, each link has title+URL with gap 2px)
                 ui.element()
                     .width(grow!())
                     .height(fit!())
@@ -272,10 +272,31 @@ fn info_card_with_links(
                             ui.element()
                                 .width(grow!())
                                 .height(fit!())
-                                .layout(|l| l.direction(TopToBottom).gap(2))
+                                .layout(|l| {
+                                    l.direction(LeftToRight).align(Left, CenterY).gap(4)
+                                })
                                 .children(|ui| {
-                                    ui.text(&title, |t| t.font_size(14).color(theme.text));
-                                    ui.text(url, |t| t.font_size(12).color(LINK_URL_COLOR));
+                                    // Left: title + URL stacked
+                                    ui.element()
+                                        .width(grow!())
+                                        .height(fit!())
+                                        .layout(|l| l.direction(TopToBottom).gap(2))
+                                        .children(|ui| {
+                                            ui.text(&title, |t| {
+                                                t.font_size(14).color(theme.text)
+                                            });
+                                            ui.text(url, |t| {
+                                                t.font_size(12).color(LINK_URL_COLOR)
+                                            });
+                                        });
+                                    // Right: chevron icon
+                                    let chev_tex = state.icon_cache.get(IconId::ChevronRight);
+                                    ui.element()
+                                        .width(fixed!(14.0))
+                                        .height(fixed!(14.0))
+                                        .background_color(theme.muted_text)
+                                        .image(chev_tex)
+                                        .empty();
                                 });
                         }
                     });
