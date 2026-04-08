@@ -6,11 +6,7 @@ use crate::l10n;
 use crate::theme::PlyTheme;
 
 /// Dioxus CSS `.review-header-action` / `.review-link-button` uses `#b6b6bb`.
-pub(crate) const HEADER_ACTION_COLOR: Color = Color::rgb(
-    0xb6 as f32 / 255.0,
-    0xb6 as f32 / 255.0,
-    0xbb as f32 / 255.0,
-);
+pub(crate) const HEADER_ACTION_COLOR: Color = Color::u_rgb(0xb6, 0xb6, 0xbb);
 
 // ── Review-style page header (3-column grid: 92px | 1fr | 92px) ─────
 

@@ -66,7 +66,10 @@ fn render_editor_header(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
                     if ui.just_released() {
                         state.navigate(MobileScreen::Dashboard);
                     }
-                    ui.text(&back, |t| t.font_size(14).color(theme.accent));
+                    ui.text(&back, |t| {
+                        t.font_size(14)
+                            .color(super::widgets::HEADER_ACTION_COLOR)
+                    });
                 });
 
             // Center: title
@@ -366,7 +369,7 @@ fn render_toolbar(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
                             .background_color(color)
                             .image(icon_tex)
                             .empty();
-                        ui.text(&label, |t| t.font_size(10).color(color).alignment(CenterX));
+                        ui.text(&label, |t| t.font_size(10).color(color));
                     });
             }
         });

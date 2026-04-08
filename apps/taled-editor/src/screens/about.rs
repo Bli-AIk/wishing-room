@@ -238,11 +238,7 @@ fn disclosure_card(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
 }
 
 /// Dioxus CSS `.review-about-link-url` color across all themes.
-const LINK_URL_COLOR: Color = Color::rgb(
-    0x74 as f32 / 255.0,
-    0xa8 as f32 / 255.0,
-    0xff as f32 / 255.0,
-);
+const LINK_URL_COLOR: Color = Color::u_rgb(0x74, 0xa8, 0xff);
 
 #[expect(clippy::excessive_nesting)] // reason: Ply UI requires nested closures for element builders
 fn info_card_with_links(
