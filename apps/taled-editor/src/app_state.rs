@@ -263,7 +263,11 @@ impl AppState {
             active_tileset: 0,
             camera_x: 0.0,
             camera_y: 0.0,
-            icon_cache: IconTintCache::new(),
+            icon_cache: {
+                let mut cache = IconTintCache::new();
+                cache.preload_mode_icons();
+                cache
+            },
             logo_texture: None,
         }
     }

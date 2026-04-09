@@ -127,4 +127,19 @@ impl IconTintCache {
         self.bases.push((id_u16, tex.clone()));
         tex
     }
+
+    /// Preload all mode icon textures to avoid lazy-load GPU issues on Android.
+    pub(crate) fn preload_mode_icons(&mut self) {
+        let ids = [
+            IconId::ModeRectangle,
+            IconId::ModeEllipse,
+            IconId::ModeSelReplace,
+            IconId::ModeSelAdd,
+            IconId::ModeSelSubtract,
+            IconId::ModeSelIntersect,
+        ];
+        for id in ids {
+            self.get(id);
+        }
+    }
 }

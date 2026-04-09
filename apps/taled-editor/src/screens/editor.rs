@@ -158,9 +158,10 @@ fn render_tool_side_panel(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
         .id("tool-side-panel")
         .width(fixed!(62.0))
         .height(grow!())
+        .overflow(|o| o.scroll_y())
         .layout(|l| {
             l.direction(TopToBottom)
-                .align(CenterX, CenterY)
+                .align(CenterX, Top)
                 .padding((8, 4, 8, 4))
                 .gap(3)
         })
@@ -204,7 +205,7 @@ fn render_mode_button(
         Color::u_rgb(0xd1, 0xd1, 0xd6)
     };
     let bg = if active {
-        Color::rgba(142.0, 142.0, 147.0, 0.18)
+        Color::u_rgba(142, 142, 147, 46)
     } else {
         Color::rgba(0.0, 0.0, 0.0, 0.0)
     };
@@ -222,11 +223,10 @@ fn render_mode_button(
             ui.element()
                 .width(fixed!(22.0))
                 .height(fixed!(22.0))
+                .background_color(text_color)
                 .image(icon_tex)
                 .empty();
-            ui.text(label, |t| {
-                t.font_size(9).color(text_color).alignment(CenterX)
-            });
+            ui.text(label, |t| t.font_size(9).color(text_color));
         });
 }
 
