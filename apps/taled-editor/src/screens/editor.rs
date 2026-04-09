@@ -188,7 +188,16 @@ fn render_side_empty(ui: &mut Ui, theme: &PlyTheme, lang: l10n::SupportedLanguag
     });
 }
 
-fn render_mode_button(ui: &mut Ui, id: &'static str, label: &str, active: bool, glyph: &str) {
+use crate::icons::IconId;
+
+fn render_mode_button(
+    ui: &mut Ui,
+    state: &mut AppState,
+    id: &'static str,
+    label: &str,
+    active: bool,
+    icon_id: IconId,
+) {
     let text_color = if active {
         Color::u_rgb(0xff, 0xff, 0xff)
     } else {
@@ -199,21 +208,24 @@ fn render_mode_button(ui: &mut Ui, id: &'static str, label: &str, active: bool, 
     } else {
         Color::rgba(0.0, 0.0, 0.0, 0.0)
     };
+    let icon_tex = state.icon_cache.get(icon_id);
 
     ui.element()
         .id(id)
         .width(grow!())
-        .height(fixed!(34.0))
+        .height(fixed!(52.0))
         .background_color(bg)
         .corner_radius(9.0)
-        .layout(|l| l.direction(TopToBottom).align(CenterX, CenterY).gap(1))
+        .layout(|l| l.direction(TopToBottom).align(CenterX, CenterY).gap(2))
         .on_press(move |_, _| {})
         .children(|ui| {
-            ui.text(glyph, |t| {
-                t.font_size(11).color(text_color).alignment(CenterX)
-            });
+            ui.element()
+                .width(fixed!(22.0))
+                .height(fixed!(22.0))
+                .image(icon_tex)
+                .empty();
             ui.text(label, |t| {
-                t.font_size(8).color(text_color).alignment(CenterX)
+                t.font_size(9).color(text_color).alignment(CenterX)
             });
         });
 }
@@ -224,37 +236,37 @@ fn render_selection_modes(
     _theme: &PlyTheme,
     lang: l10n::SupportedLanguage,
 ) {
-    let modes: [(TileSelectionMode, &str, &str, &'static str); 4] = [
+    let modes: [(TileSelectionMode, &str, IconId, &'static str); 4] = [
         (
             TileSelectionMode::Replace,
             "selection-mode-replace",
-            "□",
+            IconId::ModeSelReplace,
             "sel-replace",
         ),
         (
             TileSelectionMode::Add,
             "selection-mode-add",
-            "□+",
+            IconId::ModeSelAdd,
             "sel-add",
         ),
         (
             TileSelectionMode::Subtract,
             "selection-mode-subtract",
-            "□−",
+            IconId::ModeSelSubtract,
             "sel-sub",
         ),
         (
             TileSelectionMode::Intersect,
             "selection-mode-intersect",
-            "□□",
+            IconId::ModeSelIntersect,
             "sel-inter",
         ),
     ];
-    for (mode, key, glyph, id) in &modes {
+    for (mode, key, icon_id, id) in &modes {
         let active = state.tile_selection_mode == *mode;
         let label = l10n::text(lang, key);
         let mode_val = *mode;
-        render_mode_button(ui, id, &label, active, glyph);
+        render_mode_button(ui, state, id, &label, active, *icon_id);
         if ui.just_released() {
             state.tile_selection_mode = mode_val;
         }
@@ -267,25 +279,25 @@ fn render_shape_fill_modes(
     _theme: &PlyTheme,
     lang: l10n::SupportedLanguage,
 ) {
-    let modes: [(ShapeFillMode, &str, &str, &'static str); 2] = [
+    let modes: [(ShapeFillMode, &str, IconId, &'static str); 2] = [
         (
             ShapeFillMode::Rectangle,
             "shape-fill-mode-rectangle",
-            "▭",
+            IconId::ModeRectangle,
             "shp-rect",
         ),
         (
             ShapeFillMode::Ellipse,
             "shape-fill-mode-ellipse",
-            "◯",
+            IconId::ModeEllipse,
             "shp-ellip",
         ),
     ];
-    for (mode, key, glyph, id) in &modes {
+    for (mode, key, icon_id, id) in &modes {
         let active = state.shape_fill_mode == *mode;
         let label = l10n::text(lang, key);
         let mode_val = *mode;
-        render_mode_button(ui, id, &label, active, glyph);
+        render_mode_button(ui, state, id, &label, active, *icon_id);
         if ui.just_released() {
             state.shape_fill_mode = mode_val;
         }

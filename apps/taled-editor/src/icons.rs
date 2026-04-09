@@ -29,6 +29,12 @@ pub(crate) enum IconId {
     EyeOff,
     Lock,
     Unlock,
+    ModeRectangle,
+    ModeEllipse,
+    ModeSelReplace,
+    ModeSelAdd,
+    ModeSelSubtract,
+    ModeSelIntersect,
 }
 
 fn icon_bytes(id: IconId) -> &'static [u8] {
@@ -57,6 +63,12 @@ fn icon_bytes(id: IconId) -> &'static [u8] {
         IconId::EyeOff => include_bytes!("../../../assets/icons/eye-off.png"),
         IconId::Lock => include_bytes!("../../../assets/icons/lock.png"),
         IconId::Unlock => include_bytes!("../../../assets/icons/unlock.png"),
+        IconId::ModeRectangle => include_bytes!("../../../assets/icons/mode-rectangle.png"),
+        IconId::ModeEllipse => include_bytes!("../../../assets/icons/mode-ellipse.png"),
+        IconId::ModeSelReplace => include_bytes!("../../../assets/icons/mode-sel-replace.png"),
+        IconId::ModeSelAdd => include_bytes!("../../../assets/icons/mode-sel-add.png"),
+        IconId::ModeSelSubtract => include_bytes!("../../../assets/icons/mode-sel-subtract.png"),
+        IconId::ModeSelIntersect => include_bytes!("../../../assets/icons/mode-sel-intersect.png"),
     }
 }
 
