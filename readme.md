@@ -5,7 +5,7 @@
 </p>
 
 [![version](https://img.shields.io/badge/version-0.0.1-blue)]() <img src="https://img.shields.io/badge/status-early%20development-orange"/> <img src="https://img.shields.io/badge/focus-Android%20first-1f6feb"/> <img src="https://img.shields.io/badge/Tiled-latest%20orthogonal%20subset-2ea44f"/> <br>
-<img src="https://img.shields.io/badge/Rust-2024-000000?style=for-the-badge&logo=rust&logoColor=white" /> <img src="https://img.shields.io/badge/Dioxus-0.7.3-6f42c1?style=for-the-badge" />
+<img src="https://img.shields.io/badge/Rust-2024-000000?style=for-the-badge&logo=rust&logoColor=white" /> <img src="https://img.shields.io/badge/Ply-1.1.0-6f42c1?style=for-the-badge" />
 
 > Current Status: 🚧 Early Development (the core format boundary is in place, while the Android-first UI is still being refined)
 
@@ -82,7 +82,7 @@ Right now, Taled is primarily aimed at contributors and testers.
 5. **Build an Android package**:
 
    ```bash
-   dx build --android --target aarch64-linux-android -r -p taled-editor
+   cargo quad-apk build -p taled-editor --release
    ```
 
 ## How to Build
@@ -90,7 +90,7 @@ Right now, Taled is primarily aimed at contributors and testers.
 ### Prerequisites
 
 * Rust toolchain with the 2024 edition
-* [`dioxus-cli`](https://dioxuslabs.com/learn/0.7/getting_started/)
+* [`cargo-quad-apk`](https://crates.io/crates/cargo-quad-apk) (for Android builds)
 * Android SDK / NDK if you want to build the mobile target
 
 ### Build Steps
@@ -116,7 +116,7 @@ Right now, Taled is primarily aimed at contributors and testers.
 4. **Build the Android app**:
 
    ```bash
-   dx build --android --target aarch64-linux-android -r -p taled-editor
+   cargo quad-apk build -p taled-editor --release
    ```
 
 ## Dependencies
@@ -125,7 +125,7 @@ The workspace currently leans on a small set of core crates:
 
 | Crate | Role |
 |-------|------|
-| [`dioxus`](https://crates.io/crates/dioxus) | app shell for web, desktop, and Android |
+| [`ply-engine`](https://crates.io/crates/ply-engine) | GPU-accelerated UI engine for Android and desktop |
 | [`tiled`](https://crates.io/crates/tiled) | official TMX / TSX loading |
 | [`quick-xml`](https://crates.io/crates/quick-xml) | XML writing and supporting utilities |
 | [`roxmltree`](https://crates.io/crates/roxmltree) | XML inspection and preprocessing |
@@ -134,7 +134,7 @@ The workspace currently leans on a small set of core crates:
 ## Project Structure
 
 ```text
-apps/taled-editor/   Dioxus application for web, desktop, and Android
+apps/taled-editor/   Ply engine application for Android and desktop
 crates/taled-core/   shared editor model, loading, saving, and session logic
 assets/                embedded TMX samples and image assets
 TASK.csv               structured Tiled feature/task stack

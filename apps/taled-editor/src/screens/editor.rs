@@ -181,12 +181,18 @@ fn render_side_empty(ui: &mut Ui, theme: &PlyTheme, lang: l10n::SupportedLanguag
     let _ = theme;
     let line1 = l10n::text(lang, "tile-strip-side-empty-line-1");
     let line2 = l10n::text(lang, "tile-strip-side-empty-line-2");
-    ui.text(&line1, |t| {
-        t.font_size(9).color(empty_color).alignment(CenterX)
-    });
-    ui.text(&line2, |t| {
-        t.font_size(9).color(empty_color).alignment(CenterX)
-    });
+    ui.element()
+        .width(grow!())
+        .height(grow!())
+        .layout(|l| l.direction(TopToBottom).align(CenterX, CenterY))
+        .children(|ui| {
+            ui.text(&line1, |t| {
+                t.font_size(9).color(empty_color).alignment(CenterX)
+            });
+            ui.text(&line2, |t| {
+                t.font_size(9).color(empty_color).alignment(CenterX)
+            });
+        });
 }
 
 use crate::icons::IconId;

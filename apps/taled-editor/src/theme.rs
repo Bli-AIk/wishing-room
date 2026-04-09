@@ -90,7 +90,7 @@ impl PlyTheme {
             accent_text: hex(0xffffff),
             success: hex(0x30d158),
             danger: hex(0xff453a),
-            canvas_base: hex(0x2a2a2a),
+            canvas_base: hex(0x142131),
             grid_line: hexa(0xffffff, 22),
             selection_overlay: hexa(0x000000, 97),
             shadow: hexa(0x000000, 71),
