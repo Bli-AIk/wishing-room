@@ -61,12 +61,8 @@ async fn main() {
 
     loop {
         let theme = PlyTheme::from_choice(state.theme_choice, &state.custom_theme);
-        clear_background(MacroquadColor::from_rgba(
-            (theme.background_elevated.r * 255.0) as u8,
-            (theme.background_elevated.g * 255.0) as u8,
-            (theme.background_elevated.b * 255.0) as u8,
-            255,
-        ));
+        let bg: MacroquadColor = theme.background_elevated.into();
+        clear_background(bg);
 
         if platform::is_back_pressed() {
             state.navigate_back();

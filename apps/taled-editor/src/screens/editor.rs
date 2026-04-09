@@ -153,27 +153,30 @@ fn render_tool_side_panel(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
     let lang = state.resolved_language();
     let selection_active = is_tile_selection_tool(state.tool);
     let shape_fill_active = state.tool == Tool::ShapeFill;
+    let has_options = selection_active || shape_fill_active;
 
-    ui.element()
-        .id("tool-side-panel")
-        .width(fixed!(62.0))
-        .height(grow!())
-        .overflow(|o| o.scroll_y())
-        .layout(|l| {
-            l.direction(TopToBottom)
-                .align(CenterX, Top)
-                .padding((8, 4, 8, 4))
-                .gap(3)
-        })
-        .children(|ui| {
-            if selection_active {
-                render_selection_modes(ui, state, theme, lang);
-            } else if shape_fill_active {
-                render_shape_fill_modes(ui, state, theme, lang);
-            } else {
-                render_side_empty(ui, theme, lang);
-            }
-        });
+    if has_options {
+        ui.element()
+            .id("tool-side-panel")
+            .width(fixed!(62.0))
+            .height(grow!())
+            .overflow(|o| o.scroll_y())
+            .layout(|l| {
+                l.direction(TopToBottom)
+                    .padding((8, 4, 8, 4))
+                    .gap(3)
+                    .align(CenterX, Top)
+            })
+            .children(|ui| {
+                if selection_active {
+                    render_selection_modes(ui, state, theme, lang);
+                } else {
+                    render_shape_fill_modes(ui, state, theme, lang);
+                }
+            });
+    } else {
+        render_side_empty(ui, theme, lang);
+    }
 }
 
 fn render_side_empty(ui: &mut Ui, theme: &PlyTheme, lang: l10n::SupportedLanguage) {
@@ -181,15 +184,15 @@ fn render_side_empty(ui: &mut Ui, theme: &PlyTheme, lang: l10n::SupportedLanguag
     let _ = theme;
     let line1 = l10n::text(lang, "tile-strip-side-empty-line-1");
     let line2 = l10n::text(lang, "tile-strip-side-empty-line-2");
+    let combined = format!("{line1}\n{line2}");
+    // Strip is 114px; text block ≈ 26px; top padding 44 centres it vertically.
     ui.element()
-        .width(grow!())
+        .id("tool-side-panel")
+        .width(fixed!(62.0))
         .height(grow!())
-        .layout(|l| l.direction(TopToBottom).align(CenterX, CenterY))
+        .layout(|l| l.direction(TopToBottom).padding((44, 0, 0, 0)))
         .children(|ui| {
-            ui.text(&line1, |t| {
-                t.font_size(9).color(empty_color).alignment(CenterX)
-            });
-            ui.text(&line2, |t| {
+            ui.text(&combined, |t| {
                 t.font_size(9).color(empty_color).alignment(CenterX)
             });
         });

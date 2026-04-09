@@ -291,9 +291,10 @@ impl AppState {
             MobileScreen::Tilesets
             | MobileScreen::Layers
             | MobileScreen::Objects
-            | MobileScreen::Properties => MobileScreen::Editor,
-            MobileScreen::Settings | MobileScreen::Editor => MobileScreen::Dashboard,
-            MobileScreen::Dashboard => MobileScreen::Dashboard,
+            | MobileScreen::Properties => MobileScreen::Dashboard,
+            MobileScreen::Settings | MobileScreen::Dashboard | MobileScreen::Editor => {
+                MobileScreen::Dashboard
+            }
         };
     }
 }

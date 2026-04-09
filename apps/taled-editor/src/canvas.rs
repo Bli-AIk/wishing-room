@@ -134,6 +134,7 @@ fn build_and_cache_canvas(
         tile_h,
         map_px_w,
         map_px_h,
+        theme,
     );
     map_texture.set_filter(FilterMode::Nearest);
 
@@ -143,13 +144,8 @@ fn build_and_cache_canvas(
     cam.render_target = Some(rt.clone());
     set_camera(&cam);
 
-    let cb = theme.canvas_base;
-    clear_background(MacroquadColor::from_rgba(
-        (cb.r * 255.0) as u8,
-        (cb.g * 255.0) as u8,
-        (cb.b * 255.0) as u8,
-        255,
-    ));
+    let cb: MacroquadColor = theme.canvas_base.into();
+    clear_background(cb);
     draw_texture_ex(
         &map_texture,
         0.0,
@@ -190,7 +186,10 @@ fn render_tile_map(
     tile_h: f32,
     map_px_w: f32,
     map_px_h: f32,
+    theme: &PlyTheme,
 ) -> Texture2D {
+    let empty_color: MacroquadColor = theme.empty_tile.into();
+
     render_to_texture(map_px_w, map_px_h, || {
         clear_background(MacroquadColor::from_rgba(0, 0, 0, 0));
 
@@ -209,7 +208,13 @@ fn render_tile_map(
                 for col in 0..map.width {
                     let idx = (row * map.width + col) as usize;
                     let gid = tile_layer.tiles.get(idx).copied().unwrap_or(0);
+                    let dx = col as f32 * tile_w;
+                    let dy = row as f32 * tile_h;
+
                     if gid == 0 {
+                        if layer_idx == active_layer {
+                            draw_rectangle(dx, dy, tile_w, tile_h, empty_color);
+                        }
                         continue;
                     }
                     let Some(tile_ref) = map.tile_reference_for_gid(gid) else {
@@ -226,9 +231,6 @@ fn render_tile_map(
                     let src_row = tile_ref.local_id / cols_in_tileset;
                     let sx = src_col as f32 * ts.tile_width as f32;
                     let sy = src_row as f32 * ts.tile_height as f32;
-
-                    let dx = col as f32 * tile_w;
-                    let dy = row as f32 * tile_h;
 
                     draw_texture_ex(
                         texture,
@@ -253,8 +255,7 @@ fn render_tile_map(
 }
 
 fn draw_grid(cols: u32, rows: u32, cell_w: f32, cell_h: f32, theme: &PlyTheme) {
-    let g = theme.grid_line;
-    let grid_color = MacroquadColor::new(g.r, g.g, g.b, g.a);
+    let grid_color: MacroquadColor = theme.grid_line.into();
     let total_w = cols as f32 * cell_w;
     let total_h = rows as f32 * cell_h;
 
