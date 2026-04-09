@@ -253,7 +253,8 @@ fn render_history_buttons(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
         .id("history-float")
         .floating(|f| {
             f.anchor((Left, Top), (Left, Top))
-                .offset((0.0, 4.0))
+                .attach_root()
+                .offset((0.0, 174.0))
                 .z_index(12)
         })
         .layout(|l| l.direction(LeftToRight).gap(6))
@@ -300,7 +301,8 @@ fn render_layer_panel(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
         .width(fixed!(158.0))
         .floating(|f| {
             f.anchor((Right, Top), (Right, Top))
-                .offset((0.0, 4.0))
+                .attach_root()
+                .offset((0.0, 174.0))
                 .z_index(12)
         })
         .background_color(float_bg)
