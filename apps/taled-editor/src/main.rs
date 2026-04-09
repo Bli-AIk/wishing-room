@@ -6,6 +6,7 @@ mod icons;
 mod l10n;
 mod platform;
 mod screens;
+mod selection_ops;
 mod session_ops;
 #[cfg(feature = "system-fonts")]
 mod system_font;

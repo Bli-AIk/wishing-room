@@ -2,14 +2,18 @@ use std::time::Instant;
 
 use ply_engine::prelude::*;
 
+use crate::app_state::TileSelectionRegion;
 use crate::app_state::{AppState, PinchGesture, ShapeFillPreview, SingleTouchGesture, Tool};
-use crate::edit_ops;
+use crate::edit_ops::{self, selection_cells_from_region};
 
 /// Duration before a held touch starts continuous painting.
 const LONG_PRESS_DURATION: std::time::Duration = std::time::Duration::from_millis(120);
 
 /// Minimum finger distance to recognise a pinch gesture.
 const MIN_PINCH_DISTANCE: f64 = 12.0;
+
+/// Double-tap window for dismissing a selection.
+const DOUBLE_TAP_WINDOW: std::time::Duration = std::time::Duration::from_millis(320);
 
 // ── Screen → Grid conversion ────────────────────────────────────────
 
@@ -216,6 +220,43 @@ fn handle_drag(state: &mut AppState, mx: f32, my: f32, canvas_origin_y: f32) {
             gesture.drag_active = true;
             gesture.last_surface_x = mx as f64;
             gesture.last_surface_y = my as f64;
+            if state.tile_selection_transfer.is_some() {
+                // In transfer mode: move the selection region
+                if let Some(anchor) = gesture.anchor_cell
+                    && let Some(current) = signed_cell_from_screen(state, mx, my, canvas_origin_y)
+                    && let Some(transfer) = state.tile_selection_transfer.as_ref()
+                {
+                    let dx = current.0 - anchor.0;
+                    let dy = current.1 - anchor.1;
+                    let (src_min_x, src_min_y, _, _) =
+                        crate::app_state::selection_bounds(&transfer.source_selection);
+                    let new_min_x = src_min_x + dx;
+                    let new_min_y = src_min_y + dy;
+                    let w = transfer.width as i32;
+                    let h = transfer.height as i32;
+                    let region = TileSelectionRegion {
+                        start_cell: (new_min_x, new_min_y),
+                        end_cell: (new_min_x + w - 1, new_min_y + h - 1),
+                    };
+                    state.tile_selection = Some(region);
+                    let cells = selection_cells_from_region(region);
+                    state.tile_selection_cells = Some(cells);
+                    state.canvas_dirty = true;
+                }
+            } else {
+                let anchor = gesture.anchor_cell;
+                if let Some(anchor) = anchor
+                    && let Some(current) = signed_cell_from_screen(state, mx, my, canvas_origin_y)
+                {
+                    let region = TileSelectionRegion {
+                        start_cell: anchor,
+                        end_cell: current,
+                    };
+                    let cells = selection_cells_from_region(region);
+                    state.tile_selection_preview_cells = Some(cells);
+                    state.canvas_dirty = true;
+                }
+            }
         }
         _ => {
             gesture.last_surface_x = mx as f64;
@@ -253,18 +294,29 @@ fn handle_release(state: &mut AppState, mx: f32, my: f32, canvas_origin_y: f32) 
         }
         Tool::MagicWand | Tool::SelectSameTile => {
             if let Some((x, y)) = cell {
-                edit_ops::apply_cell_tool(state, x, y);
+                if try_dismiss_selection(state, x, y) {
+                    // Selection was dismissed via double-tap or tap-outside
+                } else {
+                    edit_ops::apply_cell_tool(state, x, y);
+                }
             }
         }
+        Tool::Select if state.tile_selection_transfer.is_some() => {
+            // Transfer mode: drag already moved the selection in handle_drag
+            state.tile_selection_preview_cells = None;
+        }
         Tool::Select => {
+            state.tile_selection_preview_cells = None;
             let was_drag = gesture.as_ref().is_some_and(|g| g.drag_active);
             if was_drag
                 && let Some(g) = &gesture
-                && let Some(end) = cell
                 && let Some(anchor) = g.anchor_cell
             {
-                edit_ops::select_tile_region(state, anchor.0, anchor.1, end.0 as i32, end.1 as i32);
-            } else if let Some((x, y)) = cell {
+                let end = signed_cell_from_screen(state, mx, my, canvas_origin_y).unwrap_or(anchor);
+                edit_ops::select_tile_region(state, anchor.0, anchor.1, end.0, end.1);
+            } else if let Some((x, y)) = cell
+                && !try_dismiss_selection(state, x, y)
+            {
                 edit_ops::apply_cell_tool(state, x, y);
             }
         }
@@ -273,6 +325,50 @@ fn handle_release(state: &mut AppState, mx: f32, my: f32, canvas_origin_y: f32) 
     }
 
     finish_touch_edit_batch(state);
+}
+
+/// Try to dismiss the current selection via double-tap or tap-outside.
+/// Returns `true` if the selection was dismissed (caller should skip normal tool action).
+fn try_dismiss_selection(state: &mut AppState, x: u32, y: u32) -> bool {
+    let has_selection = state.tile_selection_cells.is_some();
+    if !has_selection {
+        return false;
+    }
+    let cell_i32 = (x as i32, y as i32);
+    let inside = state
+        .tile_selection_cells
+        .as_ref()
+        .is_some_and(|cells| cells.contains(&cell_i32));
+
+    if inside {
+        // Double-tap inside to dismiss
+        if let Some(last_tap) = state.tile_selection_last_tap_at
+            && last_tap.elapsed() < DOUBLE_TAP_WINDOW
+        {
+            dismiss_selection(state);
+            return true;
+        }
+        state.tile_selection_last_tap_at = Some(Instant::now());
+        true // absorb the tap, don't start new selection
+    } else {
+        // Tap outside — dismiss in Replace mode, else ignore
+        if state.tile_selection_mode == crate::app_state::TileSelectionMode::Replace {
+            dismiss_selection(state);
+            return true;
+        }
+        false
+    }
+}
+
+fn dismiss_selection(state: &mut AppState) {
+    state.tile_selection = None;
+    state.tile_selection_cells = None;
+    state.tile_selection_preview = None;
+    state.tile_selection_preview_cells = None;
+    state.tile_selection_last_tap_at = None;
+    state.tile_selection_transfer = None;
+    state.canvas_dirty = true;
+    state.status = "Selection cleared.".to_string();
 }
 
 // ── Pinch zoom ──────────────────────────────────────────────────────

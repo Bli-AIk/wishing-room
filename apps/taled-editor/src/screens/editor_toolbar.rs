@@ -178,10 +178,87 @@ pub(crate) fn render_floating_controls(ui: &mut Ui, state: &mut AppState, theme:
     // Top-anchored controls
     render_history_buttons(ui, state, theme);
     render_layer_panel(ui, state, theme);
+    // Selection action bar (appears when selection or transfer is active)
+    if state.tile_selection_cells.is_some() || state.tile_selection_transfer.is_some() {
+        render_selection_actions(ui, state, theme);
+    }
     // Bottom-positioned controls (using Top anchor with calculated Y offsets)
     let canvas_h = (screen_height() - 56.0 - 114.0 - 68.0 - 72.0).max(200.0);
     render_dpad_float(ui, state, theme, canvas_h);
     render_zoom_float(ui, state, theme, canvas_h);
+}
+
+/// Floating bar with selection action buttons.
+/// Shows Copy/Cut/Del when selection is active, Place/Cancel during transfer.
+fn render_selection_actions(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
+    let float_bg = Color::u_rgba(24, 24, 26, 245);
+    let float_border = Color::u_rgba(255, 255, 255, 20);
+    let has_transfer = state.tile_selection_transfer.is_some();
+    ui.element()
+        .id("sel-actions")
+        .floating(|f| {
+            f.anchor((Right, Top), (Right, Top))
+                .attach_root()
+                .offset((0.0, 218.0))
+                .z_index(14)
+        })
+        .background_color(float_bg)
+        .corner_radius(14.0)
+        .border(|b| b.all(1).color(float_border))
+        .layout(|l| l.direction(LeftToRight).padding((6, 8, 6, 8)).gap(4))
+        .children(|ui| {
+            if has_transfer {
+                sel_action_button(ui, state, theme, "sel-place", "Place", SelAction::Place);
+                sel_action_button(ui, state, theme, "sel-cancel", "✕", SelAction::Cancel);
+            } else {
+                sel_action_button(ui, state, theme, "sel-copy", "Copy", SelAction::Copy);
+                sel_action_button(ui, state, theme, "sel-cut", "Cut", SelAction::Cut);
+                sel_action_button(ui, state, theme, "sel-del", "Del", SelAction::Delete);
+            }
+        });
+}
+
+#[derive(Clone, Copy)]
+enum SelAction {
+    Copy,
+    Cut,
+    Delete,
+    Place,
+    Cancel,
+}
+
+fn sel_action_button(
+    ui: &mut Ui,
+    state: &mut AppState,
+    theme: &PlyTheme,
+    id: &'static str,
+    label: &str,
+    action: SelAction,
+) {
+    ui.element()
+        .id(id)
+        .width(fixed!(48.0))
+        .height(fixed!(32.0))
+        .background_color(theme.accent_soft)
+        .corner_radius(8.0)
+        .layout(|l| l.align(CenterX, CenterY))
+        .on_press(move |_, _| {})
+        .children(|ui| {
+            if ui.just_released() {
+                match action {
+                    SelAction::Copy => crate::selection_ops::copy_tile_selection(state),
+                    SelAction::Cut => crate::selection_ops::cut_tile_selection(state),
+                    SelAction::Delete => crate::selection_ops::delete_selection(state),
+                    SelAction::Place => crate::selection_ops::place_tile_selection_transfer(state),
+                    SelAction::Cancel => {
+                        crate::selection_ops::cancel_tile_selection_transfer(state)
+                    }
+                }
+            }
+            ui.text(label, |t| {
+                t.font_size(12).color(theme.text).alignment(CenterX)
+            });
+        });
 }
 
 /// Bottom floating controls (D-pad + zoom) rendered at the editor/root level

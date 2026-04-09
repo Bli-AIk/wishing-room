@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use ply_engine::prelude::*;
 
@@ -54,6 +54,10 @@ pub(crate) fn render_canvas(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme)
             let scaled_w = map_px_w * zoom;
             let scaled_h = map_px_h * zoom;
 
+            // Collect selection cells for overlay rendering.
+            let sel_cells = state.tile_selection_cells.clone();
+            let preview_cells = state.tile_selection_preview_cells.clone();
+
             // Only rebuild the canvas texture when content or zoom changed.
             let needs_rebuild =
                 state.canvas_dirty || state.canvas_cached_zoom != state.zoom_percent;
@@ -69,6 +73,8 @@ pub(crate) fn render_canvas(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme)
                     map_px_h,
                     zoom,
                     theme,
+                    sel_cells.as_ref(),
+                    preview_cells.as_ref(),
                 );
                 state.canvas_dirty = false;
                 state.canvas_cached_zoom = state.zoom_percent;
@@ -123,6 +129,8 @@ fn build_and_cache_canvas(
     map_px_h: f32,
     zoom: f32,
     theme: &PlyTheme,
+    selection_cells: Option<&BTreeSet<(i32, i32)>>,
+    preview_cells: Option<&BTreeSet<(i32, i32)>>,
 ) {
     let scaled_w = map_px_w * zoom;
     let scaled_h = map_px_h * zoom;
@@ -158,6 +166,16 @@ fn build_and_cache_canvas(
     );
     if show_grid {
         draw_grid(map.width, map.height, tile_w * zoom, tile_h * zoom, theme);
+    }
+
+    // Draw selection overlays on top of the grid.
+    let cell_w = tile_w * zoom;
+    let cell_h = tile_h * zoom;
+    if let Some(cells) = selection_cells {
+        draw_selection_overlay(cells, cell_w, cell_h, scaled_h, false);
+    }
+    if let Some(cells) = preview_cells {
+        draw_selection_overlay(cells, cell_w, cell_h, scaled_h, true);
     }
 
     set_default_camera();
@@ -266,5 +284,54 @@ fn draw_grid(cols: u32, rows: u32, cell_w: f32, cell_h: f32, theme: &PlyTheme) {
     for row in 0..=rows {
         let y = row as f32 * cell_h;
         draw_line(0.0, y, total_w, y, 1.0, grid_color);
+    }
+}
+
+/// Draw selection overlay for a set of cells.
+/// `is_preview` uses a lighter fill for drag-in-progress feedback.
+/// `canvas_h` is needed to flip Y: the render-target Camera2D inverts Y
+/// relative to the map texture (which passes through an extra render target).
+fn draw_selection_overlay(
+    cells: &BTreeSet<(i32, i32)>,
+    cell_w: f32,
+    cell_h: f32,
+    canvas_h: f32,
+    is_preview: bool,
+) {
+    if cells.is_empty() {
+        return;
+    }
+    let fill_alpha = if is_preview { 0.10 } else { 0.16 };
+    let fill = MacroquadColor::new(0.0, 0.0, 0.0, fill_alpha);
+
+    // Animated border pulse: opacity oscillates between 0.42 and 0.96 over 880ms.
+    let t = get_time();
+    let pulse = 0.69 + 0.27 * ((t * std::f64::consts::TAU / 0.88).sin() as f32);
+    let border = MacroquadColor::new(0.96, 0.97, 0.98, pulse);
+
+    for &(cx, cy) in cells {
+        let px = cx as f32 * cell_w;
+        // Flip Y: the map texture goes through two render targets (double-invert = correct),
+        // but this overlay is drawn in the second render target only (single-invert = flipped).
+        let py = canvas_h - (cy + 1) as f32 * cell_h;
+        draw_rectangle(px, py, cell_w, cell_h, fill);
+
+        // Border edges: after Y-flip, top/bottom drawing edges are swapped on screen.
+        let has_left = cells.contains(&(cx - 1, cy));
+        let has_right = cells.contains(&(cx + 1, cy));
+        let has_top = cells.contains(&(cx, cy - 1));
+        let has_bottom = cells.contains(&(cx, cy + 1));
+        if !has_top {
+            draw_line(px, py + cell_h, px + cell_w, py + cell_h, 1.0, border);
+        }
+        if !has_bottom {
+            draw_line(px, py, px + cell_w, py, 1.0, border);
+        }
+        if !has_left {
+            draw_line(px, py, px, py + cell_h, 1.0, border);
+        }
+        if !has_right {
+            draw_line(px + cell_w, py, px + cell_w, py + cell_h, 1.0, border);
+        }
     }
 }
