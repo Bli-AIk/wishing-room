@@ -24,12 +24,26 @@ static THUMB_FRONTIER: GraphicAsset = GraphicAsset::Bytes {
     data: include_bytes!("../../../assets/review/dashboard-frontier.png"),
 };
 
-static EMBEDDED_SAMPLES: [EmbeddedSample; 3] = [
+static EMBEDDED_SAMPLES: [EmbeddedSample; 5] = [
     EmbeddedSample {
         path: "stage1-basic/map.tmx",
         title: "map.tmx",
         subtitle: "assets/samples/stage1-basic/map.tmx",
         meta: "Modified 2026-03-23 11:41 • 924 B • 6×5 @ 16 px",
+        thumb: &THUMB_STAGE1,
+    },
+    EmbeddedSample {
+        path: "ruins/ruins_2.tmx",
+        title: "Ruins 2",
+        subtitle: "assets/samples/ruins/ruins_2.tmx",
+        meta: "16×12 @ 20 px • Souprune",
+        thumb: &THUMB_STAGE1,
+    },
+    EmbeddedSample {
+        path: "ruins/ruins_3.tmx",
+        title: "Ruins 3",
+        subtitle: "assets/samples/ruins/ruins_3.tmx",
+        meta: "37×12 @ 20 px • Souprune",
         thumb: &THUMB_STAGE1,
     },
     EmbeddedSample {
@@ -57,7 +71,7 @@ pub(crate) fn embedded_sample(path: &str) -> Option<&'static EmbeddedSample> {
 }
 
 #[allow(dead_code)]
-pub(crate) fn embedded_sample_assets() -> [(&'static str, &'static [u8]); 11] {
+pub(crate) fn embedded_sample_assets() -> [(&'static str, &'static [u8]); 16] {
     [
         (
             "stage1-basic/map.tmx",
@@ -70,6 +84,26 @@ pub(crate) fn embedded_sample_assets() -> [(&'static str, &'static [u8]); 11] {
         (
             "stage1-basic/terrain.png",
             include_bytes!("../../../assets/samples/stage1-basic/terrain.png"),
+        ),
+        (
+            "ruins/ruins_2.tmx",
+            include_str!("../../../assets/samples/ruins/ruins_2.tmx").as_bytes(),
+        ),
+        (
+            "ruins/ruins_3.tmx",
+            include_str!("../../../assets/samples/ruins/ruins_3.tmx").as_bytes(),
+        ),
+        (
+            "ruins/ruins.tsx",
+            include_str!("../../../assets/samples/ruins/ruins.tsx").as_bytes(),
+        ),
+        (
+            "ruins/ruins_objects.tsx",
+            include_str!("../../../assets/samples/ruins/ruins_objects.tsx").as_bytes(),
+        ),
+        (
+            "ruins/tiles/ruins.png",
+            include_bytes!("../../../assets/samples/ruins/tiles/ruins.png"),
         ),
         (
             "maps/017-2.tmx",

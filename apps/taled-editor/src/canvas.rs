@@ -193,7 +193,7 @@ fn build_and_cache_canvas(
 
     let t1 = get_time();
 
-    let rt = render_target_msaa(scaled_w as u32, scaled_h as u32);
+    let rt = render_target(scaled_w as u32, scaled_h as u32);
     rt.texture.set_filter(FilterMode::Nearest);
     let mut cam = Camera2D::from_display_rect(Rect::new(0.0, 0.0, scaled_w, scaled_h));
     cam.render_target = Some(rt.clone());
@@ -237,13 +237,15 @@ fn build_and_cache_canvas(
 
     let t3 = get_time();
     let ms = |a: f64, b: f64| ((b - a) * 1000.0) as f32;
-    format!(
+    let perf = format!(
         "tile:{:.1} comp:{:.1} sel:{:.1}({sel_n}) tot:{:.1}ms",
         ms(t0, t1),
         ms(t1, t2),
         ms(t2, t3),
         ms(t0, t3)
-    )
+    );
+    eprintln!("[perf] {perf}");
+    perf
 }
 
 /// Retrieve the cached canvas texture, keeping both canvas and tilemap alive in TextureManager.
