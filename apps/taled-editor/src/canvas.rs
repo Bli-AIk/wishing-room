@@ -268,9 +268,10 @@ fn build_and_cache_canvas(
         draw_grid(map.width, map.height, tile_w * zoom, tile_h * zoom, theme);
     }
 
-    // Draw transfer floating tiles at half opacity.
+    // Draw transfer floating tiles with opaque backing to hide underlying tiles.
     if let Some(tp) = transfer_preview {
-        draw_transfer_preview(tp, map, textures, tile_w, tile_h, zoom, scaled_h);
+        let bg: MacroquadColor = theme.canvas_base.into();
+        draw_transfer_preview(tp, map, textures, tile_w, tile_h, zoom, scaled_h, bg);
     }
 
     let t2 = get_time();

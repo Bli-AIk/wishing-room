@@ -30,6 +30,8 @@ pub(super) fn draw_grid(cols: u32, rows: u32, cell_w: f32, cell_h: f32, theme: &
 }
 
 /// Draw semi-transparent floating tiles for transfer-mode preview.
+/// First draws an opaque background to hide underlying tiles, then renders
+/// the transfer tiles at 50% opacity so they don't blend with the map.
 pub(super) fn draw_transfer_preview(
     tp: &TransferPreview,
     map: &taled_core::Map,
@@ -38,10 +40,24 @@ pub(super) fn draw_transfer_preview(
     tile_h: f32,
     zoom: f32,
     canvas_h: f32,
+    bg_color: MacroquadColor,
 ) {
     let color = MacroquadColor::new(1.0, 1.0, 1.0, 0.5);
     let zw = tile_w * zoom;
     let zh = tile_h * zoom;
+    // First pass: draw opaque background to mask underlying tiles.
+    for row in 0..tp.height {
+        for col in 0..tp.width {
+            let idx = (row * tp.width + col) as usize;
+            if !tp.mask.get(idx).copied().unwrap_or(false) {
+                continue;
+            }
+            let dx = (tp.origin_x + col as i32) as f32 * zw;
+            let dy = canvas_h - (tp.origin_y + row as i32 + 1) as f32 * zh;
+            draw_rectangle(dx, dy, zw, zh, bg_color);
+        }
+    }
+    // Second pass: draw tiles at half opacity.
     for row in 0..tp.height {
         for col in 0..tp.width {
             let idx = (row * tp.width + col) as usize;
