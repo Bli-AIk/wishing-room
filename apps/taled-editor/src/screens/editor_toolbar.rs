@@ -175,22 +175,23 @@ fn render_placeholder_tool(
 }
 
 pub(crate) fn render_floating_controls(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
+    let safe_top = state.safe_inset_top;
     // Top-anchored controls
-    render_history_buttons(ui, state, theme);
-    render_layer_panel(ui, state, theme);
+    render_history_buttons(ui, state, theme, safe_top);
+    render_layer_panel(ui, state, theme, safe_top);
     // Selection action bar (appears when selection or transfer is active)
     if state.tile_selection_cells.is_some() || state.tile_selection_transfer.is_some() {
-        render_selection_actions(ui, state, theme);
+        render_selection_actions(ui, state, theme, safe_top);
     }
     // Bottom-positioned controls (using Top anchor with calculated Y offsets)
-    let canvas_h = (screen_height() - 56.0 - 114.0 - 68.0 - 72.0).max(200.0);
-    render_dpad_float(ui, state, theme, canvas_h);
-    render_zoom_float(ui, state, theme, canvas_h);
+    let canvas_h = (screen_height() - 56.0 - 114.0 - 68.0 - 72.0 - safe_top).max(200.0);
+    render_dpad_float(ui, state, theme, canvas_h, safe_top);
+    render_zoom_float(ui, state, theme, canvas_h, safe_top);
 }
 
 /// Floating bar with selection action buttons.
 /// Shows Copy/Cut/Del when selection is active, Place/Cancel during transfer.
-fn render_selection_actions(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
+fn render_selection_actions(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme, safe_top: f32) {
     let float_bg = Color::u_rgba(24, 24, 26, 245);
     let float_border = Color::u_rgba(255, 255, 255, 20);
     let has_transfer = state.tile_selection_transfer.is_some();
@@ -199,7 +200,7 @@ fn render_selection_actions(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme)
         .floating(|f| {
             f.anchor((Right, Top), (Right, Top))
                 .attach_root()
-                .offset((0.0, 218.0))
+                .offset((0.0, 218.0 + safe_top))
                 .z_index(14)
         })
         .background_color(float_bg)
@@ -263,9 +264,15 @@ fn sel_action_button(
 
 /// Bottom floating controls (D-pad + zoom) rendered at the editor/root level
 /// using absolute Y positions since Bottom anchoring is unreliable in Ply.
-fn render_dpad_float(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme, canvas_h: f32) {
-    // Position from screen top: header(56) + tile_strip(114) + canvas_h - dpad(92) - margin(8)
-    let dpad_y = 56.0 + 114.0 + canvas_h - 92.0 - 8.0;
+fn render_dpad_float(
+    ui: &mut Ui,
+    state: &mut AppState,
+    theme: &PlyTheme,
+    canvas_h: f32,
+    safe_top: f32,
+) {
+    // Position from screen top: safe_top + header(56) + tile_strip(114) + canvas_h - dpad(92) - margin(8)
+    let dpad_y = safe_top + 56.0 + 114.0 + canvas_h - 92.0 - 8.0;
     ui.element()
         .id("dpad")
         .width(fixed!(92.0))
@@ -285,8 +292,14 @@ fn render_dpad_float(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme, canvas
         });
 }
 
-fn render_zoom_float(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme, canvas_h: f32) {
-    let zoom_y = 56.0 + 114.0 + canvas_h - 42.0 - 8.0;
+fn render_zoom_float(
+    ui: &mut Ui,
+    state: &mut AppState,
+    theme: &PlyTheme,
+    canvas_h: f32,
+    safe_top: f32,
+) {
+    let zoom_y = safe_top + 56.0 + 114.0 + canvas_h - 42.0 - 8.0;
     ui.element()
         .id("zoom-float")
         .width(fixed!(118.0))
@@ -317,7 +330,7 @@ fn render_zoom_float(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme, canvas
         });
 }
 
-fn render_history_buttons(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
+fn render_history_buttons(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme, safe_top: f32) {
     let session_can = state
         .session
         .as_ref()
@@ -333,7 +346,7 @@ fn render_history_buttons(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
         .floating(|f| {
             f.anchor((Left, Top), (Left, Top))
                 .attach_root()
-                .offset((0.0, 174.0))
+                .offset((6.0, 174.0 + safe_top))
                 .z_index(12)
         })
         .layout(|l| l.direction(LeftToRight).gap(6))
@@ -363,7 +376,7 @@ fn render_history_buttons(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
         });
 }
 
-fn render_layer_panel(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
+fn render_layer_panel(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme, safe_top: f32) {
     let lang = state.resolved_language();
     let layer_name = state
         .session
@@ -381,7 +394,7 @@ fn render_layer_panel(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
         .floating(|f| {
             f.anchor((Right, Top), (Right, Top))
                 .attach_root()
-                .offset((0.0, 174.0))
+                .offset((-6.0, 174.0 + safe_top))
                 .z_index(12)
         })
         .background_color(float_bg)
