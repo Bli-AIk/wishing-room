@@ -1,3 +1,5 @@
+use std::cell::Cell;
+
 use ply_engine::prelude::*;
 
 use crate::app_state::{AppState, MobileScreen};
@@ -6,6 +8,12 @@ use crate::l10n;
 use crate::theme::PlyTheme;
 
 use super::widgets::{bottom_nav, dashboard_nav_items, page_header};
+
+// Persists across frames so on_press (frame N) and on_release (frame N+1)
+// share the same storage in Ply's immediate-mode rebuild cycle.
+thread_local! {
+    static LINK_PRESS_POS: Cell<(f32, f32)> = const { Cell::new((0.0, 0.0)) };
+}
 
 static LOGO_BYTES: &[u8] = include_bytes!("../../../../assets/branding/taled.png");
 
@@ -302,16 +310,27 @@ fn info_card_with_links(
                     .children(|ui| {
                         for &(title_key, url) in links {
                             let title = l10n::text(lang, title_key);
-                            let url_owned = url.to_string();
+                            let url_for_release = url.to_string();
+                            let url_for_display = url.to_string();
                             ui.element()
                                 .width(grow!())
                                 .height(fit!())
                                 .layout(|l| l.direction(LeftToRight).align(Left, CenterY).gap(4))
-                                .on_press(move |_, _| {})
-                                .children(|ui| {
-                                    if ui.just_released() {
-                                        crate::platform::open_url(&url_owned);
+                                .on_press(move |_, pointer| {
+                                    LINK_PRESS_POS.set((
+                                        pointer.position.x,
+                                        pointer.position.y,
+                                    ));
+                                })
+                                .on_release(move |_, pointer| {
+                                    let (px, py) = LINK_PRESS_POS.get();
+                                    let dx = pointer.position.x - px;
+                                    let dy = pointer.position.y - py;
+                                    if dx * dx + dy * dy < 100.0 {
+                                        crate::platform::open_url(&url_for_release);
                                     }
+                                })
+                                .children(|ui| {
                                     // Left: title + URL stacked; clip_x prevents
                                     // long URL min_width from expanding the layout.
                                     ui.element()
@@ -321,7 +340,7 @@ fn info_card_with_links(
                                         .layout(|l| l.direction(TopToBottom).gap(2))
                                         .children(|ui| {
                                             ui.text(&title, |t| t.font_size(14).color(theme.text));
-                                            ui.text(&url_owned, |t| {
+                                            ui.text(&url_for_display, |t| {
                                                 t.font_size(12).color(LINK_URL_COLOR)
                                             });
                                         });
