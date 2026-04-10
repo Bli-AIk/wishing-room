@@ -13,14 +13,17 @@ pub(crate) fn load_embedded_sample(state: &mut AppState) {
 }
 
 pub(crate) fn load_sample_by_path(state: &mut AppState, path: &str) {
+    crate::logging::append(&format!("loading sample: {path}"));
     match EditorSession::load_embedded(path, embedded_sample_assets()) {
         Ok(session) => {
             let label = embedded_sample(path).map_or(path, |s| s.title);
             state.status = format!("Loaded embedded sample {label} ({path}).");
+            crate::logging::append(&format!("loaded ok: {}", state.status));
             install_session(state, session);
         }
         Err(error) => {
             state.status = format!("Embedded demo load failed: {error}");
+            crate::logging::append(&format!("load FAILED: {}", state.status));
         }
     }
 }

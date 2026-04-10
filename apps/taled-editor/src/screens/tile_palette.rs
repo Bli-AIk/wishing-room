@@ -101,7 +101,10 @@ fn render_tile_chip(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme, tile: &
         });
 }
 
-fn crop_tile_texture(state: &AppState, tile: &PaletteTile) -> Option<Texture2D> {
+fn crop_tile_texture(state: &mut AppState, tile: &PaletteTile) -> Option<Texture2D> {
+    if let Some(cached) = state.tile_chip_cache.get(&tile.gid) {
+        return Some(cached.texture.clone());
+    }
     let session = state.session.as_ref()?;
     let texture = state.tileset_textures.get(&tile.tileset_index)?;
     let tile_ref = session.document().map.tile_reference_for_gid(tile.gid)?;
@@ -120,20 +123,28 @@ fn crop_tile_texture(state: &AppState, tile: &PaletteTile) -> Option<Texture2D> 
     let ox = (chip_size - rw) / 2.0;
     let oy = (chip_size - rh) / 2.0;
 
-    let tex = render_to_texture(chip_size, chip_size, || {
-        clear_background(MacroquadColor::from_rgba(0x10, 0x11, 0x13, 255));
-        draw_texture_ex(
-            texture,
-            ox,
-            oy,
-            WHITE,
-            DrawTextureParams {
-                source: Some(Rect::new(sx, sy, tw, th)),
-                dest_size: Some(Vec2::new(rw, rh)),
-                ..Default::default()
-            },
-        );
-    });
-    tex.set_filter(FilterMode::Nearest);
+    // Keep the full RenderTarget alive — Android frees the GL framebuffer on drop.
+    let rt = render_target(chip_size as u32, chip_size as u32);
+    rt.texture.set_filter(FilterMode::Nearest);
+    let mut cam = Camera2D::from_display_rect(Rect::new(0.0, 0.0, chip_size, chip_size));
+    cam.render_target = Some(rt.clone());
+    set_camera(&cam);
+
+    clear_background(MacroquadColor::from_rgba(0x10, 0x11, 0x13, 255));
+    draw_texture_ex(
+        texture,
+        ox,
+        oy,
+        WHITE,
+        DrawTextureParams {
+            source: Some(Rect::new(sx, sy, tw, th)),
+            dest_size: Some(Vec2::new(rw, rh)),
+            ..Default::default()
+        },
+    );
+
+    set_default_camera();
+    let tex = rt.texture.clone();
+    state.tile_chip_cache.insert(tile.gid, rt);
     Some(tex)
 }

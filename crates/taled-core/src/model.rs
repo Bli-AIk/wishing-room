@@ -1,4 +1,5 @@
 use crate::error::{EditorError, Result};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -85,6 +86,12 @@ impl PropertyValue {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AnimationFrame {
+    pub tile_id: u32,
+    pub duration_ms: u32,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct TilesetImage {
     pub source: PathBuf,
@@ -102,6 +109,8 @@ pub struct Tileset {
     pub tile_count: u32,
     pub columns: u32,
     pub image: TilesetImage,
+    /// Tile animations keyed by local tile ID.
+    pub animations: BTreeMap<u32, Vec<AnimationFrame>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -341,6 +350,12 @@ impl Map {
         self.height * self.tile_height
     }
 
+    pub fn has_animations(&self) -> bool {
+        self.tilesets
+            .iter()
+            .any(|ts| !ts.tileset.animations.is_empty())
+    }
+
     pub fn layer(&self, index: usize) -> Option<&Layer> {
         self.layers.get(index)
     }
@@ -397,6 +412,32 @@ pub struct TileReference<'a> {
     pub tileset_index: usize,
     pub tileset: &'a TilesetReference,
     pub local_id: u32,
+}
+
+impl TileReference<'_> {
+    /// Returns the local tile ID to render at the given elapsed time (seconds).
+    /// If this tile has an animation, cycles through frames; otherwise returns `local_id`.
+    pub fn animated_local_id(&self, elapsed_secs: f64) -> u32 {
+        let Some(frames) = self.tileset.tileset.animations.get(&self.local_id) else {
+            return self.local_id;
+        };
+        if frames.is_empty() {
+            return self.local_id;
+        }
+        let total_ms: u64 = frames.iter().map(|f| u64::from(f.duration_ms)).sum();
+        if total_ms == 0 {
+            return self.local_id;
+        }
+        let elapsed_ms = (elapsed_secs * 1000.0) as u64 % total_ms;
+        let mut acc = 0u64;
+        for frame in frames {
+            acc += u64::from(frame.duration_ms);
+            if elapsed_ms < acc {
+                return frame.tile_id;
+            }
+        }
+        frames.last().map_or(self.local_id, |f| f.tile_id)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

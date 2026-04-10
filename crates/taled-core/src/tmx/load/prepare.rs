@@ -181,10 +181,17 @@ fn prepare_tileset(xml: &str) -> Result<PreparedTileset> {
         match child.tag_name().name() {
             "image" => {}
             "tile" => {
-                return Err(unsupported(
-                    "tileset.tile",
-                    "tile metadata and collection-of-images workflows are out of stage-1 scope",
-                ));
+                // Allow <tile> elements that carry animation or collision metadata.
+                // Reject collection-of-images tiles (those with an <image> child).
+                let has_image_child = child
+                    .children()
+                    .any(|c| c.is_element() && c.tag_name().name() == "image");
+                if has_image_child {
+                    return Err(unsupported(
+                        "tileset.tile.image",
+                        "collection-of-images tilesets are out of scope",
+                    ));
+                }
             }
             "properties" => {
                 return Err(unsupported(

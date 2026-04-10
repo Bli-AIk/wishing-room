@@ -50,6 +50,10 @@ fn about_body_content(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
         &l10n::text(state.resolved_language(), "settings-about-license-value"),
     );
 
+    if let Some(p) = crate::logging::log_path() {
+        row_card(ui, theme, "Log file", p);
+    }
+
     disclosure_card(ui, state, theme);
 
     info_card_with_links(

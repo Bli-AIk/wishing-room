@@ -1,9 +1,10 @@
 use super::{LayerKind, LayerMetadata, MapMetadata, PreparedMap, TilesetMetadata};
 use crate::error::{EditorError, Result, unsupported};
 use crate::model::{
-    Layer, Map, MapObject, ObjectLayer, ObjectShape, Orientation, Property, PropertyValue,
-    TileLayer, Tileset, TilesetImage, TilesetReference,
+    AnimationFrame, Layer, Map, MapObject, ObjectLayer, ObjectShape, Orientation, Property,
+    PropertyValue, TileLayer, Tileset, TilesetImage, TilesetReference,
 };
+use std::collections::BTreeMap;
 use std::io::{self, Cursor};
 use std::path::Path;
 use tiled::{
@@ -148,6 +149,22 @@ fn convert_tileset(metadata: &TilesetMetadata, tileset: &TiledTileset) -> Result
         EditorError::Invalid("tileset image height must be a positive integer".to_string())
     })?;
 
+    let mut animations = BTreeMap::new();
+    for (tile_id, tile) in tileset.tiles() {
+        if let Some(frames) = &tile.animation {
+            let converted: Vec<AnimationFrame> = frames
+                .iter()
+                .map(|f| AnimationFrame {
+                    tile_id: f.tile_id,
+                    duration_ms: f.duration,
+                })
+                .collect();
+            if !converted.is_empty() {
+                animations.insert(tile_id, converted);
+            }
+        }
+    }
+
     Ok(TilesetReference {
         first_gid: metadata.first_gid,
         source: metadata.source.clone(),
@@ -164,6 +181,7 @@ fn convert_tileset(metadata: &TilesetMetadata, tileset: &TiledTileset) -> Result
                 width: image_width,
                 height: image_height,
             },
+            animations,
         },
     })
 }

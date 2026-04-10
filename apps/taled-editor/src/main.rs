@@ -4,6 +4,7 @@ mod edit_ops;
 mod embedded_samples;
 mod icons;
 mod l10n;
+mod logging;
 mod platform;
 mod screens;
 mod selection_ops;
@@ -27,7 +28,7 @@ fn window_conf() -> macroquad::conf::Conf {
             window_width: 384,
             window_height: 688,
             high_dpi: true,
-            sample_count: 4,
+            sample_count: 1,
             platform: miniquad::conf::Platform {
                 webgl_version: miniquad::conf::WebGLVersion::WebGL2,
                 ..Default::default()
@@ -56,11 +57,27 @@ fn resolve_font() -> &'static FontAsset {
 
 #[macroquad::main(window_conf)]
 async fn main() {
+    if let Some(dir) = platform::files_dir() {
+        logging::init(&dir);
+    }
+    logging::append(&format!(
+        "screen {}x{} dpi={:.1}",
+        screen_width() as u32,
+        screen_height() as u32,
+        macroquad::miniquad::window::dpi_scale(),
+    ));
+
     let mut ply = Ply::<()>::new(resolve_font()).await;
     let mut state = AppState::new();
     load_embedded_sample(&mut state);
+    logging::append(&format!("loaded default sample: {}", state.status));
 
+    let mut frame_count: u32 = 0;
+    let mut prev_show_ms: f32 = 0.0;
+    let mut prev_next_ms: f32 = 0.0;
     loop {
+        let ft0 = get_time();
+
         let theme = PlyTheme::from_choice(state.theme_choice, &state.custom_theme);
         let bg: MacroquadColor = theme.background_elevated.into();
         clear_background(bg);
@@ -71,9 +88,37 @@ async fn main() {
 
         let mut ui = ply.begin();
 
+        let ft1 = get_time();
+
         ui::render(&mut ui, &mut state, &theme);
 
+        let ft2 = get_time();
+
+        // Log perf data every ~0.5 seconds
+        frame_count = frame_count.wrapping_add(1);
+        if frame_count.is_multiple_of(30) {
+            let ms = |a: f64, b: f64| ((b - a) * 1000.0) as f32;
+            logging::append(&format!(
+                "f={frame_count} fps={} ft={:.1}ms loop=[begin:{:.1} render:{:.1} show:{:.1} next:{:.1}] cvs_n={} perf=[{}] scr={:?}",
+                get_fps(),
+                get_frame_time() * 1000.0,
+                ms(ft0, ft1),
+                ms(ft1, ft2),
+                prev_show_ms,
+                prev_next_ms,
+                state.canvas_rebuild_count,
+                state.perf_info,
+                state.mobile_screen,
+            ));
+            state.canvas_rebuild_count = 0;
+        }
+
+        let ts0 = get_time();
         ui.show(|_| {}).await;
+        let ts1 = get_time();
         next_frame().await;
+        let ts2 = get_time();
+        prev_show_ms = ((ts1 - ts0) * 1000.0) as f32;
+        prev_next_ms = ((ts2 - ts1) * 1000.0) as f32;
     }
 }

@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Instant;
 
-use ply_engine::prelude::Texture2D;
+use ply_engine::prelude::{RenderTarget, Texture2D};
 use taled_core::EditorSession;
 
 use crate::icons::IconTintCache;
@@ -180,6 +180,9 @@ pub(crate) struct TileSelectionTransfer {
 pub(crate) struct AppState {
     pub(crate) session: Option<EditorSession>,
     pub(crate) tileset_textures: BTreeMap<usize, Texture2D>,
+    /// Cached cropped tile chip render targets (gid → RenderTarget). Invalidated on tileset reload.
+    /// We keep the full RenderTarget alive so Android doesn't free the backing GL framebuffer.
+    pub(crate) tile_chip_cache: BTreeMap<u32, RenderTarget>,
     pub(crate) active_layer: usize,
     pub(crate) selected_gid: u32,
     pub(crate) selected_cell: Option<(u32, u32)>,
@@ -233,6 +236,8 @@ pub(crate) struct AppState {
     pub(crate) logo_texture: Option<Texture2D>,
     pub(crate) debug_info: String,
     pub(crate) perf_info: String,
+    /// How many times the canvas was rebuilt since last log entry.
+    pub(crate) canvas_rebuild_count: u32,
     /// Frame countdown for deferred centering (0 = done, >0 = frames remaining).
     pub(crate) pending_canvas_center: u8,
     pub(crate) center_debug: String,
@@ -244,6 +249,7 @@ impl AppState {
         Self {
             session: None,
             tileset_textures: BTreeMap::new(),
+            tile_chip_cache: BTreeMap::new(),
             active_layer: 0,
             selected_gid: 0,
             selected_cell: None,
@@ -296,6 +302,7 @@ impl AppState {
             logo_texture: None,
             debug_info: String::new(),
             perf_info: String::new(),
+            canvas_rebuild_count: 0,
             pending_canvas_center: 0,
             center_debug: String::new(),
         }

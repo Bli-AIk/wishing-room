@@ -81,6 +81,74 @@ fn android_open_url(url: &str) {
     }
 }
 
+/// Return the app-private files directory (for logging, etc.).
+#[cfg(target_os = "android")]
+pub(crate) fn files_dir() -> Option<String> {
+    // SAFETY: All JNI pointers come from miniquad's verified Android runtime.
+    unsafe {
+        use macroquad::miniquad::native::android::{ACTIVITY, attach_jni_env};
+
+        let env = attach_jni_env();
+        if env.is_null() || ACTIVITY.is_null() {
+            return None;
+        }
+
+        let get_object_class = (**env).GetObjectClass.unwrap();
+        let get_method = (**env).GetMethodID.unwrap();
+        let call_obj = (**env).CallObjectMethod.unwrap();
+        let get_utf = (**env).GetStringUTFChars.unwrap();
+        let release_utf = (**env).ReleaseStringUTFChars.unwrap();
+
+        // activity.getExternalFilesDir(null) → File
+        let cls = get_object_class(env, ACTIVITY);
+        let mid = get_method(
+            env,
+            cls,
+            c"getExternalFilesDir".as_ptr(),
+            c"(Ljava/lang/String;)Ljava/io/File;".as_ptr(),
+        );
+        if mid.is_null() {
+            return None;
+        }
+        let file = call_obj(env, ACTIVITY, mid, std::ptr::null_mut::<()>());
+        if file.is_null() {
+            return None;
+        }
+
+        // File.getAbsolutePath() → String
+        let fcls = get_object_class(env, file);
+        let abs = get_method(
+            env,
+            fcls,
+            c"getAbsolutePath".as_ptr(),
+            c"()Ljava/lang/String;".as_ptr(),
+        );
+        if abs.is_null() {
+            return None;
+        }
+        let jpath = call_obj(env, file, abs);
+        if jpath.is_null() {
+            return None;
+        }
+
+        let mut copy = 0u8;
+        let chars = get_utf(env, jpath as _, &mut copy);
+        if chars.is_null() {
+            return None;
+        }
+        let path = std::ffi::CStr::from_ptr(chars)
+            .to_string_lossy()
+            .into_owned();
+        release_utf(env, jpath as _, chars);
+        Some(path)
+    }
+}
+
+#[cfg(not(target_os = "android"))]
+pub(crate) fn files_dir() -> Option<String> {
+    Some(".".to_owned())
+}
+
 /// Handle the Android back button (or Escape on desktop).
 pub(crate) fn is_back_pressed() -> bool {
     macroquad::prelude::is_key_pressed(macroquad::prelude::KeyCode::Back)

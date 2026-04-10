@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 
 use ply_engine::prelude::*;
@@ -5,9 +6,35 @@ use ply_engine::prelude::*;
 use crate::app_state::AppState;
 use crate::theme::PlyTheme;
 
+thread_local! {
+    static REUSE_CANVAS_RT: RefCell<Option<(RenderTarget, u32, u32)>> = const { RefCell::new(None) };
+    static REUSE_TILEMAP_RT: RefCell<Option<(RenderTarget, u32, u32)>> = const { RefCell::new(None) };
+}
+
+/// Reuse an existing MSAA render target when dimensions match, avoiding per-frame GPU allocation.
+fn reuse_msaa_rt(
+    storage: &'static std::thread::LocalKey<RefCell<Option<(RenderTarget, u32, u32)>>>,
+    w: u32,
+    h: u32,
+) -> RenderTarget {
+    storage.with_borrow_mut(|slot| {
+        if let Some((rt, ew, eh)) = slot
+            && *ew == w
+            && *eh == h
+        {
+            return rt.clone();
+        }
+        let rt = render_target_msaa(w, h);
+        rt.texture.set_filter(FilterMode::Nearest);
+        *slot = Some((rt.clone(), w, h));
+        rt
+    })
+}
+
 /// Load tileset image data into macroquad Texture2D objects.
 pub(crate) fn load_tileset_textures(state: &mut AppState) {
     state.tileset_textures.clear();
+    state.tile_chip_cache.clear();
     let Some(session) = state.session.as_ref() else {
         return;
     };
@@ -20,6 +47,7 @@ pub(crate) fn load_tileset_textures(state: &mut AppState) {
             }
             Err(e) => {
                 eprintln!("Failed to load tileset {index} image: {e}");
+                crate::logging::append(&format!("tileset {index} image FAIL: {e}"));
             }
         }
     }
@@ -80,6 +108,7 @@ pub(crate) fn render_canvas(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme)
                     tiles_dirty,
                 );
                 state.perf_info = perf;
+                state.canvas_rebuild_count += 1;
                 state.canvas_dirty = false;
                 state.tiles_dirty = false;
                 state.canvas_cached_zoom = state.zoom_percent;
@@ -115,7 +144,12 @@ fn render_debug_overlay(ui: &mut Ui, info: &str) {
     ui.element()
         .width(grow!())
         .height(fixed!(16.0))
-        .floating(|f| f.attach_parent().offset((0.0, 0.0)).passthrough())
+        .floating(|f| {
+            f.attach_parent()
+                .offset((0.0, 0.0))
+                .passthrough()
+                .z_index(100)
+        })
         .children(|ui| {
             ui.text(info, |t| {
                 t.font_size(10).color(Color::from((255u8, 255, 0, 200)))
@@ -193,7 +227,7 @@ fn build_and_cache_canvas(
 
     let t1 = get_time();
 
-    let rt = render_target(scaled_w as u32, scaled_h as u32);
+    let rt = reuse_msaa_rt(&REUSE_CANVAS_RT, scaled_w as u32, scaled_h as u32);
     rt.texture.set_filter(FilterMode::Nearest);
     let mut cam = Camera2D::from_display_rect(Rect::new(0.0, 0.0, scaled_w, scaled_h));
     cam.render_target = Some(rt.clone());
@@ -228,6 +262,8 @@ fn build_and_cache_canvas(
         draw_selection_overlay(cells, cell_w, cell_h, scaled_h, true);
     }
 
+    let t3 = get_time();
+
     set_default_camera();
 
     ply_engine::renderer::TEXTURE_MANAGER
@@ -235,14 +271,15 @@ fn build_and_cache_canvas(
         .expect("texture manager lock")
         .cache(CANVAS_CACHE_KEY.to_string(), rt);
 
-    let t3 = get_time();
+    let t4 = get_time();
     let ms = |a: f64, b: f64| ((b - a) * 1000.0) as f32;
     let perf = format!(
-        "tile:{:.1} comp:{:.1} sel:{:.1}({sel_n}) tot:{:.1}ms",
+        "tile:{:.1} comp:{:.1} sel:{:.1}({sel_n}) flush:{:.1} tot:{:.1}ms",
         ms(t0, t1),
         ms(t1, t2),
         ms(t2, t3),
-        ms(t0, t3)
+        ms(t3, t4),
+        ms(t0, t4)
     );
     eprintln!("[perf] {perf}");
     perf
@@ -301,7 +338,7 @@ fn render_tile_map(
 ) -> RenderTarget {
     let empty_color: MacroquadColor = theme.empty_tile.into();
 
-    let rt = render_target_msaa(map_px_w as u32, map_px_h as u32);
+    let rt = reuse_msaa_rt(&REUSE_TILEMAP_RT, map_px_w as u32, map_px_h as u32);
     rt.texture.set_filter(FilterMode::Nearest);
     let mut cam = Camera2D::from_display_rect(Rect::new(0.0, 0.0, map_px_w, map_px_h));
     cam.render_target = Some(rt.clone());
