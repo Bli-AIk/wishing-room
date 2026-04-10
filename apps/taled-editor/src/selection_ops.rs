@@ -53,6 +53,7 @@ pub(crate) fn cut_tile_selection(state: &mut AppState) {
     match clear_result {
         Ok(()) => {
             state.canvas_dirty = true;
+            state.tiles_dirty = true;
             state.tile_clipboard = Some(clipboard);
             state.tile_selection_transfer = Some(TileSelectionTransfer {
                 mode: TileSelectionTransferMode::Cut,
@@ -91,6 +92,7 @@ pub(crate) fn delete_selection(state: &mut AppState) {
     match result {
         Ok(()) => {
             state.canvas_dirty = true;
+            state.tiles_dirty = true;
             state
                 .undo_action_order
                 .push(crate::app_state::UndoActionKind::DocumentEdit);
@@ -162,6 +164,7 @@ pub(crate) fn place_tile_selection_transfer(state: &mut AppState) {
     match result {
         Ok(()) => {
             state.canvas_dirty = true;
+            state.tiles_dirty = true;
             state
                 .undo_action_order
                 .push(crate::app_state::UndoActionKind::DocumentEdit);
@@ -217,6 +220,7 @@ pub(crate) fn cancel_tile_selection_transfer(state: &mut AppState) {
             state.status = "Cancel failed: could not restore cut region.".to_string();
         }
         state.canvas_dirty = true;
+        state.tiles_dirty = true;
     }
 
     dismiss_tile_selection(state);

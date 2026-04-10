@@ -216,6 +216,9 @@ pub(crate) struct AppState {
     pub(crate) camera_transition_active: bool,
     pub(crate) status: String,
     pub(crate) canvas_dirty: bool,
+    /// Set when tile data changes (paint/erase/fill/delete/place/undo of edits).
+    /// When false, the cached tilemap texture is reused (skipping expensive re-render).
+    pub(crate) tiles_dirty: bool,
     /// Cached zoom percent for detecting zoom changes that need re-render.
     pub(crate) canvas_cached_zoom: i32,
     /// Interleaved undo action order (document edits + selection changes).
@@ -229,6 +232,7 @@ pub(crate) struct AppState {
     pub(crate) icon_cache: IconTintCache,
     pub(crate) logo_texture: Option<Texture2D>,
     pub(crate) debug_info: String,
+    pub(crate) perf_info: String,
     /// Frame countdown for deferred centering (0 = done, >0 = frames remaining).
     pub(crate) pending_canvas_center: u8,
     pub(crate) center_debug: String,
@@ -276,6 +280,7 @@ impl AppState {
             camera_transition_active: false,
             status: "Welcome to Taled".to_string(),
             canvas_dirty: true,
+            tiles_dirty: true,
             canvas_cached_zoom: 0,
             undo_action_order: Vec::new(),
             redo_action_order: Vec::new(),
@@ -290,6 +295,7 @@ impl AppState {
             },
             logo_texture: None,
             debug_info: String::new(),
+            perf_info: String::new(),
             pending_canvas_center: 0,
             center_debug: String::new(),
         }

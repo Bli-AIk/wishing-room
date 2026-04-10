@@ -52,6 +52,7 @@ fn install_session(state: &mut AppState, session: EditorSession) {
     state.pinch_gesture = None;
     state.touch_edit_batch_active = false;
     state.canvas_dirty = true;
+    state.tiles_dirty = true;
     state.undo_action_order.clear();
     state.redo_action_order.clear();
     state.selection_undo_stack.clear();
@@ -101,6 +102,7 @@ pub(crate) fn apply_undo(state: &mut AppState) {
                 state.redo_action_order.push(UndoActionKind::DocumentEdit);
                 normalize_after_history_change(state);
                 state.canvas_dirty = true;
+                state.tiles_dirty = true;
                 state.status = "Undo applied.".to_string();
             }
         }
@@ -113,6 +115,7 @@ pub(crate) fn apply_undo(state: &mut AppState) {
             if session.undo() {
                 normalize_after_history_change(state);
                 state.canvas_dirty = true;
+                state.tiles_dirty = true;
                 state.status = "Undo applied.".to_string();
             } else {
                 state.status = "Nothing to undo.".to_string();
@@ -145,6 +148,7 @@ pub(crate) fn apply_redo(state: &mut AppState) {
                 state.undo_action_order.push(UndoActionKind::DocumentEdit);
                 normalize_after_history_change(state);
                 state.canvas_dirty = true;
+                state.tiles_dirty = true;
                 state.status = "Redo applied.".to_string();
             }
         }
@@ -156,6 +160,7 @@ pub(crate) fn apply_redo(state: &mut AppState) {
             if session.redo() {
                 normalize_after_history_change(state);
                 state.canvas_dirty = true;
+                state.tiles_dirty = true;
                 state.status = "Redo applied.".to_string();
             } else {
                 state.status = "Nothing to redo.".to_string();

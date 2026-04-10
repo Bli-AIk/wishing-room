@@ -19,6 +19,7 @@ where
     match session.edit(edit) {
         Ok(()) => {
             state.canvas_dirty = true;
+            state.tiles_dirty = true;
         }
         Err(error) => state.status = format!("Edit failed: {error}"),
     }
