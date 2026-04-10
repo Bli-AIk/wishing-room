@@ -4,6 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use ply_engine::prelude::*;
 
 use crate::app_state::AppState;
+use crate::canvas_overlay::{TransferPreview, draw_grid, draw_selection_overlay, draw_transfer_preview};
 use crate::theme::PlyTheme;
 
 thread_local! {
@@ -87,6 +88,20 @@ pub(crate) fn render_canvas(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme)
             let sel_cells = state.tile_selection_cells.clone();
             let preview_cells = state.tile_selection_preview_cells.clone();
 
+            // Collect transfer preview data for semi-transparent floating tile rendering.
+            let transfer_preview = state.tile_selection_transfer.as_ref().and_then(|tr| {
+                let region = state.tile_selection.as_ref()?;
+                let (ox, oy, _, _) = crate::app_state::selection_bounds(region);
+                Some(TransferPreview {
+                    origin_x: ox,
+                    origin_y: oy,
+                    width: tr.width,
+                    height: tr.height,
+                    tiles: tr.tiles.clone(),
+                    mask: tr.mask.clone(),
+                })
+            });
+
             // Only rebuild the canvas texture when content or zoom changed.
             let needs_rebuild =
                 state.canvas_dirty || state.canvas_cached_zoom != state.zoom_percent;
@@ -106,6 +121,7 @@ pub(crate) fn render_canvas(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme)
                     theme,
                     sel_cells.as_ref(),
                     preview_cells.as_ref(),
+                    transfer_preview.as_ref(),
                     tiles_dirty,
                 );
                 state.perf_info = perf;
@@ -184,6 +200,7 @@ fn build_and_cache_canvas(
     theme: &PlyTheme,
     selection_cells: Option<&BTreeSet<(i32, i32)>>,
     preview_cells: Option<&BTreeSet<(i32, i32)>>,
+    transfer_preview: Option<&TransferPreview>,
     tiles_dirty: bool,
 ) -> String {
     let scaled_w = map_px_w * zoom;
@@ -249,6 +266,11 @@ fn build_and_cache_canvas(
     );
     if show_grid {
         draw_grid(map.width, map.height, tile_w * zoom, tile_h * zoom, theme);
+    }
+
+    // Draw transfer floating tiles at half opacity.
+    if let Some(tp) = transfer_preview {
+        draw_transfer_preview(tp, map, textures, tile_w, tile_h, zoom);
     }
 
     let t2 = get_time();
@@ -409,115 +431,4 @@ fn render_tile_map(
 
     set_default_camera();
     rt
-}
-
-fn draw_grid(cols: u32, rows: u32, cell_w: f32, cell_h: f32, theme: &PlyTheme) {
-    let grid_color: MacroquadColor = theme.grid_line.into();
-    let total_w = cols as f32 * cell_w;
-    let total_h = rows as f32 * cell_h;
-
-    for col in 0..=cols {
-        let x = col as f32 * cell_w;
-        draw_line(x, 0.0, x, total_h, 1.0, grid_color);
-    }
-    for row in 0..=rows {
-        let y = row as f32 * cell_h;
-        draw_line(0.0, y, total_w, y, 1.0, grid_color);
-    }
-}
-
-/// Draw selection overlay for a set of cells using horizontal span merging.
-/// `is_preview` uses a lighter fill for drag-in-progress feedback.
-/// `canvas_h` is needed to flip Y: the render-target Camera2D inverts Y
-/// relative to the map texture (which passes through an extra render target).
-fn draw_selection_overlay(
-    cells: &BTreeSet<(i32, i32)>,
-    cell_w: f32,
-    cell_h: f32,
-    canvas_h: f32,
-    is_preview: bool,
-) {
-    if cells.is_empty() {
-        return;
-    }
-    let fill_alpha = if is_preview { 0.10 } else { 0.16 };
-    let fill = MacroquadColor::new(0.0, 0.0, 0.0, fill_alpha);
-
-    let t = get_time();
-    let pulse = 0.69 + 0.27 * ((t * std::f64::consts::TAU / 0.88).sin() as f32);
-    let border = MacroquadColor::new(0.96, 0.97, 0.98, pulse);
-
-    // Group cells by row, then merge consecutive x-values into horizontal spans.
-    let mut rows: BTreeMap<i32, Vec<i32>> = BTreeMap::new();
-    for &(cx, cy) in cells {
-        rows.entry(cy).or_default().push(cx);
-    }
-    // (y, x_start, x_end) inclusive
-    let mut spans: Vec<(i32, i32, i32)> = Vec::new();
-    for (&y, xs) in &mut rows {
-        xs.sort_unstable();
-        let mut i = 0;
-        while i < xs.len() {
-            let start = xs[i];
-            let mut end = start;
-            while i + 1 < xs.len() && xs[i + 1] == end + 1 {
-                i += 1;
-                end = xs[i];
-            }
-            spans.push((y, start, end));
-            i += 1;
-        }
-    }
-
-    for &(row, x_start, x_end) in &spans {
-        let px = x_start as f32 * cell_w;
-        let py = canvas_h - (row + 1) as f32 * cell_h;
-        let span_w = (x_end - x_start + 1) as f32 * cell_w;
-        draw_rectangle(px, py, span_w, cell_h, fill);
-
-        // Left / right borders (only at span boundaries).
-        if !cells.contains(&(x_start - 1, row)) {
-            draw_line(px, py, px, py + cell_h, 1.0, border);
-        }
-        if !cells.contains(&(x_end + 1, row)) {
-            let rx = px + span_w;
-            draw_line(rx, py, rx, py + cell_h, 1.0, border);
-        }
-
-        // Top / bottom borders: merge consecutive cells that need a border into sub-spans.
-        draw_merged_h_border(cells, x_start, x_end, row, -1, cell_w, py + cell_h, border);
-        draw_merged_h_border(cells, x_start, x_end, row, 1, cell_w, py, border);
-    }
-}
-
-/// Draw a merged horizontal border line for cells in `x_start..=x_end` at `row`.
-/// `dy` is -1 for top border or +1 for bottom border (map-coordinate neighbor offset).
-fn draw_merged_h_border(
-    cells: &BTreeSet<(i32, i32)>,
-    x_start: i32,
-    x_end: i32,
-    row: i32,
-    dy: i32,
-    cell_w: f32,
-    line_y: f32,
-    color: MacroquadColor,
-) {
-    let mut seg_start: Option<i32> = None;
-    for x in x_start..=x_end {
-        if !cells.contains(&(x, row + dy)) {
-            if seg_start.is_none() {
-                seg_start = Some(x);
-            }
-        } else if let Some(ss) = seg_start {
-            let lx = ss as f32 * cell_w;
-            let rx = x as f32 * cell_w;
-            draw_line(lx, line_y, rx, line_y, 1.0, color);
-            seg_start = None;
-        }
-    }
-    if let Some(ss) = seg_start {
-        let lx = ss as f32 * cell_w;
-        let rx = (x_end + 1) as f32 * cell_w;
-        draw_line(lx, line_y, rx, line_y, 1.0, color);
-    }
 }

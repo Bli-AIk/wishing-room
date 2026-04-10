@@ -1,6 +1,7 @@
 pub(crate) mod about;
 pub(crate) mod dashboard;
 pub(crate) mod editor;
+pub(crate) mod editor_controls;
 pub(crate) mod editor_toolbar;
 pub(crate) mod layers;
 pub(crate) mod objects;

@@ -1,5 +1,6 @@
 mod app_state;
 mod canvas;
+mod canvas_overlay;
 mod edit_ops;
 mod embedded_samples;
 mod icons;
@@ -8,6 +9,7 @@ mod logging;
 mod platform;
 mod screens;
 mod selection_ops;
+mod selection_transform;
 mod session_ops;
 #[cfg(feature = "system-fonts")]
 mod system_font;

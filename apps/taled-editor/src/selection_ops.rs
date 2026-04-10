@@ -1,15 +1,29 @@
-use std::collections::BTreeSet;
-
 use taled_core::Layer;
 
 use crate::app_state::{
-    AppState, TileClipboard, TileSelectionRegion, TileSelectionTransfer, TileSelectionTransferMode,
-    selection_bounds,
+    AppState, TileClipboard, TileSelectionTransfer, TileSelectionTransferMode, selection_bounds,
+};
+use crate::selection_transform::{
+    apply_transfer_copy, capture_region_clipped, clear_region_tiles_masked,
+    delete_transfer_and_exit, selection_cells_from_mask, selection_dimensions,
+    selection_mask_from_cells, selection_region_from_cells, tile_layer_mut,
+    write_region_tiles_clipped,
 };
 
 // ── Copy / Cut / Delete ─────────────────────────────────────────────
 
 pub(crate) fn copy_tile_selection(state: &mut AppState) {
+    // In transfer mode: place a copy at the current position without exiting
+    if state.tile_selection_transfer.is_some() {
+        let placed = apply_transfer_copy(state);
+        if placed
+            && let Some(t) = state.tile_selection_transfer.as_ref()
+        {
+            state.status = format!("Copied {}×{} at current position.", t.width, t.height);
+        }
+        return;
+    }
+
     let Some((transfer, clipboard)) = capture_tile_selection_transfer(state) else {
         return;
     };
@@ -22,6 +36,43 @@ pub(crate) fn copy_tile_selection(state: &mut AppState) {
 }
 
 pub(crate) fn cut_tile_selection(state: &mut AppState) {
+    // If already in transfer mode, convert Copy→Cut or warn if already Cut
+    if let Some(transfer) = state.tile_selection_transfer.as_mut() {
+        if matches!(transfer.mode, TileSelectionTransferMode::Cut) {
+            state.status = "Already in cut-move mode.".to_string();
+            return;
+        }
+        // Convert Copy transfer → Cut: clear source tiles now
+        let (min_x, min_y, _, _) = selection_bounds(&transfer.source_selection);
+        let source_layer = transfer.source_layer;
+        let (w, h) = (transfer.width, transfer.height);
+        let mask = transfer.source_mask.clone();
+        let Some(session) = state.session.as_mut() else {
+            state.status = "No map loaded.".to_string();
+            return;
+        };
+        session.begin_history_batch();
+        let clear_result = session.edit(|document| {
+            let tile_layer = tile_layer_mut(document, source_layer)?;
+            clear_region_tiles_masked(tile_layer, min_x, min_y, w, h, &mask)
+        });
+        match clear_result {
+            Ok(()) => {
+                state.canvas_dirty = true;
+                state.tiles_dirty = true;
+                if let Some(t) = state.tile_selection_transfer.as_mut() {
+                    t.mode = TileSelectionTransferMode::Cut;
+                }
+                state.status = format!("Cut {w}×{h}. Drag to move, tap Done to place.");
+            }
+            Err(error) => {
+                session.abort_history_batch();
+                state.status = format!("Cut failed: {error}");
+            }
+        }
+        return;
+    }
+
     let Some((transfer, clipboard)) = capture_tile_selection_transfer(state) else {
         return;
     };
@@ -72,6 +123,12 @@ pub(crate) fn cut_tile_selection(state: &mut AppState) {
 }
 
 pub(crate) fn delete_selection(state: &mut AppState) {
+    // In transfer mode: discard floating tiles, delete source, exit
+    if state.tile_selection_transfer.is_some() {
+        delete_transfer_and_exit(state);
+        return;
+    }
+
     let Some((layer_index, selection, cells)) = selected_tile_selection(state) else {
         state.status = "Select a tile region first.".to_string();
         return;
@@ -230,7 +287,8 @@ pub(crate) fn cancel_tile_selection_transfer(state: &mut AppState) {
 
 fn selected_tile_selection(
     state: &AppState,
-) -> Option<(usize, TileSelectionRegion, BTreeSet<(i32, i32)>)> {
+) -> Option<(usize, crate::app_state::TileSelectionRegion, std::collections::BTreeSet<(i32, i32)>)>
+{
     let selection = state.tile_selection?;
     let cells = state.tile_selection_cells.clone()?;
     let layer = state
@@ -274,156 +332,6 @@ fn capture_tile_selection_transfer(
         mask,
     };
     Some((transfer, clipboard))
-}
-
-fn selection_dimensions(region: &TileSelectionRegion) -> (u32, u32) {
-    let (min_x, min_y, max_x, max_y) = selection_bounds(region);
-    ((max_x - min_x + 1) as u32, (max_y - min_y + 1) as u32)
-}
-
-fn selection_mask_from_cells(
-    region: &TileSelectionRegion,
-    cells: &BTreeSet<(i32, i32)>,
-) -> Vec<bool> {
-    let (min_x, min_y, max_x, max_y) = selection_bounds(region);
-    let width = (max_x - min_x + 1) as usize;
-    let height = (max_y - min_y + 1) as usize;
-    let mut mask = Vec::with_capacity(width * height);
-    for ly in 0..height {
-        for lx in 0..width {
-            mask.push(cells.contains(&(min_x + lx as i32, min_y + ly as i32)));
-        }
-    }
-    mask
-}
-
-fn selection_cells_from_mask(
-    origin_x: i32,
-    origin_y: i32,
-    width: u32,
-    height: u32,
-    mask: &[bool],
-) -> BTreeSet<(i32, i32)> {
-    let mut cells = BTreeSet::new();
-    for ly in 0..height {
-        for lx in 0..width {
-            let idx = (ly * width + lx) as usize;
-            if mask.get(idx).copied().unwrap_or(false) {
-                cells.insert((origin_x + lx as i32, origin_y + ly as i32));
-            }
-        }
-    }
-    cells
-}
-
-fn selection_region_from_cells(cells: &BTreeSet<(i32, i32)>) -> Option<TileSelectionRegion> {
-    let &(mut min_x, mut min_y) = cells.iter().next()?;
-    let (mut max_x, mut max_y) = (min_x, min_y);
-    for &(x, y) in cells {
-        min_x = min_x.min(x);
-        min_y = min_y.min(y);
-        max_x = max_x.max(x);
-        max_y = max_y.max(y);
-    }
-    Some(TileSelectionRegion {
-        start_cell: (min_x, min_y),
-        end_cell: (max_x, max_y),
-    })
-}
-
-fn capture_region_clipped(
-    tile_layer: &taled_core::TileLayer,
-    min_x: i32,
-    min_y: i32,
-    width: u32,
-    height: u32,
-) -> Vec<u32> {
-    let mut tiles = Vec::with_capacity((width * height) as usize);
-    for ly in 0..height {
-        for lx in 0..width {
-            let x = min_x + lx as i32;
-            let y = min_y + ly as i32;
-            let gid = if tile_layer_in_bounds(tile_layer, x, y) {
-                tile_layer.tile_at(x as u32, y as u32).unwrap_or(0)
-            } else {
-                0
-            };
-            tiles.push(gid);
-        }
-    }
-    tiles
-}
-
-fn write_region_tiles_clipped(
-    tile_layer: &mut taled_core::TileLayer,
-    min_x: i32,
-    min_y: i32,
-    width: u32,
-    height: u32,
-    tiles: &[u32],
-    mask: Option<&[bool]>,
-) -> taled_core::Result<()> {
-    for ly in 0..height {
-        for lx in 0..width {
-            let idx = (ly * width + lx) as usize;
-            if mask.is_some_and(|m| !m.get(idx).copied().unwrap_or(false)) {
-                continue;
-            }
-            let gid = tiles[idx];
-            let x = min_x + lx as i32;
-            let y = min_y + ly as i32;
-            if tile_layer_in_bounds(tile_layer, x, y) {
-                tile_layer.set_tile(x as u32, y as u32, gid)?;
-            }
-        }
-    }
-    Ok(())
-}
-
-fn clear_region_tiles_masked(
-    tile_layer: &mut taled_core::TileLayer,
-    min_x: i32,
-    min_y: i32,
-    width: u32,
-    height: u32,
-    mask: &[bool],
-) -> taled_core::Result<()> {
-    for ly in 0..height {
-        for lx in 0..width {
-            let idx = (ly * width + lx) as usize;
-            if !mask.get(idx).copied().unwrap_or(false) {
-                continue;
-            }
-            let x = min_x + lx as i32;
-            let y = min_y + ly as i32;
-            if tile_layer_in_bounds(tile_layer, x, y) {
-                tile_layer.set_tile(x as u32, y as u32, 0)?;
-            }
-        }
-    }
-    Ok(())
-}
-
-fn tile_layer_mut(
-    document: &mut taled_core::EditorDocument,
-    layer_index: usize,
-) -> taled_core::Result<&mut taled_core::TileLayer> {
-    let layer = document
-        .map
-        .layer_mut(layer_index)
-        .ok_or_else(|| taled_core::EditorError::Invalid(format!("unknown layer {layer_index}")))?;
-    if layer.locked() {
-        return Err(taled_core::EditorError::Invalid(
-            "layer is locked".to_string(),
-        ));
-    }
-    layer
-        .as_tile_mut()
-        .ok_or_else(|| taled_core::EditorError::Invalid("not a tile layer".to_string()))
-}
-
-fn tile_layer_in_bounds(tile_layer: &taled_core::TileLayer, x: i32, y: i32) -> bool {
-    x >= 0 && y >= 0 && (x as u32) < tile_layer.width && (y as u32) < tile_layer.height
 }
 
 fn dismiss_tile_selection(state: &mut AppState) {
