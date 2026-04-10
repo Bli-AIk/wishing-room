@@ -176,6 +176,7 @@ fn row_card(ui: &mut Ui, theme: &PlyTheme, left: &str, right: &str) {
                 .align(Left, CenterY)
                 .padding((0, 16, 0, 16))
         })
+        .overflow(|o| o.clip_x())
         .children(|ui| {
             // Inner row (matching .review-setting-row min-height 44px)
             ui.element()
