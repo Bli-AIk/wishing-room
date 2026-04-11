@@ -101,7 +101,11 @@ pub(crate) fn page_header(
                     .on_press(move |_, _| {})
                     .children(|ui| {
                         if ui.just_released() {
-                            state.navigate(target);
+                            if target == MobileScreen::Editor {
+                                state.navigate_down(target);
+                            } else {
+                                state.navigate_back_to(target);
+                            }
                         }
                         ui.text(label, |t| t.font_size(14).color(HEADER_ACTION_COLOR));
                     });
@@ -129,7 +133,11 @@ pub(crate) fn page_header(
                     .on_press(move |_, _| {})
                     .children(|ui| {
                         if ui.just_released() {
-                            state.navigate(target);
+                            if target == MobileScreen::Editor {
+                                state.navigate_down(target);
+                            } else {
+                                state.navigate_back_to(target);
+                            }
                         }
                         ui.text(label, |t| {
                             t.font_size(14).color(HEADER_ACTION_COLOR).alignment(Right)
@@ -230,7 +238,13 @@ pub(crate) fn bottom_nav(
                     .on_press(move |_, _| {})
                     .children(|ui| {
                         if ui.just_released() {
-                            state.navigate(target);
+                            if active == MobileScreen::Editor {
+                                state.navigate_up(target);
+                            } else if active.is_editor_subtab() && target.is_editor_subtab() {
+                                state.navigate_tab(target);
+                            } else {
+                                state.navigate(target);
+                            }
                         }
                         // Nav icon (24x24)
                         let icon_id = nav_icon_id(item.label_key);

@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Instant;
 
-use ply_engine::prelude::{RenderTarget, Texture2D};
+use ply_engine::prelude::{RenderTarget, Texture2D, get_time};
 use taled_core::EditorSession;
 
 use crate::icons::IconTintCache;
@@ -86,7 +86,31 @@ impl MobileScreen {
             _ => Self::Dashboard,
         }
     }
+
+    pub(crate) fn is_editor_subtab(self) -> bool {
+        matches!(
+            self,
+            Self::Tilesets | Self::Layers | Self::Objects | Self::Properties
+        )
+    }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TransitionDir {
+    Forward,
+    Back,
+    Up,
+    Down,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct PageTransition {
+    pub(crate) from_screen: MobileScreen,
+    pub(crate) start_time: f64,
+    pub(crate) dir: TransitionDir,
+}
+
+pub(crate) const TRANSITION_SECS: f32 = 0.2;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[allow(dead_code)]
@@ -206,6 +230,9 @@ pub(crate) struct AppState {
     pub(crate) sheet_zoom: f32,
     pub(crate) sheet_zoom_key: u32,
     pub(crate) sheet_pinch_dist: Option<f64>,
+    pub(crate) page_transition: Option<PageTransition>,
+    /// Opacity for editor floating controls (0..1), fades in after page transition.
+    pub(crate) float_controls_alpha: f32,
     pub(crate) mobile_screen: MobileScreen,
     pub(crate) language_preference: AppLanguagePreference,
     pub(crate) theme_choice: ThemeChoice,
@@ -289,6 +316,8 @@ impl AppState {
             sheet_zoom: 0.0,
             sheet_zoom_key: 0,
             sheet_pinch_dist: None,
+            page_transition: None,
+            float_controls_alpha: 1.0,
             mobile_screen: read_initial_screen(),
             language_preference: AppLanguagePreference::Auto,
             theme_choice: ThemeChoice::Dark,
@@ -339,21 +368,85 @@ impl AppState {
     }
 
     pub(crate) fn navigate(&mut self, screen: MobileScreen) {
+        if screen == self.mobile_screen {
+            return;
+        }
+        self.page_transition = Some(PageTransition {
+            from_screen: self.mobile_screen,
+            start_time: get_time(),
+            dir: TransitionDir::Forward,
+        });
+        self.mobile_screen = screen;
+    }
+
+    pub(crate) fn navigate_back_to(&mut self, screen: MobileScreen) {
+        if screen == self.mobile_screen {
+            return;
+        }
+        self.page_transition = Some(PageTransition {
+            from_screen: self.mobile_screen,
+            start_time: get_time(),
+            dir: TransitionDir::Back,
+        });
+        self.mobile_screen = screen;
+    }
+
+    pub(crate) fn navigate_up(&mut self, screen: MobileScreen) {
+        if screen == self.mobile_screen {
+            return;
+        }
+        self.page_transition = Some(PageTransition {
+            from_screen: self.mobile_screen,
+            start_time: get_time(),
+            dir: TransitionDir::Up,
+        });
+        self.mobile_screen = screen;
+    }
+
+    pub(crate) fn navigate_down(&mut self, screen: MobileScreen) {
+        if screen == self.mobile_screen {
+            return;
+        }
+        self.page_transition = Some(PageTransition {
+            from_screen: self.mobile_screen,
+            start_time: get_time(),
+            dir: TransitionDir::Down,
+        });
+        self.mobile_screen = screen;
+    }
+
+    /// Switch tab instantly (no slide animation).
+    pub(crate) fn navigate_tab(&mut self, screen: MobileScreen) {
+        self.page_transition = None;
         self.mobile_screen = screen;
     }
 
     /// Navigate to the logical parent screen.
     pub(crate) fn navigate_back(&mut self) {
-        self.mobile_screen = match self.mobile_screen {
+        let target = match self.mobile_screen {
             MobileScreen::About | MobileScreen::Themes => MobileScreen::Settings,
             MobileScreen::Tilesets
             | MobileScreen::Layers
             | MobileScreen::Objects
-            | MobileScreen::Properties => MobileScreen::Dashboard,
+            | MobileScreen::Properties => MobileScreen::Editor,
             MobileScreen::Settings | MobileScreen::Dashboard | MobileScreen::Editor => {
                 MobileScreen::Dashboard
             }
         };
+        if target == self.mobile_screen {
+            return;
+        }
+        let dir = if self.mobile_screen.is_editor_subtab() {
+            TransitionDir::Down
+        } else {
+            TransitionDir::Back
+        };
+        self.page_transition = Some(PageTransition {
+            from_screen: self.mobile_screen,
+            start_time: get_time(),
+            dir,
+        });
+        self.mobile_screen = target;
     }
 }
 

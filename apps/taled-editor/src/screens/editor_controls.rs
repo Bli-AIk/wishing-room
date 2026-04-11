@@ -6,6 +6,10 @@ use crate::l10n;
 use crate::session_ops::{adjust_zoom, apply_redo, apply_undo};
 use crate::theme::PlyTheme;
 
+pub(crate) fn alpha_scale(base: u8, alpha: f32) -> u8 {
+    ((base as f32) * alpha) as u8
+}
+
 pub(crate) fn render_history_buttons(
     ui: &mut Ui,
     state: &mut AppState,
@@ -19,8 +23,9 @@ pub(crate) fn render_history_buttons(
     let can_undo = !state.undo_action_order.is_empty() || session_can.0;
     let can_redo = !state.redo_action_order.is_empty() || session_can.1;
 
-    let float_bg = Color::u_rgba(24, 24, 26, 245);
-    let float_border = Color::u_rgba(255, 255, 255, 20);
+    let a = state.float_controls_alpha;
+    let float_bg = Color::u_rgba(24, 24, 26, alpha_scale(245, a));
+    let float_border = Color::u_rgba(255, 255, 255, alpha_scale(20, a));
 
     ui.element()
         .id("history-float")
@@ -70,8 +75,9 @@ pub(crate) fn render_layer_panel(
         .and_then(|s| s.document().map.layer(state.active_layer))
         .map_or_else(|| "\u{2014}".to_string(), |l| l.name().to_string());
 
-    let float_bg = Color::u_rgba(24, 24, 26, 245);
-    let float_border = Color::u_rgba(255, 255, 255, 20);
+    let a = state.float_controls_alpha;
+    let float_bg = Color::u_rgba(24, 24, 26, alpha_scale(245, a));
+    let float_border = Color::u_rgba(255, 255, 255, alpha_scale(20, a));
     let title_label = l10n::text(lang, "nav-layers");
 
     ui.element()
@@ -123,9 +129,10 @@ pub(crate) fn render_joystick_float(
     let joy_y = safe_top + 56.0 + 114.0 + canvas_h - outer - 8.0;
     let cx = 8.0 + outer / 2.0;
     let cy = joy_y + outer / 2.0;
-    let ring_bg = Color::u_rgba(30, 30, 32, 255);
-    let ring_border = Color::u_rgba(255, 255, 255, 12);
-    let knob_color = Color::u_rgba(72, 72, 77, 255);
+    let a = state.float_controls_alpha;
+    let ring_bg = Color::u_rgba(30, 30, 32, alpha_scale(255, a));
+    let ring_border = Color::u_rgba(255, 255, 255, alpha_scale(12, a));
+    let knob_color = Color::u_rgba(72, 72, 77, alpha_scale(255, a));
 
     ui.element()
         .id("joystick-outer")
@@ -229,9 +236,10 @@ pub(crate) fn render_zoom_slider(
     let handle_w = 62.0_f32;
     let handle_h = 26.0_f32;
     let max_offset = (inner_w - handle_w) / 2.0 - 2.0;
-    let ring_bg = Color::u_rgba(30, 30, 32, 255);
-    let ring_border = Color::u_rgba(255, 255, 255, 12);
-    let handle_color = Color::u_rgba(72, 72, 77, 255);
+    let a = state.float_controls_alpha;
+    let ring_bg = Color::u_rgba(30, 30, 32, alpha_scale(255, a));
+    let ring_border = Color::u_rgba(255, 255, 255, alpha_scale(12, a));
+    let handle_color = Color::u_rgba(72, 72, 77, alpha_scale(255, a));
     let zoom_y = safe_top + 56.0 + 114.0 + canvas_h - outer_h - 8.0 - extra_up;
     let slider_cx = screen_width() - 8.0 - outer_w / 2.0;
 

@@ -60,7 +60,7 @@ fn render_editor_header(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
                 .on_press(move |_, _| {})
                 .children(|ui| {
                     if ui.just_released() {
-                        state.navigate(MobileScreen::Dashboard);
+                        state.navigate_back_to(MobileScreen::Dashboard);
                     }
                     ui.text(&back, |t| {
                         t.font_size(14).color(super::widgets::HEADER_ACTION_COLOR)

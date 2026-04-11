@@ -2,6 +2,7 @@ use ply_engine::prelude::*;
 
 use crate::app_state::{AppState, Tool};
 use crate::l10n;
+use crate::screens::editor_controls::alpha_scale;
 use crate::theme::PlyTheme;
 
 pub(crate) fn render_toolbar(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
@@ -173,6 +174,9 @@ fn render_placeholder_tool(
 }
 
 pub(crate) fn render_floating_controls(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
+    if state.float_controls_alpha <= 0.0 {
+        return;
+    }
     let safe_top = state.safe_inset_top;
     // Top-anchored controls
     crate::screens::editor_controls::render_history_buttons(ui, state, theme, safe_top);
@@ -208,8 +212,9 @@ fn render_selection_actions(
     canvas_h: f32,
     safe_top: f32,
 ) {
-    let float_bg = Color::u_rgba(24, 24, 26, 245);
-    let float_border = Color::u_rgba(255, 255, 255, 20);
+    let a = state.float_controls_alpha;
+    let float_bg = Color::u_rgba(24, 24, 26, alpha_scale(245, a));
+    let float_border = Color::u_rgba(255, 255, 255, alpha_scale(20, a));
     let has_transfer = state.tile_selection_transfer.is_some();
     let sel_y = safe_top + 56.0 + 114.0 + canvas_h - 44.0 - 8.0;
     ui.element()
