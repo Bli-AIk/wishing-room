@@ -40,9 +40,30 @@ pub(crate) fn render(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
                 ui.text("No map loaded", |t| t.font_size(14).color(theme.muted_text));
                 return;
             };
-            let map = &session.document().map;
+            let layers: Vec<(usize, String, bool, bool, bool)> = session
+                .document()
+                .map
+                .layers
+                .iter()
+                .enumerate()
+                .map(|(i, l)| {
+                    let vis = l.visible() && !state.hidden_layers.contains(&i);
+                    (
+                        i,
+                        if l.name().is_empty() {
+                            format!("Layer {i}")
+                        } else {
+                            l.name().to_string()
+                        },
+                        l.as_object().is_some(),
+                        vis,
+                        l.locked(),
+                    )
+                })
+                .collect();
 
-            for (i, layer) in map.layers.iter().enumerate() {
+            for (i, display, is_obj, vis, locked) in layers.iter().rev() {
+                let i = *i;
                 let is_active = state.active_layer == i;
                 let bg = if is_active {
                     theme.accent_soft
@@ -63,11 +84,7 @@ pub(crate) fn render(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
                             .padding((14, 14, 14, 14))
                             .gap(14)
                     })
-                    .on_press(move |_, _| {})
                     .children(|ui| {
-                        if ui.just_released() {
-                            state.active_layer = i;
-                        }
                         // Drag handle
                         ui.text("≡", |t| t.font_size(20).color(theme.muted_text));
 
@@ -81,32 +98,30 @@ pub(crate) fn render(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
                             .border(|b| b.all(1).color(theme.border))
                             .empty();
 
-                        // Layer info (name + type + opacity)
+                        // Layer info — tap to switch active layer
+                        let kind = if *is_obj {
+                            "Object Layer"
+                        } else {
+                            "Tile Layer"
+                        };
                         ui.element()
+                            .id(("layer-info", i as u32))
                             .width(grow!())
                             .height(fit!())
                             .layout(|l| l.direction(TopToBottom).gap(4))
+                            .on_press(move |_, _| {})
                             .children(|ui| {
-                                let name = layer.name();
-                                let display = if name.is_empty() {
-                                    format!("Layer {}", i)
-                                } else {
-                                    name.to_string()
-                                };
-                                ui.text(&display, |t| t.font_size(15).color(theme.text));
-                                let kind = if layer.as_object().is_some() {
-                                    "Object Layer"
-                                } else {
-                                    "Tile Layer"
-                                };
+                                if ui.just_released() {
+                                    state.active_layer = i;
+                                }
+                                ui.text(display, |t| t.font_size(15).color(theme.text));
                                 ui.text(kind, |t| t.font_size(13).color(theme.muted_text));
                                 opacity_bar(ui, theme);
                             });
 
                         // Eye icon (accent when visible)
-                        let vis = layer.visible() && !state.hidden_layers.contains(&i);
-                        let eye_id = if vis { IconId::EyeOn } else { IconId::EyeOff };
-                        let eye_c = if vis { theme.accent } else { theme.muted_text };
+                        let eye_id = if *vis { IconId::EyeOn } else { IconId::EyeOff };
+                        let eye_c = if *vis { theme.accent } else { theme.muted_text };
                         let eye_tex = state.icon_cache.get(eye_id);
                         ui.element()
                             .width(fixed!(20.0))
@@ -127,9 +142,8 @@ pub(crate) fn render(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
                             });
 
                         // Lock icon (accent when locked)
-                        let locked = layer.locked();
-                        let lk_id = if locked { IconId::Lock } else { IconId::Unlock };
-                        let lk_c = if locked {
+                        let lk_id = if *locked { IconId::Lock } else { IconId::Unlock };
+                        let lk_c = if *locked {
                             theme.accent
                         } else {
                             theme.muted_text

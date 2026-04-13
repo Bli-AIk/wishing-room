@@ -151,7 +151,7 @@ pub(crate) fn render_layer_panel(
                     .width(grow!())
                     .layout(|l| l.direction(TopToBottom).padding((2, 6, 8, 6)).gap(2))
                     .children(|ui| {
-                        for (idx, name, is_obj, vis, locked) in &layers {
+                        for (idx, name, is_obj, vis, locked) in layers.iter().rev() {
                             let idx = *idx;
                             let is_active = idx == state.active_layer;
                             let row_bg = if is_active {
@@ -177,13 +177,7 @@ pub(crate) fn render_layer_panel(
                                         .padding((4, 6, 4, 6))
                                         .gap(6)
                                 })
-                                .on_press(move |_, _| {})
                                 .children(|ui| {
-                                    if ui.just_released() {
-                                        state.active_layer = idx;
-                                        state.canvas_dirty = true;
-                                    }
-
                                     // Eye icon — clickable
                                     let eye_id = if *vis {
                                         IconId::EyeOn
@@ -215,16 +209,26 @@ pub(crate) fn render_layer_panel(
                                             }
                                         });
 
-                                    // Type icon
-                                    let type_char = if *is_obj { "⊙" } else { "⊞" };
-                                    ui.text(type_char, |t| {
-                                        t.font_size(14).color(theme.muted_text)
-                                    });
-
-                                    // Layer name
+                                    // Name area — tap to switch active layer
                                     ui.element()
+                                        .id(("lf-name", idx as u32))
                                         .width(grow!())
+                                        .height(grow!())
+                                        .layout(|l| {
+                                            l.direction(LeftToRight)
+                                                .align(Left, CenterY)
+                                                .gap(6)
+                                        })
+                                        .on_press(move |_, _| {})
                                         .children(|ui| {
+                                            if ui.just_released() {
+                                                state.active_layer = idx;
+                                                state.canvas_dirty = true;
+                                            }
+                                            let type_char = if *is_obj { "⊙" } else { "⊞" };
+                                            ui.text(type_char, |t| {
+                                                t.font_size(14).color(theme.muted_text)
+                                            });
                                             ui.text(&display, |t| {
                                                 t.font_size(13).color(theme.text)
                                             });
