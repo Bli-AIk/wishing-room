@@ -381,8 +381,7 @@ fn render_tile_map(
             continue;
         };
 
-        let alpha = if layer_idx == active_layer { 1.0 } else { 0.6 };
-        let color = MacroquadColor::new(1.0, 1.0, 1.0, alpha);
+        let color = WHITE;
 
         for row in 0..map.height {
             for col in 0..map.width {

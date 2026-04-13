@@ -442,10 +442,10 @@ pub(crate) fn crop_tile_texture(state: &mut AppState, tile: &PaletteTile) -> Opt
 /// Uses render-to-texture (same path as `crop_tile_texture`) which is proven
 /// to work on Android, unlike `.border()` or `background_color` rectangles.
 fn selected_tile_texture(state: &mut AppState, tile: &PaletteTile) -> Option<Texture2D> {
-    if let Some((cached_gid, ref rt)) = state.selected_chip_rt {
-        if cached_gid == tile.gid {
-            return Some(rt.texture.clone());
-        }
+    if let Some((cached_gid, ref rt)) = state.selected_chip_rt
+        && cached_gid == tile.gid
+    {
+        return Some(rt.texture.clone());
     }
 
     let session = state.session.as_ref()?;
