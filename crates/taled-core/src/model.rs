@@ -2,6 +2,14 @@ use crate::error::{EditorError, Result};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+// TMX flip flag constants (stored in the high bits of tile GIDs).
+const FLIP_FLAGS_MASK: u32 = 0xE000_0000;
+
+/// Strip flip/rotation flags from a raw tile GID to get the base tile ID.
+pub fn strip_flip_flags(gid: u32) -> u32 {
+    gid & !FLIP_FLAGS_MASK
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Orientation {
     Orthogonal,
@@ -186,6 +194,7 @@ pub struct MapObject {
     pub width: f32,
     pub height: f32,
     pub shape: ObjectShape,
+    pub gid: Option<u32>,
     pub properties: Vec<Property>,
 }
 
@@ -381,20 +390,22 @@ impl Map {
     }
 
     pub fn tileset_for_gid(&self, gid: u32) -> Option<(usize, &TilesetReference)> {
+        let base_gid = strip_flip_flags(gid);
         self.tilesets
             .iter()
             .enumerate()
             .rev()
-            .find(|(_, tileset)| gid >= tileset.first_gid)
+            .find(|(_, tileset)| base_gid >= tileset.first_gid)
     }
 
     pub fn tile_reference_for_gid(&self, gid: u32) -> Option<TileReference<'_>> {
-        if gid == 0 {
+        let base_gid = strip_flip_flags(gid);
+        if base_gid == 0 {
             return None;
         }
 
-        let (tileset_index, tileset) = self.tileset_for_gid(gid)?;
-        let local_id = gid - tileset.first_gid;
+        let (tileset_index, tileset) = self.tileset_for_gid(base_gid)?;
+        let local_id = base_gid - tileset.first_gid;
         if local_id >= tileset.tileset.tile_count {
             return None;
         }

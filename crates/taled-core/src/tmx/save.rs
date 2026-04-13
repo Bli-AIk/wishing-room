@@ -106,6 +106,10 @@ fn write_object_layer(writer: &mut Writer<Vec<u8>>, layer: &ObjectLayer) -> Resu
         let width = format_f32(object.width);
         let height = format_f32(object.height);
         object_tag.push_attribute(("id", id.as_str()));
+        if let Some(gid) = object.gid {
+            let gid_str = gid.to_string();
+            object_tag.push_attribute(("gid", gid_str.as_str()));
+        }
         if !object.name.is_empty() {
             object_tag.push_attribute(("name", object.name.as_str()));
         }
