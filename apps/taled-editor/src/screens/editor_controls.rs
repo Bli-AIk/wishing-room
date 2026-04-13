@@ -199,11 +199,15 @@ pub(crate) fn render_layer_panel(
                                         .on_press(move |_, _| {})
                                         .children(|ui| {
                                             if ui.just_released() {
-                                                if state.hidden_layers.contains(&idx) {
-                                                    state.hidden_layers.remove(&idx);
-                                                } else {
-                                                    state.hidden_layers.insert(idx);
-                                                }
+                                                let now_hidden =
+                                                    if state.hidden_layers.contains(&idx) {
+                                                        state.hidden_layers.remove(&idx);
+                                                        false
+                                                    } else {
+                                                        state.hidden_layers.insert(idx);
+                                                        true
+                                                    };
+                                                state.last_eye_toggle = Some((idx, now_hidden));
                                                 state.tiles_dirty = true;
                                                 state.canvas_dirty = true;
                                             }

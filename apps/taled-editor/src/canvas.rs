@@ -14,8 +14,12 @@ thread_local! {
     static REUSE_TILEMAP_RT: RefCell<Option<(RenderTarget, u32, u32)>> = const { RefCell::new(None) };
 }
 
-/// Reuse an existing MSAA render target when dimensions match, avoiding per-frame GPU allocation.
-fn reuse_msaa_rt(
+/// Reuse an existing render target when dimensions match, avoiding per-frame GPU allocation.
+///
+/// Uses non-MSAA (`render_target`) to avoid Android GPU driver bugs where the multisample
+/// renderbuffer content becomes undefined after `glBlitFramebuffer` resolve between batched
+/// draw call passes. Pixel-art tile rendering does not benefit from MSAA anyway.
+fn reuse_rt(
     storage: &'static std::thread::LocalKey<RefCell<Option<(RenderTarget, u32, u32)>>>,
     w: u32,
     h: u32,
@@ -27,7 +31,7 @@ fn reuse_msaa_rt(
         {
             return rt.clone();
         }
-        let rt = render_target_msaa(w, h);
+        let rt = render_target(w, h);
         rt.texture.set_filter(FilterMode::Nearest);
         *slot = Some((rt.clone(), w, h));
         rt
@@ -149,11 +153,20 @@ pub(crate) fn render_canvas(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme)
             }
 
             crate::screens::editor_toolbar::render_floating_controls(ui, state, theme);
-            let overlay = if state.perf_info.is_empty() {
-                state.debug_info.clone()
+            // Build diagnostic overlay showing hidden_layers state
+            let hidden_diag = if state.hidden_layers.is_empty() {
+                "H:{}".to_string()
             } else {
-                format!("{} | {}", state.debug_info, state.perf_info)
+                format!("H:{:?}", state.hidden_layers)
             };
+            let toggle_diag = state
+                .last_eye_toggle
+                .map(|(i, h)| format!(" T:{i}{}", if h { "+" } else { "-" }))
+                .unwrap_or_default();
+            let overlay = format!(
+                "{}{} | {}",
+                hidden_diag, toggle_diag, state.perf_info
+            );
             render_debug_overlay(ui, &overlay);
         });
 }
@@ -252,7 +265,7 @@ fn build_and_cache_canvas(
 
     let t1 = get_time();
 
-    let rt = reuse_msaa_rt(&REUSE_CANVAS_RT, scaled_w as u32, scaled_h as u32);
+    let rt = reuse_rt(&REUSE_CANVAS_RT, scaled_w as u32, scaled_h as u32);
     rt.texture.set_filter(FilterMode::Nearest);
     let mut cam = Camera2D::from_display_rect(Rect::new(0.0, 0.0, scaled_w, scaled_h));
     cam.render_target = Some(rt.clone());
@@ -372,7 +385,7 @@ fn render_tile_map(
 ) -> RenderTarget {
     let empty_color: MacroquadColor = theme.empty_tile.into();
 
-    let rt = reuse_msaa_rt(&REUSE_TILEMAP_RT, map_px_w as u32, map_px_h as u32);
+    let rt = reuse_rt(&REUSE_TILEMAP_RT, map_px_w as u32, map_px_h as u32);
     rt.texture.set_filter(FilterMode::Nearest);
     let mut cam = Camera2D::from_display_rect(Rect::new(0.0, 0.0, map_px_w, map_px_h));
     cam.render_target = Some(rt.clone());

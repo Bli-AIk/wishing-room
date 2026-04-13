@@ -282,6 +282,8 @@ pub(crate) struct AppState {
     pub(crate) logo_texture: Option<Texture2D>,
     pub(crate) debug_info: String,
     pub(crate) perf_info: String,
+    /// Diagnostic: last eye toggle event (layer index, new state).
+    pub(crate) last_eye_toggle: Option<(usize, bool)>,
     /// How many times the canvas was rebuilt since last log entry.
     pub(crate) canvas_rebuild_count: u32,
     /// Frame countdown for deferred centering (0 = done, >0 = frames remaining).
@@ -403,6 +405,7 @@ impl AppState {
             logo_texture: None,
             debug_info: String::new(),
             perf_info: String::new(),
+            last_eye_toggle: None,
             canvas_rebuild_count: 0,
             pending_canvas_center: 0,
             center_debug: String::new(),

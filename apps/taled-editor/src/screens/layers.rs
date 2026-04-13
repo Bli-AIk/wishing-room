@@ -131,11 +131,15 @@ pub(crate) fn render(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
                             .on_press(move |_, _| {})
                             .children(|ui| {
                                 if ui.just_released() {
-                                    if state.hidden_layers.contains(&i) {
-                                        state.hidden_layers.remove(&i);
-                                    } else {
-                                        state.hidden_layers.insert(i);
-                                    }
+                                    let now_hidden =
+                                        if state.hidden_layers.contains(&i) {
+                                            state.hidden_layers.remove(&i);
+                                            false
+                                        } else {
+                                            state.hidden_layers.insert(i);
+                                            true
+                                        };
+                                    state.last_eye_toggle = Some((i, now_hidden));
                                     state.tiles_dirty = true;
                                     state.canvas_dirty = true;
                                 }
