@@ -150,7 +150,7 @@ fn render_viewfinder_row(
 fn render_viewfinder_cell(
     ui: &mut Ui,
     state: &mut AppState,
-    theme: &PlyTheme,
+    _theme: &PlyTheme,
     col: i32,
     row: i32,
     ts_cols: i32,
@@ -178,33 +178,30 @@ fn render_viewfinder_cell(
 
     let gid = first_gid + local_id;
     let is_selected = state.selected_gid == gid;
-    let bg = Color::u_rgb(0x10, 0x11, 0x13);
-    let border_color = if is_selected {
-        theme.accent
-    } else {
-        Color::rgba(1.0, 1.0, 1.0, 0.06)
-    };
-    let bw: u16 = if is_selected { 2 } else { 1 };
 
     let tile = PaletteTile {
         gid,
         tileset_index: ts_idx,
         local_id,
     };
-    let tile_tex = crop_tile_texture(state, &tile);
+
+    // For the selected tile, use a chip with blue border baked into the texture
+    // (render-to-texture path, proven to work on Android).
+    // `.border()` and `background_color` Rectangle don't render on Android OpenGL.
+    let tile_tex = if is_selected {
+        selected_tile_texture(state, &tile)
+    } else {
+        crop_tile_texture(state, &tile)
+    };
 
     ui.element()
         .id(("vf-t", gid))
         .width(fixed!(cell_w))
         .height(fixed!(cell_h))
-        .background_color(bg)
-        .border(|b| b.all(bw).color(border_color))
-        .overflow(|o| o.clip())
         .layout(|l| l.align(CenterX, CenterY))
         .children(|ui| {
             if let Some(tex) = tile_tex {
-                // Display as square to avoid stretching non-square cells.
-                let side = (cell_w - bw as f32 * 2.0).min(cell_h - bw as f32 * 2.0);
+                let side = (cell_w - 2.0).min(cell_h - 2.0);
                 ui.element()
                     .width(fixed!(side))
                     .height(fixed!(side))
@@ -438,5 +435,64 @@ pub(crate) fn crop_tile_texture(state: &mut AppState, tile: &PaletteTile) -> Opt
     set_default_camera();
     let tex = rt.texture.clone();
     state.tile_chip_cache.insert(tile.gid, rt);
+    Some(tex)
+}
+
+/// Returns a chip texture with a blue selection border baked in.
+/// Uses render-to-texture (same path as `crop_tile_texture`) which is proven
+/// to work on Android, unlike `.border()` or `background_color` rectangles.
+fn selected_tile_texture(state: &mut AppState, tile: &PaletteTile) -> Option<Texture2D> {
+    if let Some((cached_gid, ref rt)) = state.selected_chip_rt {
+        if cached_gid == tile.gid {
+            return Some(rt.texture.clone());
+        }
+    }
+
+    let session = state.session.as_ref()?;
+    let texture = state.tileset_textures.get(&tile.tileset_index)?;
+    let tile_ref = session.document().map.tile_reference_for_gid(tile.gid)?;
+
+    let ts = &tile_ref.tileset.tileset;
+    let cols = ts.columns.max(1);
+    let tw = ts.tile_width as f32;
+    let th = ts.tile_height as f32;
+    let sx = (tile.local_id % cols) as f32 * tw;
+    let sy = (tile.local_id / cols) as f32 * th;
+
+    let chip_size = 40.0;
+    let border = 3.0;
+    let inner = chip_size - border * 2.0;
+    let scale = (inner / tw).min(inner / th);
+    let rw = tw * scale;
+    let rh = th * scale;
+    let ox = (chip_size - rw) / 2.0;
+    let oy = (chip_size - rh) / 2.0;
+
+    let rt = render_target(chip_size as u32, chip_size as u32);
+    rt.texture.set_filter(FilterMode::Nearest);
+    let mut cam = Camera2D::from_display_rect(Rect::new(0.0, 0.0, chip_size, chip_size));
+    cam.render_target = Some(rt.clone());
+    set_camera(&cam);
+
+    // Blue background = border color; tile image is drawn inset so blue shows through.
+    clear_background(MacroquadColor::from_rgba(10, 133, 255, 255));
+    // Dark inner background behind the tile.
+    draw_rectangle(border, border, inner, inner, MacroquadColor::from_rgba(0x10, 0x11, 0x13, 255));
+    draw_texture_ex(
+        texture,
+        ox,
+        oy,
+        WHITE,
+        DrawTextureParams {
+            source: Some(Rect::new(sx, sy, tw, th)),
+            dest_size: Some(Vec2::new(rw, rh)),
+            flip_y: true,
+            ..Default::default()
+        },
+    );
+
+    set_default_camera();
+    let tex = rt.texture.clone();
+    state.selected_chip_rt = Some((tile.gid, rt));
     Some(tex)
 }

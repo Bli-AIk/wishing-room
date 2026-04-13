@@ -219,6 +219,8 @@ pub(crate) struct AppState {
     /// Cached cropped tile chip render targets (gid → RenderTarget). Invalidated on tileset reload.
     /// We keep the full RenderTarget alive so Android doesn't free the backing GL framebuffer.
     pub(crate) tile_chip_cache: BTreeMap<u32, RenderTarget>,
+    /// Render-target for the currently selected tile chip (with blue border baked in).
+    pub(crate) selected_chip_rt: Option<(u32, RenderTarget)>,
     pub(crate) active_layer: usize,
     pub(crate) selected_gid: u32,
     pub(crate) selected_cell: Option<(u32, u32)>,
@@ -340,6 +342,7 @@ impl AppState {
             session: None,
             tileset_textures: BTreeMap::new(),
             tile_chip_cache: BTreeMap::new(),
+            selected_chip_rt: None,
             active_layer: 0,
             selected_gid: 0,
             selected_cell: None,
