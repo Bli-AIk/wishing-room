@@ -241,7 +241,9 @@ pub(crate) fn bottom_nav(
                         if ui.just_released() {
                             if active == MobileScreen::Editor {
                                 state.navigate_up(target);
-                            } else if active.is_editor_subtab() && target.is_editor_subtab() {
+                            } else if (active.is_editor_subtab() && target.is_editor_subtab())
+                                || (active.is_dashboard_tab() && target.is_dashboard_tab())
+                            {
                                 state.navigate_tab(target);
                             } else {
                                 state.navigate(target);

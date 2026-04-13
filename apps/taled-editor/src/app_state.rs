@@ -93,6 +93,10 @@ impl MobileScreen {
             Self::Tilesets | Self::Layers | Self::Objects | Self::Properties
         )
     }
+
+    pub(crate) fn is_dashboard_tab(self) -> bool {
+        matches!(self, Self::Dashboard | Self::Settings)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -294,6 +298,15 @@ pub(crate) struct AppState {
     pub(crate) show_workspace_picker: bool,
     /// Whether the import action menu popup is currently visible.
     pub(crate) show_import_menu: bool,
+    /// Pending import mode: "workspace" or "tmx" while waiting for SAF picker result.
+    pub(crate) import_pending: Option<ImportMode>,
+}
+
+/// Which kind of import the user initiated.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ImportMode {
+    Workspace,
+    Tmx,
 }
 
 impl AppState {
@@ -375,6 +388,7 @@ impl AppState {
             workspace_list: Vec::new(),
             show_workspace_picker: false,
             show_import_menu: false,
+            import_pending: None,
         }
     }
 
