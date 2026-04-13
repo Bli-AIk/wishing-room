@@ -91,6 +91,80 @@ fn round_trips_supported_map() {
 }
 
 #[test]
+fn loads_map_with_embedded_tileset() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("crate parent")
+        .parent()
+        .expect("workspace root")
+        .join("assets/samples/embedded-basic/map.tmx");
+
+    let session = EditorSession::load(&path).expect("embedded-tileset map should load");
+    let document = session.document();
+
+    assert_eq!(document.map.width, 6);
+    assert_eq!(document.map.height, 5);
+    assert_eq!(document.map.tilesets.len(), 1);
+    assert_eq!(document.map.layers.len(), 2);
+
+    let ts = &document.map.tilesets[0];
+    assert_eq!(ts.tileset.name, "terrain");
+    assert_eq!(ts.tileset.tile_count, 4);
+    assert_eq!(ts.tileset.columns, 2);
+
+    let tile_layer = document.map.layers[0].as_tile().expect("tile layer");
+    assert_eq!(tile_layer.tile_at(0, 0), Some(1));
+    assert_eq!(tile_layer.tile_at(3, 0), Some(4));
+
+    let object_layer = document.map.layers[1].as_object().expect("object layer");
+    assert_eq!(object_layer.objects.len(), 2);
+}
+
+#[test]
+fn loads_map_with_collection_of_images_tileset() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("crate parent")
+        .parent()
+        .expect("workspace root")
+        .join("assets/samples/collection-of-images/map.tmx");
+
+    let session = EditorSession::load(&path).expect("collection-of-images map should load");
+    let document = session.document();
+
+    assert_eq!(document.map.width, 4);
+    assert_eq!(document.map.height, 4);
+    assert_eq!(document.map.tilesets.len(), 2);
+    assert_eq!(document.map.layers.len(), 2);
+
+    // First tileset: normal atlas
+    let ts0 = &document.map.tilesets[0];
+    assert_eq!(ts0.tileset.name, "terrain");
+    assert_eq!(ts0.tileset.tile_count, 4);
+    assert_eq!(ts0.tileset.columns, 2);
+    assert_eq!(ts0.tileset.image.width, 40);
+
+    // Second tileset: collection-of-images (placeholder image, columns=0)
+    let ts1 = &document.map.tilesets[1];
+    assert_eq!(ts1.tileset.name, "objects");
+    assert_eq!(ts1.tileset.tile_count, 3);
+    assert_eq!(ts1.tileset.columns, 0);
+    assert_eq!(ts1.tileset.image.width, 0); // placeholder
+
+    // Ground layer uses atlas tileset
+    let ground = document.map.layers[0].as_tile().expect("tile layer");
+    assert_eq!(ground.tile_at(0, 0), Some(1));
+    assert_eq!(ground.tile_at(1, 0), Some(2));
+
+    // Objects layer uses collection-of-images tileset
+    let objects = document.map.layers[1].as_tile().expect("objects tile layer");
+    assert_eq!(objects.tile_at(1, 0), Some(5)); // first object tile
+    assert_eq!(objects.tile_at(3, 1), Some(6));
+    assert_eq!(objects.tile_at(0, 3), Some(7));
+    assert_eq!(objects.tile_at(0, 0), Some(0)); // empty cell
+}
+
+#[test]
 fn session_history_tracks_undo_and_redo() {
     let mut session = EditorSession::load(sample_map_path()).expect("sample map should load");
     let original = session.document().map.layers[0]

@@ -6,7 +6,7 @@ use crate::model::{
 };
 use std::collections::BTreeMap;
 use std::io::{self, Cursor};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tiled::{
     LayerType, Loader, ObjectShape as TiledObjectShape, Orientation as TiledOrientation,
     PropertyValue as TiledPropertyValue, TileLayer as TiledTileLayer, Tileset as TiledTileset,
@@ -91,7 +91,12 @@ fn convert_map(metadata: MapMetadata, raw_map: tiled::Map) -> Result<Map> {
                     convert_tile_layer(&metadata.tilesets, layer, tile_layer, *layer_metadata)
                 }
                 (LayerKind::Object, LayerType::Objects(object_layer)) => {
-                    convert_object_layer(layer, object_layer, *layer_metadata)
+                    convert_object_layer(
+                        layer,
+                        object_layer,
+                        *layer_metadata,
+                        &metadata.tilesets,
+                    )
                 }
                 _ => Err(EditorError::Invalid(
                     "layer type changed between validation and official parsing".to_string(),
@@ -136,18 +141,27 @@ fn convert_map(metadata: MapMetadata, raw_map: tiled::Map) -> Result<Map> {
 }
 
 fn convert_tileset(metadata: &TilesetMetadata, tileset: &TiledTileset) -> Result<TilesetReference> {
-    let image = tileset.image.as_ref().ok_or_else(|| {
-        unsupported(
-            "tileset.collection_of_images",
-            "tilesets must use a single atlas image in stage 1",
-        )
-    })?;
-    let image_width = u32::try_from(image.width).map_err(|_| {
-        EditorError::Invalid("tileset image width must be a positive integer".to_string())
-    })?;
-    let image_height = u32::try_from(image.height).map_err(|_| {
-        EditorError::Invalid("tileset image height must be a positive integer".to_string())
-    })?;
+    // Collection-of-images tilesets have no atlas image; use a placeholder so
+    // the map still loads.  The renderer skips tiles whose texture is missing.
+    let image = if let Some(img) = tileset.image.as_ref() {
+        let w = u32::try_from(img.width).map_err(|_| {
+            EditorError::Invalid("tileset image width must be a positive integer".to_string())
+        })?;
+        let h = u32::try_from(img.height).map_err(|_| {
+            EditorError::Invalid("tileset image height must be a positive integer".to_string())
+        })?;
+        TilesetImage {
+            source: relativize_child_path(&tileset.source, &img.source),
+            width: w,
+            height: h,
+        }
+    } else {
+        TilesetImage {
+            source: PathBuf::from("_no_atlas"),
+            width: 0,
+            height: 0,
+        }
+    };
 
     let mut animations = BTreeMap::new();
     for (tile_id, tile) in tileset.tiles() {
@@ -176,11 +190,7 @@ fn convert_tileset(metadata: &TilesetMetadata, tileset: &TiledTileset) -> Result
             tile_height: tileset.tile_height,
             tile_count: tileset.tilecount,
             columns: tileset.columns,
-            image: TilesetImage {
-                source: relativize_child_path(&tileset.source, &image.source),
-                width: image_width,
-                height: image_height,
-            },
+            image,
             animations,
         },
     })
@@ -228,12 +238,6 @@ fn convert_cell_gid(
     let Some(tile) = tile else {
         return Ok(0);
     };
-    if tile.flip_h || tile.flip_v || tile.flip_d {
-        return Err(unsupported(
-            "tile.transformations",
-            "flipped or rotated gids are out of stage-1 scope",
-        ));
-    }
 
     let tileset = tilesets.get(tile.tileset_index()).ok_or_else(|| {
         EditorError::Invalid(format!(
@@ -242,17 +246,28 @@ fn convert_cell_gid(
         ))
     })?;
 
-    Ok(tileset.first_gid + tile.id())
+    let mut gid = tileset.first_gid + tile.id();
+    if tile.flip_h {
+        gid |= 0x8000_0000;
+    }
+    if tile.flip_v {
+        gid |= 0x4000_0000;
+    }
+    if tile.flip_d {
+        gid |= 0x2000_0000;
+    }
+    Ok(gid)
 }
 
 fn convert_object_layer(
     layer: tiled::Layer<'_>,
     object_layer: tiled::ObjectLayer<'_>,
     layer_metadata: LayerMetadata,
+    tileset_metas: &[TilesetMetadata],
 ) -> Result<Layer> {
     let objects = object_layer
         .objects()
-        .map(convert_object)
+        .map(|obj| convert_object(obj, tileset_metas))
         .collect::<Result<Vec<_>>>()?;
 
     Ok(Layer::Object(ObjectLayer {
@@ -265,13 +280,19 @@ fn convert_object_layer(
     }))
 }
 
-fn convert_object(object: tiled::Object<'_>) -> Result<MapObject> {
-    if object.tile_data().is_some() {
-        return Err(unsupported(
-            "object.tile",
-            "tile objects are out of stage-1 scope",
-        ));
-    }
+fn convert_object(
+    object: tiled::Object<'_>,
+    tileset_metas: &[TilesetMetadata],
+) -> Result<MapObject> {
+    let gid = object.tile_data().and_then(|td| {
+        if let tiled::TilesetLocation::Map(idx) = td.tileset_location() {
+            tileset_metas
+                .get(*idx)
+                .map(|meta| meta.first_gid + td.id())
+        } else {
+            None
+        }
+    });
     if object.rotation.abs() > f32::EPSILON {
         return Err(unsupported(
             "object.rotate",
@@ -317,6 +338,7 @@ fn convert_object(object: tiled::Object<'_>) -> Result<MapObject> {
         width,
         height,
         shape,
+        gid,
         properties: convert_properties(&object.properties, "object.properties")?,
     })
 }

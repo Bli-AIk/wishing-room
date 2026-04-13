@@ -100,7 +100,7 @@ where
 
     if metadata.tilesets.is_empty() {
         return Err(EditorError::Invalid(
-            "map must reference at least one external tileset".to_string(),
+            "map must reference at least one tileset".to_string(),
         ));
     }
 
@@ -121,24 +121,34 @@ where
     F: Fn(&Path) -> Result<String>,
 {
     let first_gid = parse_required_u32(node, "firstgid")?;
-    let source = node.attribute("source").map(PathBuf::from).ok_or_else(|| {
-        unsupported(
-            "tileset.embedded",
-            "embedded tilesets are out of stage-1 scope",
-        )
-    })?;
-    let source_path = normalize_path(&map_root.join(&source));
-    let tsx_xml = read_text(&source_path)?;
-    let prepared_tileset = prepare_tileset(&tsx_xml)?;
-    resources
-        .entry(source_path)
-        .or_insert_with(|| prepared_tileset.xml.clone().into_bytes());
-    metadata.tilesets.push(TilesetMetadata {
-        first_gid,
-        source,
-        version: prepared_tileset.version,
-        tiled_version: prepared_tileset.tiled_version,
-    });
+
+    if let Some(source_str) = node.attribute("source") {
+        // External tileset reference
+        let source = PathBuf::from(source_str);
+        let source_path = normalize_path(&map_root.join(&source));
+        let tsx_xml = read_text(&source_path)?;
+        let prepared_tileset = prepare_tileset(&tsx_xml)?;
+        resources
+            .entry(source_path)
+            .or_insert_with(|| prepared_tileset.xml.clone().into_bytes());
+        metadata.tilesets.push(TilesetMetadata {
+            first_gid,
+            source,
+            version: prepared_tileset.version,
+            tiled_version: prepared_tileset.tiled_version,
+        });
+    } else {
+        // Embedded tileset — validate features, then let the tiled crate parse inline.
+        validate_embedded_tileset_node(node)?;
+        let synthetic = PathBuf::from(format!("_embedded_{first_gid}.tsx"));
+        metadata.tilesets.push(TilesetMetadata {
+            first_gid,
+            source: synthetic,
+            version: node.attribute("version").map(ToOwned::to_owned),
+            tiled_version: node.attribute("tiledversion").map(ToOwned::to_owned),
+        });
+    }
+
     Ok(())
 }
 
@@ -177,22 +187,13 @@ fn prepare_tileset(xml: &str) -> Result<PreparedTileset> {
         ));
     }
 
+    let is_collection = image_nodes.is_empty();
+
     for child in root.children().filter(|node| node.is_element()) {
         match child.tag_name().name() {
-            "image" => {}
-            "tile" => {
-                // Allow <tile> elements that carry animation or collision metadata.
-                // Reject collection-of-images tiles (those with an <image> child).
-                let has_image_child = child
-                    .children()
-                    .any(|c| c.is_element() && c.tag_name().name() == "image");
-                if has_image_child {
-                    return Err(unsupported(
-                        "tileset.tile.image",
-                        "collection-of-images tilesets are out of scope",
-                    ));
-                }
-            }
+            "image" | "tile" => {}
+            // Collection-of-images tilesets commonly use <grid>; allow it.
+            "grid" if is_collection => {}
             "properties" => {
                 return Err(unsupported(
                     "tileset.properties",
@@ -213,19 +214,58 @@ fn prepare_tileset(xml: &str) -> Result<PreparedTileset> {
         }
     }
 
-    if image_nodes.is_empty() {
-        return Err(unsupported(
-            "tileset.collection_of_images",
-            "tilesets must use a single atlas image in stage 1",
-        ));
-    }
-
-    let xml = inject_inferred_tileset_metrics(xml, root, image_nodes[0])?;
+    // Collection-of-images tilesets have no atlas <image>; skip metric injection.
+    let xml = if is_collection {
+        xml.to_string()
+    } else {
+        inject_inferred_tileset_metrics(xml, root, image_nodes[0])?
+    };
     Ok(PreparedTileset {
         version: root.attribute("version").map(ToOwned::to_owned),
         tiled_version: root.attribute("tiledversion").map(ToOwned::to_owned),
         xml,
     })
+}
+
+/// Validate an embedded `<tileset>` node inside the TMX (no external .tsx).
+/// Checks the same feature gates as [`prepare_tileset`] but operates on the
+/// roxmltree node directly, without re-parsing as a standalone document.
+fn validate_embedded_tileset_node(node: Node<'_, '_>) -> Result<()> {
+    let spacing = parse_optional_u32(node, "spacing")?.unwrap_or(0);
+    if spacing != 0 {
+        return Err(unsupported(
+            "tileset.spacing",
+            "tileset spacing is out of stage-1 scope",
+        ));
+    }
+    let margin = parse_optional_u32(node, "margin")?.unwrap_or(0);
+    if margin != 0 {
+        return Err(unsupported(
+            "tileset.margin",
+            "tileset margins are out of stage-1 scope",
+        ));
+    }
+
+    let mut image_count = 0u32;
+    for child in node.children().filter(|n| n.is_element()) {
+        match child.tag_name().name() {
+            "image" => image_count += 1,
+            // Allow <tile> elements including those with per-tile <image> children
+            // (collection-of-images format).
+            "tile" => {}
+            "properties" | "wangsets" | "terraintypes" | "transformations" | "tileoffset"
+            | "grid" => {}
+            _ => {}
+        }
+    }
+
+    if image_count > 1 {
+        return Err(EditorError::Invalid(
+            "tileset cannot contain multiple <image> nodes".to_string(),
+        ));
+    }
+
+    Ok(())
 }
 
 fn validate_tile_layer_node(node: Node<'_, '_>) -> Result<()> {
@@ -276,12 +316,6 @@ fn validate_common_layer_attrs(node: Node<'_, '_>) -> Result<()> {
 }
 
 fn validate_object_node(node: Node<'_, '_>) -> Result<()> {
-    if node.attribute("gid").is_some() {
-        return Err(unsupported(
-            "object.tile",
-            "tile objects are out of stage-1 scope",
-        ));
-    }
     if node.attribute("template").is_some() {
         return Err(unsupported(
             "object.template_instance",
