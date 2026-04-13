@@ -125,6 +125,7 @@ pub(crate) fn render_canvas(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme)
                     preview_cells.as_ref(),
                     transfer_preview.as_ref(),
                     tiles_dirty,
+                    &state.hidden_layers,
                 );
                 state.perf_info = perf;
                 state.canvas_rebuild_count += 1;
@@ -204,6 +205,7 @@ fn build_and_cache_canvas(
     preview_cells: Option<&BTreeSet<(i32, i32)>>,
     transfer_preview: Option<&TransferPreview>,
     tiles_dirty: bool,
+    hidden_layers: &BTreeSet<usize>,
 ) -> String {
     let scaled_w = map_px_w * zoom;
     let scaled_h = map_px_h * zoom;
@@ -229,6 +231,7 @@ fn build_and_cache_canvas(
                     map_px_w,
                     map_px_h,
                     theme,
+                    hidden_layers,
                 )
             }
         } else {
@@ -242,6 +245,7 @@ fn build_and_cache_canvas(
                 map_px_w,
                 map_px_h,
                 theme,
+                hidden_layers,
             )
         }
     };
@@ -333,6 +337,7 @@ fn cache_tilemap(
     map_px_w: f32,
     map_px_h: f32,
     theme: &PlyTheme,
+    hidden_layers: &BTreeSet<usize>,
 ) -> Texture2D {
     let rt = render_tile_map(
         map,
@@ -343,6 +348,7 @@ fn cache_tilemap(
         map_px_w,
         map_px_h,
         theme,
+        hidden_layers,
     );
     rt.texture.set_filter(FilterMode::Nearest);
     ply_engine::renderer::TEXTURE_MANAGER
@@ -362,6 +368,7 @@ fn render_tile_map(
     map_px_w: f32,
     map_px_h: f32,
     theme: &PlyTheme,
+    hidden_layers: &BTreeSet<usize>,
 ) -> RenderTarget {
     let empty_color: MacroquadColor = theme.empty_tile.into();
 
@@ -374,7 +381,7 @@ fn render_tile_map(
     clear_background(MacroquadColor::from_rgba(0, 0, 0, 0));
 
     for (layer_idx, layer) in map.layers.iter().enumerate() {
-        if !layer.visible() {
+        if !layer.visible() || hidden_layers.contains(&layer_idx) {
             continue;
         }
         let Some(tile_layer) = layer.as_tile() else {

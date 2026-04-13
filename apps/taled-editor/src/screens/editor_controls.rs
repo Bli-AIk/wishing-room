@@ -62,6 +62,7 @@ pub(crate) fn render_history_buttons(
         });
 }
 
+#[expect(clippy::excessive_nesting)] // reason: Ply UI requires nested closures for element builders
 pub(crate) fn render_layer_panel(
     ui: &mut Ui,
     state: &mut AppState,
@@ -79,10 +80,13 @@ pub(crate) fn render_layer_panel(
     let float_bg = Color::u_rgba(24, 24, 26, alpha_scale(245, a));
     let float_border = Color::u_rgba(255, 255, 255, alpha_scale(20, a));
     let title_label = l10n::text(lang, "nav-layers");
+    let expanded = state.layers_panel_expanded;
+    let arrow = if expanded { "△" } else { "▽" };
+    let panel_w = if expanded { 200.0 } else { 158.0 };
 
     ui.element()
         .id("layer-float")
-        .width(fixed!(158.0))
+        .width(fixed!(panel_w))
         .floating(|f| {
             f.anchor((Right, Top), (Right, Top))
                 .attach_root()
@@ -92,26 +96,162 @@ pub(crate) fn render_layer_panel(
         .background_color(float_bg)
         .corner_radius(14.0)
         .border(|b| b.all(1).color(float_border))
-        .layout(|l| {
-            l.direction(LeftToRight)
-                .padding((8, 10, 6, 10))
-                .align(Left, CenterY)
-        })
+        .layout(|l| l.direction(TopToBottom).padding((0, 0, 0, 0)))
         .on_press(move |_, _| {})
         .children(|ui| {
-            if ui.just_released() {
-                state.layers_panel_expanded = !state.layers_panel_expanded;
-            }
+            // Header — tap to toggle expand/collapse
             ui.element()
+                .id("layer-float-header")
                 .width(grow!())
-                .layout(|l| l.direction(TopToBottom).gap(1))
+                .layout(|l| {
+                    l.direction(LeftToRight)
+                        .padding((8, 10, 6, 10))
+                        .align(Left, CenterY)
+                })
+                .on_press(move |_, _| {})
                 .children(|ui| {
-                    ui.text(&title_label, |t| t.font_size(12).color(theme.text));
-                    ui.text(&layer_name, |t| {
-                        t.font_size(10).color(Color::u_rgba(255, 255, 255, 168))
-                    });
+                    if ui.just_released() {
+                        state.layers_panel_expanded = !state.layers_panel_expanded;
+                    }
+                    ui.element()
+                        .width(grow!())
+                        .layout(|l| l.direction(TopToBottom).gap(1))
+                        .children(|ui| {
+                            ui.text(&title_label, |t| t.font_size(12).color(theme.text));
+                            ui.text(&layer_name, |t| {
+                                t.font_size(10).color(Color::u_rgba(255, 255, 255, 168))
+                            });
+                        });
+                    ui.text(arrow, |t| t.font_size(14).color(theme.muted_text));
                 });
-            ui.text("▽", |t| t.font_size(14).color(theme.muted_text));
+
+            // Expanded layer list
+            if expanded {
+                let layers: Vec<(usize, String, bool, bool, bool)> = state
+                    .session
+                    .as_ref()
+                    .map(|s| {
+                        s.document()
+                            .map
+                            .layers
+                            .iter()
+                            .enumerate()
+                            .map(|(i, l)| {
+                                let is_obj = l.as_object().is_some();
+                                let vis = l.visible() && !state.hidden_layers.contains(&i);
+                                let locked = l.locked();
+                                (i, l.name().to_string(), is_obj, vis, locked)
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default();
+
+                ui.element()
+                    .id("layer-float-list")
+                    .width(grow!())
+                    .layout(|l| l.direction(TopToBottom).padding((2, 6, 8, 6)).gap(2))
+                    .children(|ui| {
+                        for (idx, name, is_obj, vis, locked) in &layers {
+                            let idx = *idx;
+                            let is_active = idx == state.active_layer;
+                            let row_bg = if is_active {
+                                theme.accent_soft
+                            } else {
+                                Color::u_rgba(0, 0, 0, 0)
+                            };
+                            let display = if name.is_empty() {
+                                format!("Layer {idx}")
+                            } else {
+                                name.clone()
+                            };
+
+                            ui.element()
+                                .id(("lf-row", idx as u32))
+                                .width(grow!())
+                                .height(fixed!(32.0))
+                                .background_color(row_bg)
+                                .corner_radius(8.0)
+                                .layout(|l| {
+                                    l.direction(LeftToRight)
+                                        .align(Left, CenterY)
+                                        .padding((4, 6, 4, 6))
+                                        .gap(6)
+                                })
+                                .on_press(move |_, _| {})
+                                .children(|ui| {
+                                    if ui.just_released() {
+                                        state.active_layer = idx;
+                                        state.canvas_dirty = true;
+                                    }
+
+                                    // Eye icon — clickable
+                                    let eye_id = if *vis {
+                                        IconId::EyeOn
+                                    } else {
+                                        IconId::EyeOff
+                                    };
+                                    let eye_c = if *vis {
+                                        theme.accent
+                                    } else {
+                                        theme.muted_text
+                                    };
+                                    let eye_tex = state.icon_cache.get(eye_id);
+                                    ui.element()
+                                        .id(("lf-eye", idx as u32))
+                                        .width(fixed!(18.0))
+                                        .height(fixed!(18.0))
+                                        .background_color(eye_c)
+                                        .image(eye_tex)
+                                        .on_press(move |_, _| {})
+                                        .children(|ui| {
+                                            if ui.just_released() {
+                                                if state.hidden_layers.contains(&idx) {
+                                                    state.hidden_layers.remove(&idx);
+                                                } else {
+                                                    state.hidden_layers.insert(idx);
+                                                }
+                                                state.tiles_dirty = true;
+                                                state.canvas_dirty = true;
+                                            }
+                                        });
+
+                                    // Type icon
+                                    let type_char = if *is_obj { "⊙" } else { "⊞" };
+                                    ui.text(type_char, |t| {
+                                        t.font_size(14).color(theme.muted_text)
+                                    });
+
+                                    // Layer name
+                                    ui.element()
+                                        .width(grow!())
+                                        .children(|ui| {
+                                            ui.text(&display, |t| {
+                                                t.font_size(13).color(theme.text)
+                                            });
+                                        });
+
+                                    // Lock icon
+                                    let lk_id = if *locked {
+                                        IconId::Lock
+                                    } else {
+                                        IconId::Unlock
+                                    };
+                                    let lk_c = if *locked {
+                                        theme.accent
+                                    } else {
+                                        theme.muted_text
+                                    };
+                                    let lk_tex = state.icon_cache.get(lk_id);
+                                    ui.element()
+                                        .width(fixed!(14.0))
+                                        .height(fixed!(14.0))
+                                        .background_color(lk_c)
+                                        .image(lk_tex)
+                                        .empty();
+                                });
+                        }
+                    });
+            }
         });
 }
 

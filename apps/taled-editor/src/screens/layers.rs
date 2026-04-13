@@ -104,7 +104,7 @@ pub(crate) fn render(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
                             });
 
                         // Eye icon (accent when visible)
-                        let vis = layer.visible();
+                        let vis = layer.visible() && !state.hidden_layers.contains(&i);
                         let eye_id = if vis { IconId::EyeOn } else { IconId::EyeOff };
                         let eye_c = if vis { theme.accent } else { theme.muted_text };
                         let eye_tex = state.icon_cache.get(eye_id);
@@ -113,7 +113,18 @@ pub(crate) fn render(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
                             .height(fixed!(20.0))
                             .background_color(eye_c)
                             .image(eye_tex)
-                            .empty();
+                            .on_press(move |_, _| {})
+                            .children(|ui| {
+                                if ui.just_released() {
+                                    if state.hidden_layers.contains(&i) {
+                                        state.hidden_layers.remove(&i);
+                                    } else {
+                                        state.hidden_layers.insert(i);
+                                    }
+                                    state.tiles_dirty = true;
+                                    state.canvas_dirty = true;
+                                }
+                            });
 
                         // Lock icon (accent when locked)
                         let locked = layer.locked();
