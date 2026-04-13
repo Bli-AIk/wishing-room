@@ -146,7 +146,13 @@ fn collect_tmx_files(dir: &Path, out: &mut Vec<MapFileInfo>) {
 /// Import a directory as a new workspace. Copies everything recursively.
 /// Returns the workspace name on success.
 pub(crate) fn import_directory_as_workspace(source_dir: &Path) -> Option<String> {
+    crate::logging::append(&format!(
+        "import_directory_as_workspace: source={source_dir:?} exists={} is_dir={}",
+        source_dir.exists(),
+        source_dir.is_dir(),
+    ));
     if !source_dir.is_dir() {
+        crate::logging::append("import_directory_as_workspace: not a directory, aborting");
         return None;
     }
     let ws_name = source_dir
@@ -155,12 +161,35 @@ pub(crate) fn import_directory_as_workspace(source_dir: &Path) -> Option<String>
         .into_owned();
 
     let root = workspaces_root()?;
-    let dest = root.join(&ws_name);
+    let mut dest = root.join(&ws_name);
+    let mut final_name = ws_name.clone();
+
+    // If the workspace already exists, append a number suffix.
     if dest.exists() {
-        return None;
+        let mut n = 2u32;
+        loop {
+            final_name = format!("{ws_name}-{n}");
+            dest = root.join(&final_name);
+            if !dest.exists() {
+                break;
+            }
+            n += 1;
+        }
     }
-    copy_dir_recursive(source_dir, &dest).ok()?;
-    Some(ws_name)
+
+    crate::logging::append(&format!(
+        "import_directory_as_workspace: copying to {dest:?} as '{final_name}'",
+    ));
+    match copy_dir_recursive(source_dir, &dest) {
+        Ok(()) => {
+            crate::logging::append("import_directory_as_workspace: copy success");
+            Some(final_name)
+        }
+        Err(e) => {
+            crate::logging::append(&format!("import_directory_as_workspace: copy failed: {e}"));
+            None
+        }
+    }
 }
 
 /// Import a single TMX file and its referenced assets into a workspace.
@@ -226,40 +255,6 @@ fn copy_file_preserving_rel(src: &Path, rel_path: &str, ws_dir: &Path) {
     let _ = fs::copy(src, &dest);
 }
 
-/// Returns the staging directory for imports: `<files_dir>/import/`.
-/// Users place files here and then import from the app.
-pub(crate) fn import_staging_dir() -> Option<PathBuf> {
-    let dir = platform::files_dir().map(|d| Path::new(&d).join("import"))?;
-    let _ = fs::create_dir_all(&dir);
-    Some(dir)
-}
-
-/// Scan the import staging directory for importable items.
-/// Returns directories (potential workspace imports) and .tmx files.
-pub(crate) fn scan_import_staging() -> (Vec<PathBuf>, Vec<PathBuf>) {
-    let mut dirs = Vec::new();
-    let mut tmx_files = Vec::new();
-
-    let Some(staging) = import_staging_dir() else {
-        return (dirs, tmx_files);
-    };
-    let Ok(entries) = fs::read_dir(&staging) else {
-        return (dirs, tmx_files);
-    };
-
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            dirs.push(path);
-        } else if matches!(path.extension(), Some(ext) if ext == "tmx") {
-            tmx_files.push(path);
-        }
-    }
-    dirs.sort();
-    tmx_files.sort();
-    (dirs, tmx_files)
-}
-
 // ── Helpers ─────────────────────────────────────────────────────────
 
 /// Recursively copy a directory tree.
@@ -303,4 +298,88 @@ fn extract_attr_values(xml: &str, tag: &str, attr: &str) -> Vec<String> {
         search_from = region_end + 1;
     }
     results
+}
+
+/// Process a completed SAF directory picker result.
+/// The result string is `"mode:path"` where mode is "workspace" or "tmx".
+/// The Java side has already copied the tree to `<files_dir>/import/<name>`.
+pub(crate) fn handle_import_result(
+    state: &mut crate::app_state::AppState,
+    result: &str,
+) {
+    use crate::app_state::ImportMode;
+
+    // Parse "mode:path" format from Java side.
+    let (mode, import_path) = if let Some(rest) = result.strip_prefix("workspace:") {
+        (ImportMode::Workspace, rest)
+    } else if let Some(rest) = result.strip_prefix("tmx:") {
+        (ImportMode::Tmx, rest)
+    } else {
+        // Fallback: treat as workspace import.
+        (ImportMode::Workspace, result)
+    };
+
+    // Clear any stale pending state.
+    state.import_pending = None;
+
+    let lang = state.resolved_language();
+    let path = Path::new(import_path);
+
+    crate::logging::append(&format!(
+        "handle_import_result: mode={} path={import_path} exists={} is_dir={}",
+        match mode {
+            ImportMode::Workspace => "Workspace",
+            ImportMode::Tmx => "Tmx",
+        },
+        path.exists(),
+        path.is_dir(),
+    ));
+
+    match mode {
+        ImportMode::Workspace => {
+            if let Some(name) = import_directory_as_workspace(path) {
+                state.workspace_list = list_workspaces()
+                    .into_iter()
+                    .map(|w| w.name)
+                    .collect();
+                state.active_workspace = name.clone();
+                state.status = format!(
+                    "{} '{name}'",
+                    crate::l10n::text(lang, "import-workspace-done"),
+                );
+                crate::logging::append(&format!(
+                    "handle_import_result: workspace imported as '{name}'"
+                ));
+            } else {
+                state.status = "Import failed".to_string();
+                crate::logging::append("handle_import_result: import_directory_as_workspace failed");
+            }
+        }
+        ImportMode::Tmx => {
+            let mut count = 0u32;
+            let mut tmx_files = Vec::new();
+            collect_tmx_files(path, &mut tmx_files);
+            crate::logging::append(&format!(
+                "handle_import_result: found {} TMX files",
+                tmx_files.len()
+            ));
+            for map in &tmx_files {
+                if import_tmx_to_workspace(&map.path, &state.active_workspace).is_some()
+                {
+                    count += 1;
+                }
+            }
+            state.status = format!(
+                "{count} {}",
+                crate::l10n::text(lang, "import-tmx-done"),
+            );
+            crate::logging::append(&format!(
+                "handle_import_result: imported {count} TMX files"
+            ));
+        }
+    }
+
+    // Clean up the staging copy.
+    crate::logging::append(&format!("handle_import_result: cleaning up {import_path}"));
+    let _ = fs::remove_dir_all(path);
 }

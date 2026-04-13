@@ -231,3 +231,98 @@ pub(crate) fn is_back_pressed() -> bool {
     macroquad::prelude::is_key_pressed(macroquad::prelude::KeyCode::Back)
         || macroquad::prelude::is_key_pressed(macroquad::prelude::KeyCode::Escape)
 }
+
+/// Launch the Android native directory picker (SAF).
+#[cfg(target_os = "android")]
+pub(crate) fn launch_directory_picker(mode: &str) {
+    use std::ffi::CString;
+
+    let Ok(mode_cstr) = CString::new(mode) else {
+        return;
+    };
+
+    // SAFETY: All JNI pointers come from miniquad's verified Android runtime.
+    unsafe {
+        use macroquad::miniquad::native::android::{ACTIVITY, attach_jni_env};
+
+        let env = attach_jni_env();
+        if env.is_null() || ACTIVITY.is_null() {
+            return;
+        }
+
+        let new_string = (**env).NewStringUTF.unwrap();
+        let get_object_class = (**env).GetObjectClass.unwrap();
+        let get_method = (**env).GetMethodID.unwrap();
+        let call_void = (**env).CallVoidMethod.unwrap();
+
+        let cls = get_object_class(env, ACTIVITY);
+        let mid = get_method(
+            env,
+            cls,
+            c"launchDirectoryPicker".as_ptr(),
+            c"(Ljava/lang/String;)V".as_ptr(),
+        );
+        if mid.is_null() {
+            macroquad::prelude::warn!("launchDirectoryPicker method not found");
+            return;
+        }
+        let jmode = new_string(env, mode_cstr.as_ptr());
+        call_void(env, ACTIVITY, mid, jmode);
+    }
+}
+
+#[cfg(not(target_os = "android"))]
+pub(crate) fn launch_directory_picker(_mode: &str) {
+    macroquad::prelude::info!("launch_directory_picker: not supported on this platform");
+}
+
+/// Poll for a completed directory import (returns the local filesystem path).
+#[cfg(target_os = "android")]
+pub(crate) fn poll_import_result() -> Option<String> {
+    // SAFETY: All JNI pointers come from miniquad's verified Android runtime.
+    unsafe {
+        use macroquad::miniquad::native::android::{ACTIVITY, attach_jni_env};
+
+        let env = attach_jni_env();
+        if env.is_null() || ACTIVITY.is_null() {
+            return None;
+        }
+
+        let get_object_class = (**env).GetObjectClass.unwrap();
+        let get_static_method = (**env).GetStaticMethodID.unwrap();
+        let call_static_obj = (**env).CallStaticObjectMethod.unwrap();
+        let get_utf = (**env).GetStringUTFChars.unwrap();
+        let release_utf = (**env).ReleaseStringUTFChars.unwrap();
+
+        let cls = get_object_class(env, ACTIVITY);
+        let mid = get_static_method(
+            env,
+            cls,
+            c"pollImportResult".as_ptr(),
+            c"()Ljava/lang/String;".as_ptr(),
+        );
+        if mid.is_null() {
+            return None;
+        }
+        let result = call_static_obj(env, cls, mid);
+        if result.is_null() {
+            return None;
+        }
+
+        let mut copy = 0u8;
+        let chars = get_utf(env, result as _, &mut copy);
+        if chars.is_null() {
+            return None;
+        }
+        let path = std::ffi::CStr::from_ptr(chars)
+            .to_string_lossy()
+            .into_owned();
+        release_utf(env, result as _, chars);
+        Some(path)
+    }
+}
+
+#[cfg(not(target_os = "android"))]
+pub(crate) fn poll_import_result() -> Option<String> {
+    None
+}

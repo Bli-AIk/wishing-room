@@ -110,6 +110,13 @@ async fn main() {
             state.navigate_back();
         }
 
+        // Poll for SAF directory picker result (unconditional — state may
+        // have been reset if the Activity was recreated by Android).
+        if let Some(result) = platform::poll_import_result() {
+            logging::append(&format!("SAF import result received: {result}"));
+            workspace::handle_import_result(&mut state, &result);
+        }
+
         let mut ui = ply.begin();
 
         let ft1 = get_time();
