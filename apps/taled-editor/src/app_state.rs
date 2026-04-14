@@ -216,6 +216,8 @@ pub(crate) struct ViewfinderSnapAnim {
 pub(crate) struct AppState {
     pub(crate) session: Option<EditorSession>,
     pub(crate) tileset_textures: BTreeMap<usize, Texture2D>,
+    /// Per-tile textures for collection-of-images tilesets ((tileset_index, local_id) → texture).
+    pub(crate) tile_textures: BTreeMap<(usize, u32), Texture2D>,
     /// Cached cropped tile chip render targets (gid → RenderTarget). Invalidated on tileset reload.
     /// We keep the full RenderTarget alive so Android doesn't free the backing GL framebuffer.
     pub(crate) tile_chip_cache: BTreeMap<u32, RenderTarget>,
@@ -344,6 +346,7 @@ impl AppState {
         Self {
             session: None,
             tileset_textures: BTreeMap::new(),
+            tile_textures: BTreeMap::new(),
             tile_chip_cache: BTreeMap::new(),
             selected_chip_rt: None,
             active_layer: 0,

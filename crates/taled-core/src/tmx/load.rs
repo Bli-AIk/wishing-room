@@ -26,6 +26,8 @@ struct MapMetadata {
     next_object_id: Option<u32>,
     tilesets: Vec<TilesetMetadata>,
     layers: Vec<LayerMetadata>,
+    /// Object IDs whose shape is `<capsule>` (Tiled 1.12+, not in tiled crate).
+    capsule_ids: std::collections::BTreeSet<u32>,
 }
 
 #[derive(Debug, Clone)]

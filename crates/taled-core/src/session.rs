@@ -264,6 +264,34 @@ impl EditorSession {
         }
     }
 
+    /// Load the image bytes for a single tile in a collection-of-images tileset.
+    pub fn tile_image_bytes(&self, tileset_index: usize, local_tile_id: u32) -> Result<Vec<u8>> {
+        let ts_ref = self
+            .document
+            .map
+            .tilesets
+            .get(tileset_index)
+            .ok_or_else(|| {
+                crate::error::EditorError::Invalid(format!(
+                    "unknown tileset index: {tileset_index}"
+                ))
+            })?;
+        let tile_img = ts_ref.tileset.tile_images.get(&local_tile_id).ok_or_else(|| {
+            crate::error::EditorError::Invalid(format!(
+                "no tile image for tileset {tileset_index} tile {local_tile_id}"
+            ))
+        })?;
+        let tsx_path = ts_ref.resolved_source_path(&self.document.file_path);
+        let img_path = tsx_path
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join(&tile_img.source);
+        match &self.asset_source {
+            AssetSource::FileSystem => Ok(fs::read(&img_path)?),
+            AssetSource::Embedded(assets) => Ok(assets.read_bytes(&img_path)?.to_vec()),
+        }
+    }
+
     pub fn sample_path_from_root(root: impl AsRef<Path>) -> PathBuf {
         root.as_ref()
             .join("assets")

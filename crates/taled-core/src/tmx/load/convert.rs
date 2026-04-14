@@ -91,7 +91,13 @@ fn convert_map(metadata: MapMetadata, raw_map: tiled::Map) -> Result<Map> {
                     convert_tile_layer(&metadata.tilesets, layer, tile_layer, *layer_metadata)
                 }
                 (LayerKind::Object, LayerType::Objects(object_layer)) => {
-                    convert_object_layer(layer, object_layer, *layer_metadata, &metadata.tilesets)
+                    convert_object_layer(
+                        layer,
+                        object_layer,
+                        *layer_metadata,
+                        &metadata.tilesets,
+                        &metadata.capsule_ids,
+                    )
                 }
                 _ => Err(EditorError::Invalid(
                     "layer type changed between validation and official parsing".to_string(),
@@ -159,6 +165,7 @@ fn convert_tileset(metadata: &TilesetMetadata, tileset: &TiledTileset) -> Result
     };
 
     let mut animations = BTreeMap::new();
+    let mut tile_images = BTreeMap::new();
     for (tile_id, tile) in tileset.tiles() {
         if let Some(frames) = &tile.animation {
             let converted: Vec<AnimationFrame> = frames
@@ -171,6 +178,15 @@ fn convert_tileset(metadata: &TilesetMetadata, tileset: &TiledTileset) -> Result
             if !converted.is_empty() {
                 animations.insert(tile_id, converted);
             }
+        }
+        if let Some(img) = &tile.image {
+            let w = u32::try_from(img.width).unwrap_or(0);
+            let h = u32::try_from(img.height).unwrap_or(0);
+            tile_images.insert(tile_id, TilesetImage {
+                source: relativize_child_path(&tileset.source, &img.source),
+                width: w,
+                height: h,
+            });
         }
     }
 
@@ -186,6 +202,7 @@ fn convert_tileset(metadata: &TilesetMetadata, tileset: &TiledTileset) -> Result
             tile_count: tileset.tilecount,
             columns: tileset.columns,
             image,
+            tile_images,
             animations,
         },
     })
@@ -260,10 +277,11 @@ fn convert_object_layer(
     object_layer: tiled::ObjectLayer<'_>,
     layer_metadata: LayerMetadata,
     tileset_metas: &[TilesetMetadata],
+    capsule_ids: &std::collections::BTreeSet<u32>,
 ) -> Result<Layer> {
     let objects = object_layer
         .objects()
-        .map(|obj| convert_object(obj, tileset_metas))
+        .map(|obj| convert_object(obj, tileset_metas, capsule_ids))
         .collect::<Result<Vec<_>>>()?;
 
     Ok(Layer::Object(ObjectLayer {
@@ -280,6 +298,7 @@ fn convert_object_layer(
 fn convert_object(
     object: tiled::Object<'_>,
     tileset_metas: &[TilesetMetadata],
+    capsule_ids: &std::collections::BTreeSet<u32>,
 ) -> Result<MapObject> {
     let gid = object.tile_data().and_then(|td| {
         if let tiled::TilesetLocation::Map(idx) = td.tileset_location() {
@@ -296,13 +315,16 @@ fn convert_object(
     }
 
     let (shape, width, height) = match &object.shape {
-        TiledObjectShape::Rect { width, height } => (ObjectShape::Rectangle, *width, *height),
+        TiledObjectShape::Rect { width, height } => {
+            if capsule_ids.contains(&object.id()) {
+                (ObjectShape::Capsule, *width, *height)
+            } else {
+                (ObjectShape::Rectangle, *width, *height)
+            }
+        }
         TiledObjectShape::Point(_, _) => (ObjectShape::Point, 0.0, 0.0),
-        TiledObjectShape::Ellipse { .. } => {
-            return Err(unsupported(
-                "object.ellipse",
-                "ellipse objects are out of stage-1 scope",
-            ));
+        TiledObjectShape::Ellipse { width, height } => {
+            (ObjectShape::Ellipse, *width, *height)
         }
         TiledObjectShape::Polyline { .. } => {
             return Err(unsupported(
@@ -310,17 +332,23 @@ fn convert_object(
                 "polyline objects are out of stage-1 scope",
             ));
         }
-        TiledObjectShape::Polygon { .. } => {
-            return Err(unsupported(
-                "object.polygon",
-                "polygon objects are out of stage-1 scope",
-            ));
+        TiledObjectShape::Polygon { points } => {
+            let pts: Vec<(f32, f32)> = points.iter().map(|p| (p.0, p.1)).collect();
+            let (mut max_w, mut max_h) = (0.0_f32, 0.0_f32);
+            for &(px, py) in &pts {
+                max_w = max_w.max(px.abs());
+                max_h = max_h.max(py.abs());
+            }
+            (ObjectShape::Polygon { points: pts }, max_w, max_h)
         }
-        TiledObjectShape::Text { .. } => {
-            return Err(unsupported(
-                "object.text",
-                "text objects are out of stage-1 scope",
-            ));
+        TiledObjectShape::Text {
+            text, wrap, width, height, ..
+        } => {
+            let shape = ObjectShape::Text {
+                text: text.clone(),
+                wrap: *wrap,
+            };
+            (shape, *width, *height)
         }
     };
 

@@ -126,15 +126,44 @@ fn write_object_layer(writer: &mut Writer<Vec<u8>>, layer: &ObjectLayer) -> Resu
         if !object.visible {
             object_tag.push_attribute(("visible", "0"));
         }
-        if matches!(object.shape, ObjectShape::Rectangle) {
+        let needs_size = !matches!(object.shape, ObjectShape::Point);
+        if needs_size {
             object_tag.push_attribute(("width", width.as_str()));
             object_tag.push_attribute(("height", height.as_str()));
         }
 
         writer.write_event(Event::Start(object_tag))?;
         write_properties(writer, &object.properties)?;
-        if object.is_point() {
-            writer.write_event(Event::Empty(BytesStart::new("point")))?;
+        match &object.shape {
+            ObjectShape::Rectangle => {}
+            ObjectShape::Point => {
+                writer.write_event(Event::Empty(BytesStart::new("point")))?;
+            }
+            ObjectShape::Ellipse => {
+                writer.write_event(Event::Empty(BytesStart::new("ellipse")))?;
+            }
+            ObjectShape::Capsule => {
+                writer.write_event(Event::Empty(BytesStart::new("capsule")))?;
+            }
+            ObjectShape::Polygon { points } => {
+                let pts_str: String = points
+                    .iter()
+                    .map(|(px, py)| format!("{},{}", format_f32(*px), format_f32(*py)))
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                let mut poly_tag = BytesStart::new("polygon");
+                poly_tag.push_attribute(("points", pts_str.as_str()));
+                writer.write_event(Event::Empty(poly_tag))?;
+            }
+            ObjectShape::Text { text, wrap } => {
+                let mut text_tag = BytesStart::new("text");
+                if *wrap {
+                    text_tag.push_attribute(("wrap", "1"));
+                }
+                writer.write_event(Event::Start(text_tag))?;
+                writer.write_event(Event::Text(BytesText::new(text)))?;
+                writer.write_event(Event::End(BytesEnd::new("text")))?;
+            }
         }
         writer.write_event(Event::End(BytesEnd::new("object")))?;
     }

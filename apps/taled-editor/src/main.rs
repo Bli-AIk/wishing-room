@@ -1,5 +1,6 @@
 mod app_state;
 mod canvas;
+mod canvas_objects;
 mod canvas_overlay;
 mod edit_ops;
 mod embedded_samples;

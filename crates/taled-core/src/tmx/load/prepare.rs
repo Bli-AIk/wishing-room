@@ -50,6 +50,7 @@ where
         next_object_id: parse_optional_u32(root, "nextobjectid")?,
         tilesets: Vec::new(),
         layers: Vec::new(),
+        capsule_ids: std::collections::BTreeSet::new(),
     };
     let mut resources = BTreeMap::new();
     let map_root = map_path.parent().unwrap_or_else(|| Path::new("."));
@@ -73,6 +74,7 @@ where
             }
             "objectgroup" => {
                 validate_object_layer_node(child)?;
+                collect_capsule_ids(child, &mut metadata.capsule_ids)?;
                 metadata.layers.push(LayerMetadata {
                     kind: LayerKind::Object,
                     locked: parse_bool_attr(child, "locked", false)?,
@@ -305,6 +307,26 @@ fn validate_object_layer_node(node: Node<'_, '_>) -> Result<()> {
     Ok(())
 }
 
+/// Scan `<objectgroup>` children for objects containing `<capsule>` and record
+/// their IDs so `convert_object` can produce `ObjectShape::Capsule` instead of
+/// the `Rect` fallback that the `tiled` crate returns for unknown child tags.
+fn collect_capsule_ids(
+    group: Node<'_, '_>,
+    ids: &mut std::collections::BTreeSet<u32>,
+) -> Result<()> {
+    for obj in group.children().filter(|n| n.is_element() && n.tag_name().name() == "object") {
+        let has_capsule = obj
+            .children()
+            .any(|c| c.is_element() && c.tag_name().name() == "capsule");
+        if has_capsule
+            && let Some(id) = parse_optional_u32(obj, "id")?
+        {
+            ids.insert(id);
+        }
+    }
+    Ok(())
+}
+
 fn validate_common_layer_attrs(node: Node<'_, '_>) -> Result<()> {
     reject_non_default_f32(node, "offsetx", 0.0, "layer.offset")?;
     reject_non_default_f32(node, "offsety", 0.0, "layer.offset")?;
@@ -325,29 +347,11 @@ fn validate_object_node(node: Node<'_, '_>) -> Result<()> {
 
     for child in node.children().filter(|child| child.is_element()) {
         match child.tag_name().name() {
-            "point" | "properties" => {}
-            "ellipse" => {
-                return Err(unsupported(
-                    "object.ellipse",
-                    "ellipse objects are out of stage-1 scope",
-                ));
-            }
-            "polygon" => {
-                return Err(unsupported(
-                    "object.polygon",
-                    "polygon objects are out of stage-1 scope",
-                ));
-            }
+            "point" | "properties" | "ellipse" | "polygon" | "text" | "capsule" => {}
             "polyline" => {
                 return Err(unsupported(
                     "object.polyline",
                     "polyline objects are out of stage-1 scope",
-                ));
-            }
-            "text" => {
-                return Err(unsupported(
-                    "object.text",
-                    "text objects are out of stage-1 scope",
                 ));
             }
             value => {

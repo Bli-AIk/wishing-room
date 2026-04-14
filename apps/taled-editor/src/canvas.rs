@@ -41,11 +41,16 @@ fn reuse_rt(
 /// Load tileset image data into macroquad Texture2D objects.
 pub(crate) fn load_tileset_textures(state: &mut AppState) {
     state.tileset_textures.clear();
+    state.tile_textures.clear();
     state.tile_chip_cache.clear();
     let Some(session) = state.session.as_ref() else {
         return;
     };
-    for (index, _ts_ref) in session.document().map.tilesets.iter().enumerate() {
+    for (index, ts_ref) in session.document().map.tilesets.iter().enumerate() {
+        if !ts_ref.tileset.tile_images.is_empty() {
+            load_tile_images(session, index, ts_ref, &mut state.tile_textures);
+            continue;
+        }
         match session.tileset_image_bytes(index) {
             Ok(bytes) => {
                 let texture = Texture2D::from_file_with_format(&bytes, None);
@@ -57,6 +62,22 @@ pub(crate) fn load_tileset_textures(state: &mut AppState) {
                 crate::logging::append(&format!("tileset {index} image FAIL: {e}"));
             }
         }
+    }
+}
+
+fn load_tile_images(
+    session: &taled_core::EditorSession,
+    index: usize,
+    ts_ref: &taled_core::TilesetReference,
+    out: &mut BTreeMap<(usize, u32), Texture2D>,
+) {
+    for &tile_id in ts_ref.tileset.tile_images.keys() {
+        let Ok(bytes) = session.tile_image_bytes(index, tile_id) else {
+            continue;
+        };
+        let texture = Texture2D::from_file_with_format(&bytes, None);
+        texture.set_filter(FilterMode::Nearest);
+        out.insert((index, tile_id), texture);
     }
 }
 
@@ -117,6 +138,7 @@ pub(crate) fn render_canvas(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme)
                 let perf = build_and_cache_canvas(
                     map,
                     &state.tileset_textures,
+                    &state.tile_textures,
                     state.active_layer,
                     state.show_grid,
                     tile_w,
@@ -206,6 +228,7 @@ const TILEMAP_CACHE_KEY: &str = "taled-tilemap";
 fn build_and_cache_canvas(
     map: &taled_core::Map,
     textures: &BTreeMap<usize, Texture2D>,
+    tile_textures: &BTreeMap<(usize, u32), Texture2D>,
     active_layer: usize,
     show_grid: bool,
     tile_w: f32,
@@ -285,6 +308,19 @@ fn build_and_cache_canvas(
     );
     if show_grid {
         draw_grid(map.width, map.height, tile_w * zoom, tile_h * zoom, theme);
+    }
+
+    // Render object layers at canvas (zoomed) resolution for sharp vector output.
+    for (layer_idx, layer) in map.layers.iter().enumerate() {
+        if !layer.visible() || hidden_layers.contains(&layer_idx) {
+            continue;
+        }
+        if let Some(obj_layer) = layer.as_object() {
+            crate::canvas_objects::render_object_layer(
+                obj_layer, map, textures, tile_textures,
+                layer.opacity(), zoom, scaled_h,
+            );
+        }
     }
 
     // Draw transfer floating tiles with opaque backing to hide underlying tiles.

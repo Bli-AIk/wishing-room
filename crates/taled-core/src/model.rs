@@ -129,6 +129,8 @@ pub struct Tileset {
     pub tile_count: u32,
     pub columns: u32,
     pub image: TilesetImage,
+    /// Per-tile images for collection-of-images tilesets (local tile ID → image).
+    pub tile_images: BTreeMap<u32, TilesetImage>,
     /// Tile animations keyed by local tile ID.
     pub animations: BTreeMap<u32, Vec<AnimationFrame>>,
 }
@@ -191,10 +193,14 @@ impl TileLayer {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ObjectShape {
     Rectangle,
     Point,
+    Ellipse,
+    Polygon { points: Vec<(f32, f32)> },
+    Text { text: String, wrap: bool },
+    Capsule,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -434,7 +440,11 @@ impl Map {
 
         let (tileset_index, tileset) = self.tileset_for_gid(base_gid)?;
         let local_id = base_gid - tileset.first_gid;
-        if local_id >= tileset.tileset.tile_count {
+        // Collection-of-images tilesets may have non-contiguous tile IDs that
+        // exceed tile_count.  Accept them when an explicit tile image exists.
+        if local_id >= tileset.tileset.tile_count
+            && !tileset.tileset.tile_images.contains_key(&local_id)
+        {
             return None;
         }
 

@@ -28,12 +28,19 @@ static THUMB_RUINS: GraphicAsset = GraphicAsset::Bytes {
     data: include_bytes!("../../../assets/review/dashboard-ruins.png"),
 };
 
-static EMBEDDED_SAMPLES: [EmbeddedSample; 4] = [
+static EMBEDDED_SAMPLES: [EmbeddedSample; 5] = [
     EmbeddedSample {
         path: "stage1-basic/map.tmx",
         title: "map.tmx",
         subtitle: "assets/samples/stage1-basic/map.tmx",
         meta: "Modified 2026-03-23 11:41 • 924 B • 6×5 @ 16 px",
+        thumb: &THUMB_STAGE1,
+    },
+    EmbeddedSample {
+        path: "test_obj/test.tmx",
+        title: "Object Test",
+        subtitle: "assets/samples/test_obj/test.tmx",
+        meta: "30×20 @ 16 px • all object types",
         thumb: &THUMB_STAGE1,
     },
     EmbeddedSample {
@@ -68,7 +75,7 @@ pub(crate) fn embedded_sample(path: &str) -> Option<&'static EmbeddedSample> {
 }
 
 #[allow(dead_code)]
-pub(crate) fn embedded_sample_assets() -> [(&'static str, &'static [u8]); 14] {
+pub(crate) fn embedded_sample_assets() -> [(&'static str, &'static [u8]); 42] {
     [
         (
             "stage1-basic/map.tmx",
@@ -91,9 +98,38 @@ pub(crate) fn embedded_sample_assets() -> [(&'static str, &'static [u8]); 14] {
             include_str!("../../../assets/samples/ruins/ruins.tsx").as_bytes(),
         ),
         (
+            "ruins/ruins_objects.tsx",
+            include_str!("../../../assets/samples/ruins/ruins_objects.tsx").as_bytes(),
+        ),
+        (
             "ruins/tiles/ruins.png",
             include_bytes!("../../../assets/samples/ruins/tiles/ruins.png"),
         ),
+        // Collection-of-images tile PNGs for ruins_objects.tsx
+        ("ruins/tiles/objects/bigweb_0.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/bigweb_0.png")),
+        ("ruins/tiles/objects/brand.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/brand.png")),
+        ("ruins/tiles/objects/candydish_0.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/candydish_0.png")),
+        ("ruins/tiles/objects/candydish2_0.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/candydish2_0.png")),
+        ("ruins/tiles/objects/candydish2_1.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/candydish2_1.png")),
+        ("ruins/tiles/objects/candydish_bad_0.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/candydish_bad_0.png")),
+        ("ruins/tiles/objects/centeredhole_0.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/centeredhole_0.png")),
+        ("ruins/tiles/objects/cheesetable_0.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/cheesetable_0.png")),
+        ("ruins/tiles/objects/colorswitch_0.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/colorswitch_0.png")),
+        ("ruins/tiles/objects/colorswitch_1.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/colorswitch_1.png")),
+        ("ruins/tiles/objects/colorswitch_2.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/colorswitch_2.png")),
+        ("ruins/tiles/objects/faceswitch_0.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/faceswitch_0.png")),
+        ("ruins/tiles/objects/faceswitch_1.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/faceswitch_1.png")),
+        ("ruins/tiles/objects/groundswitch1_0.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/groundswitch1_0.png")),
+        ("ruins/tiles/objects/groundswitch1_1.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/groundswitch1_1.png")),
+        ("ruins/tiles/objects/hole_0.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/hole_0.png")),
+        ("ruins/tiles/objects/hole2_0.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/hole2_0.png")),
+        ("ruins/tiles/objects/ribbon_0.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/ribbon_0.png")),
+        ("ruins/tiles/objects/smallweb_0.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/smallweb_0.png")),
+        ("ruins/tiles/objects/spiketile_0.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/spiketile_0.png")),
+        ("ruins/tiles/objects/spiketile_1.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/spiketile_1.png")),
+        ("ruins/tiles/objects/switch_0.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/switch_0.png")),
+        ("ruins/tiles/objects/switch_1.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/switch_1.png")),
+        ("ruins/tiles/objects/tornote_0.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/tornote_0.png")),
         (
             "maps/017-2.tmx",
             include_str!("../../../assets/samples/tmwa/maps/017-2.tmx").as_bytes(),
@@ -125,6 +161,18 @@ pub(crate) fn embedded_sample_assets() -> [(&'static str, &'static [u8]); 14] {
         (
             "graphics/tiles/icecave.png",
             include_bytes!("../../../assets/samples/tmwa/graphics/tiles/icecave.png"),
+        ),
+        (
+            "test_obj/test.tmx",
+            include_str!("../../../assets/samples/test_obj/test.tmx").as_bytes(),
+        ),
+        (
+            "test_obj/asset.tsx",
+            include_str!("../../../assets/samples/test_obj/asset.tsx").as_bytes(),
+        ),
+        (
+            "test_obj/asset.png",
+            include_bytes!("../../../assets/samples/test_obj/asset.png"),
         ),
     ]
 }
