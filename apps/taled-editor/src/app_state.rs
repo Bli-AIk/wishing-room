@@ -228,6 +228,8 @@ pub(crate) struct AppState {
     pub(crate) selected_gid: u32,
     pub(crate) selected_cell: Option<(u32, u32)>,
     pub(crate) selected_object: Option<u32>,
+    /// Previous selected_object value — used to detect selection change and sync text inputs.
+    pub(crate) obj_info_synced_for: Option<u32>,
     /// World-space origin when an object drag started (for computing delta).
     pub(crate) obj_drag_origin: Option<(f32, f32)>,
     /// Original object position when drag started (for applying delta).
@@ -358,6 +360,7 @@ impl AppState {
             selected_gid: 0,
             selected_cell: None,
             selected_object: None,
+            obj_info_synced_for: None,
             obj_drag_origin: None,
             obj_drag_start_pos: None,
             shape_fill_preview: None,

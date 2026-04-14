@@ -368,6 +368,8 @@ fn handle_object_drag(state: &mut AppState, mx: f32, my: f32, canvas_origin_y: f
             obj.x = new_x;
             obj.y = new_y;
             state.canvas_dirty = true;
+            // Force text input fields to resync with new position.
+            state.obj_info_synced_for = None;
         }
     }
 }

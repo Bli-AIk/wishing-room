@@ -315,7 +315,8 @@ fn render_shape_fill_modes(
 // Toolbar and floating controls extracted to editor_toolbar module.
 
 /// Panel shown in place of the tile viewfinder when the active layer is an object layer.
-/// Displays the selected object's name and position, or a hint when nothing is selected.
+/// Displays the selected object's name and editable position/size fields,
+/// or a hint when nothing is selected.
 fn render_object_info_panel(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
     let lang = state.resolved_language();
 
@@ -333,6 +334,18 @@ fn render_object_info_panel(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme)
         Some((label, obj.x, obj.y, obj.width, obj.height))
     });
 
+    // Sync text input values when selection changes (or on first frame).
+    let selection_changed = state.obj_info_synced_for != state.selected_object;
+    if selection_changed {
+        if let Some((_, x, y, w, h)) = &obj_info {
+            ui.set_text_value("obj-x", &format!("{x:.1}"));
+            ui.set_text_value("obj-y", &format!("{y:.1}"));
+            ui.set_text_value("obj-w", &format!("{w:.1}"));
+            ui.set_text_value("obj-h", &format!("{h:.1}"));
+        }
+        state.obj_info_synced_for = state.selected_object;
+    }
+
     ui.element()
         .id("obj-info-panel")
         .width(grow!())
@@ -340,19 +353,124 @@ fn render_object_info_panel(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme)
         .layout(|l| {
             l.direction(TopToBottom)
                 .align(Left, CenterY)
-                .padding((12, 16, 12, 16))
-                .gap(6)
+                .padding((8, 12, 8, 12))
+                .gap(4)
         })
         .children(|ui| {
-            if let Some((name, x, y, w, h)) = obj_info {
-                ui.text(&name, |t| t.font_size(15).color(theme.text));
-                let pos = format!("X: {x:.1}  Y: {y:.1}");
-                ui.text(&pos, |t| t.font_size(13).color(theme.muted_text));
-                let size = format!("W: {w:.1}  H: {h:.1}");
-                ui.text(&size, |t| t.font_size(13).color(theme.muted_text));
+            if let Some((name, _, _, _, _)) = obj_info {
+                ui.text(&name, |t| t.font_size(14).color(theme.text));
+                obj_field_row(ui, theme, "X", "obj-x", "Y", "obj-y");
+                obj_field_row(ui, theme, "W", "obj-w", "H", "obj-h");
             } else {
                 let hint = l10n::text(lang, "obj-info-no-selection");
                 ui.text(&hint, |t| t.font_size(13).color(theme.muted_text));
             }
         });
+
+    // After rendering, apply text values only when no obj field is focused (user finished editing).
+    let editing = ui.focused_element().is_some_and(|f| {
+        ["obj-x", "obj-y", "obj-w", "obj-h"]
+            .iter()
+            .any(|&id| f == Id::new(id))
+    });
+    if state.selected_object.is_some() && !editing {
+        apply_obj_field(ui, state, "obj-x", ObjField::X);
+        apply_obj_field(ui, state, "obj-y", ObjField::Y);
+        apply_obj_field(ui, state, "obj-w", ObjField::W);
+        apply_obj_field(ui, state, "obj-h", ObjField::H);
+    }
+}
+
+/// Render a row with two label+input pairs: `A [___] B [___]`.
+fn obj_field_row(
+    ui: &mut Ui,
+    theme: &PlyTheme,
+    label_a: &str,
+    id_a: &'static str,
+    label_b: &str,
+    id_b: &'static str,
+) {
+    let input_bg = Color::rgba(0.0, 0.0, 0.0, 0.25);
+    ui.element()
+        .layout(|l| l.direction(LeftToRight).align(Left, CenterY).gap(4))
+        .width(grow!())
+        .children(|ui| {
+            obj_field(ui, theme, label_a, id_a, input_bg);
+            obj_field(ui, theme, label_b, id_b, input_bg);
+        });
+}
+
+/// A single label + text input pair.
+fn obj_field(ui: &mut Ui, theme: &PlyTheme, label: &str, field_id: &'static str, input_bg: Color) {
+    ui.element().width(fixed!(14.0)).children(|ui| {
+        ui.text(label, |t| t.font_size(12).color(theme.muted_text));
+    });
+    ui.element()
+        .id(field_id)
+        .width(grow!())
+        .height(fixed!(26.0))
+        .background_color(input_bg)
+        .corner_radius(4.0)
+        .layout(|l| l.padding((0, 4, 0, 4)).align(Left, CenterY))
+        .text_input(|t| {
+            t.font_size(12)
+                .text_color(theme.text)
+                .cursor_color(theme.text)
+                .max_length(12)
+        })
+        .empty();
+}
+
+/// Which object field a text input corresponds to.
+enum ObjField {
+    X,
+    Y,
+    W,
+    H,
+}
+
+/// Read a text input value and, if it parses as f32, apply it to the selected object.
+fn apply_obj_field(ui: &Ui, state: &mut AppState, field_id: &'static str, field: ObjField) {
+    let text = ui.get_text_value(field_id);
+    if text.is_empty() {
+        return;
+    }
+    let Ok(val) = text.parse::<f32>() else {
+        return;
+    };
+
+    let Some(obj_id) = state.selected_object else {
+        return;
+    };
+    let Some(session) = state.session.as_mut() else {
+        return;
+    };
+    let doc = session.document_mut();
+    let Some(layer) = doc.map.layer_mut(state.active_layer) else {
+        return;
+    };
+    let Some(ol) = layer.as_object_mut() else {
+        return;
+    };
+    let Some(obj) = ol.object_mut(obj_id) else {
+        return;
+    };
+
+    let current = match field {
+        ObjField::X => obj.x,
+        ObjField::Y => obj.y,
+        ObjField::W => obj.width,
+        ObjField::H => obj.height,
+    };
+
+    // Only apply if the parsed value actually differs (avoids marking dirty every frame).
+    if (val - current).abs() > 0.001 {
+        match field {
+            ObjField::X => obj.x = val,
+            ObjField::Y => obj.y = val,
+            ObjField::W => obj.width = val,
+            ObjField::H => obj.height = val,
+        }
+        state.canvas_dirty = true;
+    }
 }
