@@ -93,28 +93,31 @@ fn header_title(ui: &mut Ui, theme: &PlyTheme, title: &str) {
         });
 }
 
-fn header_save_btn(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
-    let save_label = l10n::text(state.resolved_language(), "editor-save");
+fn header_save_btn(ui: &mut Ui, state: &mut AppState, _theme: &PlyTheme) {
+    let lang = state.resolved_language();
+    let save_text = l10n::text(lang, "editor-save");
     let is_dirty = state.session.as_ref().is_some_and(|s| s.dirty());
     let save_color = if is_dirty {
         Color::u_rgb(0xff, 0xff, 0xff)
     } else {
-        theme.muted_text
+        super::widgets::HEADER_ACTION_COLOR
     };
     ui.element()
         .id("editor-save-btn")
         .width(fixed!(92.0))
         .height(grow!())
-        .layout(|l| l.align(Right, CenterY))
+        .layout(|l| l.align(Left, CenterY))
         .on_press(move |_, _| {})
         .children(|ui| {
             if ui.just_released()
                 && let Some(session) = state.session.as_mut()
-                && let Err(e) = session.save()
             {
-                crate::logging::append(&format!("save FAILED: {e}"));
+                match session.save() {
+                    Ok(()) => crate::logging::append("save OK"),
+                    Err(e) => crate::logging::append(&format!("save FAILED: {e}")),
+                }
             }
-            ui.text(&save_label, |t| {
+            ui.text(&save_text, |t| {
                 t.font_size(14).color(save_color).alignment(Right)
             });
         });

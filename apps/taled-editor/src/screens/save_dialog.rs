@@ -66,7 +66,7 @@ fn save_btn(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme, label: &str) {
         .background_color(theme.accent)
         .corner_radius(8.0)
         .border(|b| b.all(1).color(theme.border))
-        .layout(|l| l.align(CenterX, CenterY))
+        .layout(|l| l.align(Left, CenterY))
         .on_press(|_, _| {})
         .children(|ui| {
             if ui.just_released() {
@@ -93,7 +93,7 @@ fn discard_btn(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme, label: &str)
         .height(fixed!(40.0))
         .corner_radius(8.0)
         .border(|b| b.all(1).color(theme.border))
-        .layout(|l| l.align(CenterX, CenterY))
+        .layout(|l| l.align(Left, CenterY))
         .on_press(|_, _| {})
         .children(|ui| {
             if ui.just_released() {
@@ -113,7 +113,7 @@ fn later_btn(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme, label: &str) {
         .height(fixed!(40.0))
         .corner_radius(8.0)
         .border(|b| b.all(1).color(theme.border))
-        .layout(|l| l.align(CenterX, CenterY))
+        .layout(|l| l.align(Left, CenterY))
         .on_press(|_, _| {})
         .children(|ui| {
             if ui.just_released() {
