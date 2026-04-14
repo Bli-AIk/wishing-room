@@ -336,6 +336,8 @@ pub(crate) struct AppState {
     pub(crate) show_workspace_picker: bool,
     /// Whether the import action menu popup is currently visible.
     pub(crate) show_import_menu: bool,
+    /// Whether the unsaved-changes dialog is visible (shown on back navigation).
+    pub(crate) show_save_dialog: bool,
     /// Pending import mode: "workspace" or "tmx" while waiting for SAF picker result.
     pub(crate) import_pending: Option<ImportMode>,
 }
@@ -441,6 +443,7 @@ impl AppState {
             workspace_list: Vec::new(),
             show_workspace_picker: false,
             show_import_menu: false,
+            show_save_dialog: false,
             import_pending: None,
         }
     }
@@ -516,6 +519,12 @@ impl AppState {
 
     /// Navigate to the logical parent screen.
     pub(crate) fn navigate_back(&mut self) {
+        // If the save dialog is open, dismiss it (treat hw back as "Later").
+        if self.show_save_dialog {
+            self.show_save_dialog = false;
+            return;
+        }
+
         let target = match self.mobile_screen {
             MobileScreen::About | MobileScreen::Themes => MobileScreen::Settings,
             MobileScreen::Tilesets
@@ -529,6 +538,15 @@ impl AppState {
         if target == self.mobile_screen {
             return;
         }
+
+        // Leaving editor → check for unsaved changes.
+        if self.mobile_screen == MobileScreen::Editor
+            && self.session.as_ref().is_some_and(|s| s.dirty())
+        {
+            self.show_save_dialog = true;
+            return;
+        }
+
         let dir = if self.mobile_screen.is_editor_subtab() {
             TransitionDir::Down
         } else {

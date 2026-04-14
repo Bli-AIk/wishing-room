@@ -7,6 +7,7 @@ pub(crate) mod editor_toolbar;
 pub(crate) mod layers;
 pub(crate) mod objects;
 pub(crate) mod properties;
+pub(crate) mod save_dialog;
 pub(crate) mod settings;
 pub(crate) mod themes;
 mod tile_palette;

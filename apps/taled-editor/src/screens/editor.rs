@@ -22,6 +22,8 @@ pub(crate) fn render(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
 
     let items = editor_nav_items();
     bottom_nav(ui, state, theme, &items, MobileScreen::Editor);
+
+    super::save_dialog::render(ui, state, theme);
 }
 
 fn render_editor_header(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
@@ -50,50 +52,89 @@ fn render_editor_header(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
                 .gap(6)
         })
         .children(|ui| {
-            // Left: Back button (92px)
-            let back = l10n::text(state.resolved_language(), "common-back");
-            ui.element()
-                .id("editor-back")
-                .width(fixed!(92.0))
-                .height(grow!())
-                .layout(|l| l.align(Left, CenterY))
-                .on_press(move |_, _| {})
-                .children(|ui| {
-                    if ui.just_released() {
-                        state.navigate_back_to(MobileScreen::Dashboard);
-                    }
-                    ui.text(&back, |t| {
-                        t.font_size(14).color(super::widgets::HEADER_ACTION_COLOR)
-                    });
-                });
+            header_back_btn(ui, state);
+            header_title(ui, theme, &title);
+            header_save_btn(ui, state, theme);
+            header_settings_btn(ui, state, theme);
+        });
+}
 
-            // Center: title
-            ui.element()
-                .width(grow!())
-                .height(grow!())
-                .layout(|l| l.align(Left, CenterY))
-                .children(|ui| {
-                    ui.text(&title, |t| {
-                        t.font_size(17).color(theme.text).alignment(CenterX)
-                    });
-                });
+fn header_back_btn(ui: &mut Ui, state: &mut AppState) {
+    let back = l10n::text(state.resolved_language(), "common-back");
+    ui.element()
+        .id("editor-back")
+        .width(fixed!(92.0))
+        .height(grow!())
+        .layout(|l| l.align(Left, CenterY))
+        .on_press(move |_, _| {})
+        .children(|ui| {
+            if ui.just_released() {
+                let is_dirty = state.session.as_ref().is_some_and(|s| s.dirty());
+                if is_dirty {
+                    state.show_save_dialog = true;
+                } else {
+                    state.navigate_back_to(MobileScreen::Dashboard);
+                }
+            }
+            ui.text(&back, |t| {
+                t.font_size(14).color(super::widgets::HEADER_ACTION_COLOR)
+            });
+        });
+}
 
-            // Right: Settings (92px)
-            ui.element()
-                .id("editor-settings")
-                .width(fixed!(92.0))
-                .height(grow!())
-                .layout(|l| l.align(Right, CenterY))
-                .on_press(move |_, _| {})
-                .children(|ui| {
-                    if ui.just_released() {
-                        state.navigate(MobileScreen::Settings);
-                    }
-                    let settings = l10n::text(state.resolved_language(), "nav-settings");
-                    ui.text(&settings, |t| {
-                        t.font_size(14).color(theme.muted_text).alignment(Right)
-                    });
-                });
+fn header_title(ui: &mut Ui, theme: &PlyTheme, title: &str) {
+    ui.element()
+        .width(grow!())
+        .height(grow!())
+        .layout(|l| l.align(Left, CenterY))
+        .children(|ui| {
+            ui.text(title, |t| {
+                t.font_size(17).color(theme.text).alignment(CenterX)
+            });
+        });
+}
+
+fn header_save_btn(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
+    let save_label = l10n::text(state.resolved_language(), "editor-save");
+    let is_dirty = state.session.as_ref().is_some_and(|s| s.dirty());
+    let save_color = if is_dirty {
+        Color::u_rgb(0xff, 0xff, 0xff)
+    } else {
+        theme.muted_text
+    };
+    ui.element()
+        .id("editor-save-btn")
+        .width(fixed!(56.0))
+        .height(grow!())
+        .layout(|l| l.align(CenterX, CenterY))
+        .on_press(move |_, _| {})
+        .children(|ui| {
+            if ui.just_released()
+                && let Some(session) = state.session.as_mut()
+            {
+                let _ = session.save();
+            }
+            ui.text(&save_label, |t| {
+                t.font_size(14).color(save_color).alignment(CenterX)
+            });
+        });
+}
+
+fn header_settings_btn(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
+    ui.element()
+        .id("editor-settings")
+        .width(fixed!(92.0))
+        .height(grow!())
+        .layout(|l| l.align(Right, CenterY))
+        .on_press(move |_, _| {})
+        .children(|ui| {
+            if ui.just_released() {
+                state.navigate(MobileScreen::Settings);
+            }
+            let settings = l10n::text(state.resolved_language(), "nav-settings");
+            ui.text(&settings, |t| {
+                t.font_size(14).color(theme.muted_text).alignment(Right)
+            });
         });
 }
 
