@@ -4,6 +4,7 @@ mod dashboard_import;
 pub(crate) mod editor;
 pub(crate) mod editor_controls;
 pub(crate) mod editor_toolbar;
+mod layer_dialogs;
 pub(crate) mod layers;
 pub(crate) mod objects;
 pub(crate) mod properties;

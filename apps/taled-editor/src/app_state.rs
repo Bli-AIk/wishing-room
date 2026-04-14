@@ -340,6 +340,12 @@ pub(crate) struct AppState {
     pub(crate) show_save_dialog: bool,
     /// Pending import mode: "workspace" or "tmx" while waiting for SAF picker result.
     pub(crate) import_pending: Option<ImportMode>,
+    pub(crate) delete_layer_pending: Option<usize>,
+    pub(crate) layer_actions_row: Option<usize>,
+    pub(crate) rename_layer_index: Option<usize>,
+    pub(crate) rename_synced: bool,
+    pub(crate) rename_had_focus: bool,
+    pub(crate) layer_swipe_start: Option<(usize, f32)>,
 }
 
 /// Which kind of import the user initiated.
@@ -445,6 +451,12 @@ impl AppState {
             show_import_menu: false,
             show_save_dialog: false,
             import_pending: None,
+            delete_layer_pending: None,
+            layer_actions_row: None,
+            rename_layer_index: None,
+            rename_synced: false,
+            rename_had_focus: false,
+            layer_swipe_start: None,
         }
     }
 
@@ -476,37 +488,25 @@ impl AppState {
     }
 
     pub(crate) fn navigate_back_to(&mut self, screen: MobileScreen) {
-        if screen == self.mobile_screen {
-            return;
-        }
-        self.page_transition = Some(PageTransition {
-            from_screen: self.mobile_screen,
-            start_time: get_time(),
-            dir: TransitionDir::Back,
-        });
-        self.mobile_screen = screen;
+        self.navigate_transition(screen, TransitionDir::Back);
     }
 
     pub(crate) fn navigate_up(&mut self, screen: MobileScreen) {
-        if screen == self.mobile_screen {
-            return;
-        }
-        self.page_transition = Some(PageTransition {
-            from_screen: self.mobile_screen,
-            start_time: get_time(),
-            dir: TransitionDir::Up,
-        });
-        self.mobile_screen = screen;
+        self.navigate_transition(screen, TransitionDir::Up);
     }
 
     pub(crate) fn navigate_down(&mut self, screen: MobileScreen) {
+        self.navigate_transition(screen, TransitionDir::Down);
+    }
+
+    fn navigate_transition(&mut self, screen: MobileScreen, dir: TransitionDir) {
         if screen == self.mobile_screen {
             return;
         }
         self.page_transition = Some(PageTransition {
             from_screen: self.mobile_screen,
             start_time: get_time(),
-            dir: TransitionDir::Down,
+            dir,
         });
         self.mobile_screen = screen;
     }

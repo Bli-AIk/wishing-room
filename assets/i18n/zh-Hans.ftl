@@ -157,3 +157,14 @@ save-dialog-discard = 不保存
 save-dialog-later = 稍后
 save-error = 保存失败: { $error }
 save-success = 已保存
+
+layer-add-tile = 添加瓦片层
+layer-add-object = 添加物体层
+layer-tile = 瓦片层
+layer-object = 物体层
+layer-rename = 重命名
+layer-delete = 删除
+layer-delete-title = 删除图层
+layer-delete-message = 确定要删除 "{ $name }" 吗？此操作无法撤销。
+layer-delete-confirm = 删除
+layer-delete-cancel = 取消

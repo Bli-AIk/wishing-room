@@ -454,6 +454,58 @@ impl Map {
             local_id,
         })
     }
+
+    /// Add a new empty tile layer and return its index.
+    pub fn add_tile_layer(&mut self, name: &str) -> usize {
+        let id = self.next_layer_id;
+        self.next_layer_id += 1;
+        let layer = TileLayer {
+            id,
+            name: name.to_string(),
+            visible: true,
+            locked: false,
+            opacity: 1.0,
+            width: self.width,
+            height: self.height,
+            tiles: vec![0; (self.width * self.height) as usize],
+            properties: Vec::new(),
+        };
+        self.layers.push(Layer::Tile(layer));
+        self.layers.len() - 1
+    }
+
+    /// Add a new empty object layer and return its index.
+    pub fn add_object_layer(&mut self, name: &str) -> usize {
+        let id = self.next_layer_id;
+        self.next_layer_id += 1;
+        let layer = ObjectLayer {
+            id,
+            name: name.to_string(),
+            visible: true,
+            locked: false,
+            opacity: 1.0,
+            objects: Vec::new(),
+            properties: Vec::new(),
+        };
+        self.layers.push(Layer::Object(layer));
+        self.layers.len() - 1
+    }
+
+    /// Remove a layer by index. Returns the removed layer or `None`.
+    pub fn remove_layer(&mut self, index: usize) -> Option<Layer> {
+        if index < self.layers.len() {
+            Some(self.layers.remove(index))
+        } else {
+            None
+        }
+    }
+
+    /// Swap two layers for reordering.
+    pub fn swap_layers(&mut self, a: usize, b: usize) {
+        if a < self.layers.len() && b < self.layers.len() {
+            self.layers.swap(a, b);
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

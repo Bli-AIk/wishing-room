@@ -157,3 +157,14 @@ save-dialog-discard = Don't Save
 save-dialog-later = Later
 save-error = Save failed: { $error }
 save-success = Saved
+
+layer-add-tile = Add Tile Layer
+layer-add-object = Add Object Layer
+layer-tile = Tile Layer
+layer-object = Object Layer
+layer-rename = Rename
+layer-delete = Delete
+layer-delete-title = Delete Layer
+layer-delete-message = Are you sure you want to delete "{ $name }"? This cannot be undone.
+layer-delete-confirm = Delete
+layer-delete-cancel = Cancel

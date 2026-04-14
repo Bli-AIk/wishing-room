@@ -37,6 +37,8 @@ pub(crate) enum IconId {
     ModeSelIntersect,
     ChevronDown,
     Import,
+    LayerTypeTile,
+    LayerTypeObject,
 }
 
 fn icon_bytes(id: IconId) -> &'static [u8] {
@@ -73,6 +75,8 @@ fn icon_bytes(id: IconId) -> &'static [u8] {
         IconId::ModeSelIntersect => include_bytes!("../../../assets/icons/mode-sel-intersect.png"),
         IconId::ChevronDown => include_bytes!("../../../assets/icons/chevron-down.png"),
         IconId::Import => include_bytes!("../../../assets/icons/nav-assets.png"),
+        IconId::LayerTypeTile => include_bytes!("../../../assets/icons/layer-type-tile.png"),
+        IconId::LayerTypeObject => include_bytes!("../../../assets/icons/layer-type-object.png"),
     }
 }
 

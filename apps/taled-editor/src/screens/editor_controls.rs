@@ -219,10 +219,17 @@ pub(crate) fn render_layer_panel(
                                                 state.active_layer = idx;
                                                 state.canvas_dirty = true;
                                             }
-                                            let type_char = if *is_obj { "⊙" } else { "⊞" };
-                                            ui.text(type_char, |t| {
-                                                t.font_size(14).color(theme.muted_text)
-                                            });
+                                            let (icon_id, tint) = if *is_obj {
+                                                (IconId::LayerTypeObject, theme.accent)
+                                            } else {
+                                                (IconId::LayerTypeTile, theme.muted_text)
+                                            };
+                                            ui.element()
+                                                .width(fixed!(14.0))
+                                                .height(fixed!(14.0))
+                                                .background_color(tint)
+                                                .image(state.icon_cache.get(icon_id))
+                                                .empty();
                                             ui.text(&display, |t| {
                                                 t.font_size(13).color(theme.text)
                                             });
