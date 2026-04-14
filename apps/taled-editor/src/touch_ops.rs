@@ -39,6 +39,23 @@ pub(crate) fn cell_from_screen(
     }
 }
 
+/// Convert screen coordinates to Tiled world coordinates (unzoomed, top-down pixels).
+fn world_from_screen(
+    state: &AppState,
+    screen_x: f32,
+    screen_y: f32,
+    canvas_origin_y: f32,
+) -> Option<(f32, f32)> {
+    state.session.as_ref()?;
+    let zoom = state.zoom_percent as f32 / 100.0;
+    if zoom <= 0.0 {
+        return None;
+    }
+    let canvas_x = screen_x - state.pan_x;
+    let canvas_y = screen_y - canvas_origin_y - state.pan_y;
+    Some((canvas_x / zoom, canvas_y / zoom))
+}
+
 /// Convert screen coordinates to a possibly-negative grid cell.
 fn signed_cell_from_screen(
     state: &AppState,
@@ -201,6 +218,12 @@ fn start_single_gesture(state: &mut AppState, mx: f32, my: f32, canvas_origin_y:
         Tool::Select | Tool::ShapeFill => {
             // Drag-based — handled in handle_drag / handle_release
         }
+        Tool::SelectObject => {
+            // Record world position for potential drag. Selection fires on release.
+            if let Some((wx, wy)) = world_from_screen(state, mx, my, canvas_origin_y) {
+                state.obj_drag_origin = Some((wx, wy));
+            }
+        }
     }
 
     start_touch_edit_batch(state);
@@ -301,6 +324,52 @@ fn handle_drag(state: &mut AppState, mx: f32, my: f32, canvas_origin_y: f32) {
             gesture.last_surface_y = my as f64;
         }
     }
+
+    // Object drag (SelectObject tool with a selected object)
+    if tool == Tool::SelectObject {
+        handle_object_drag(state, mx, my, canvas_origin_y);
+    }
+}
+
+/// Apply object drag movement while the finger is held down.
+fn handle_object_drag(state: &mut AppState, mx: f32, my: f32, canvas_origin_y: f32) {
+    let Some(obj_id) = state.selected_object else {
+        return;
+    };
+    let Some((ox, oy)) = state.obj_drag_origin else {
+        return;
+    };
+    let Some((wx, wy)) = world_from_screen(state, mx, my, canvas_origin_y) else {
+        return;
+    };
+    let ddx = wx - ox;
+    let ddy = wy - oy;
+
+    // Lazily capture the original position on first drag movement.
+    if state.obj_drag_start_pos.is_none() {
+        let start = state
+            .session
+            .as_ref()
+            .and_then(|s| s.document().map.layer(state.active_layer))
+            .and_then(|l| l.as_object())
+            .and_then(|ol| ol.objects.iter().find(|o| o.id == obj_id))
+            .map(|o| (o.x, o.y));
+        state.obj_drag_start_pos = start;
+    }
+
+    if let Some((sx, sy)) = state.obj_drag_start_pos {
+        let new_x = sx + ddx;
+        let new_y = sy + ddy;
+        if let Some(session) = state.session.as_mut()
+            && let Some(layer) = session.document_mut().map.layer_mut(state.active_layer)
+            && let Some(obj_layer) = layer.as_object_mut()
+            && let Some(obj) = obj_layer.object_mut(obj_id)
+        {
+            obj.x = new_x;
+            obj.y = new_y;
+            state.canvas_dirty = true;
+        }
+    }
 }
 
 fn handle_release(state: &mut AppState, mx: f32, my: f32, canvas_origin_y: f32) {
@@ -372,6 +441,25 @@ fn handle_release(state: &mut AppState, mx: f32, my: f32, canvas_origin_y: f32) 
             }
         }
         Tool::Hand => {}
+        Tool::SelectObject => {
+            let was_drag = gesture.as_ref().is_some_and(|g| g.drag_active);
+            if !was_drag {
+                // Tap (not drag) → hit-test and select object
+                if let Some((wx, wy)) = world_from_screen(state, mx, my, canvas_origin_y) {
+                    let hit = state
+                        .session
+                        .as_ref()
+                        .and_then(|s| s.document().map.layer(state.active_layer))
+                        .and_then(|l| l.as_object())
+                        .and_then(|ol| crate::canvas_objects::hit_test_object(ol, wx, wy));
+                    state.selected_object = hit;
+                    state.canvas_dirty = true;
+                }
+            }
+            // Clear drag state
+            state.obj_drag_origin = None;
+            state.obj_drag_start_pos = None;
+        }
         _ => {}
     }
 

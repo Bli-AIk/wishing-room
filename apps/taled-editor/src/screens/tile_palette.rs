@@ -477,7 +477,13 @@ fn selected_tile_texture(state: &mut AppState, tile: &PaletteTile) -> Option<Tex
     // Blue background = border color; tile image is drawn inset so blue shows through.
     clear_background(MacroquadColor::from_rgba(10, 133, 255, 255));
     // Dark inner background behind the tile.
-    draw_rectangle(border, border, inner, inner, MacroquadColor::from_rgba(0x10, 0x11, 0x13, 255));
+    draw_rectangle(
+        border,
+        border,
+        inner,
+        inner,
+        MacroquadColor::from_rgba(0x10, 0x11, 0x13, 255),
+    );
     draw_texture_ex(
         texture,
         ox,

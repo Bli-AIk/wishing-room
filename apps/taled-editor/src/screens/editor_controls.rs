@@ -179,16 +179,8 @@ pub(crate) fn render_layer_panel(
                                 })
                                 .children(|ui| {
                                     // Eye icon — clickable
-                                    let eye_id = if *vis {
-                                        IconId::EyeOn
-                                    } else {
-                                        IconId::EyeOff
-                                    };
-                                    let eye_c = if *vis {
-                                        theme.accent
-                                    } else {
-                                        theme.muted_text
-                                    };
+                                    let eye_id = if *vis { IconId::EyeOn } else { IconId::EyeOff };
+                                    let eye_c = if *vis { theme.accent } else { theme.muted_text };
                                     let eye_tex = state.icon_cache.get(eye_id);
                                     ui.element()
                                         .id(("lf-eye", idx as u32))
@@ -219,9 +211,7 @@ pub(crate) fn render_layer_panel(
                                         .width(grow!())
                                         .height(grow!())
                                         .layout(|l| {
-                                            l.direction(LeftToRight)
-                                                .align(Left, CenterY)
-                                                .gap(6)
+                                            l.direction(LeftToRight).align(Left, CenterY).gap(6)
                                         })
                                         .on_press(move |_, _| {})
                                         .children(|ui| {

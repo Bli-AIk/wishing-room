@@ -148,3 +148,4 @@ tool-insert-polygon = Insert Polygon
 tool-insert-template = Insert Template
 tool-insert-text = Insert Text
 tool-status-not-implemented = { $tool } is not implemented yet.
+obj-info-no-selection = Tap an object to select it

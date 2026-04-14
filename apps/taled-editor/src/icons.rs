@@ -97,11 +97,18 @@ pub(crate) fn tool_icon_id(label_key: &str) -> IconId {
         "tool-stamp" => IconId::ToolPaint,
         "tool-fill" => IconId::ToolFill,
         "tool-eraser" => IconId::ToolEraser,
-        "tool-rect-select" => IconId::ToolSelect,
+        "tool-rect-select" | "tool-select-object" => IconId::ToolSelect,
         "tool-shape-fill" => IconId::ToolShape,
         "tool-magic-wand" => IconId::ToolMagicWand,
         "tool-same-tile" => IconId::ToolSameTile,
         "tool-terrain-brush" => IconId::ToolTerrain,
+        "tool-insert-tile"
+        | "tool-insert-rect"
+        | "tool-insert-point"
+        | "tool-insert-ellipse"
+        | "tool-insert-capsule"
+        | "tool-insert-polygon"
+        | "tool-edit-polygon" => IconId::ToolShape,
         _ => IconId::ToolHand,
     }
 }

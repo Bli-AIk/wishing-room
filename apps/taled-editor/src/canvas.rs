@@ -152,6 +152,7 @@ pub(crate) fn render_canvas(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme)
                     transfer_preview.as_ref(),
                     tiles_dirty,
                     &state.hidden_layers,
+                    state.selected_object,
                 );
                 state.perf_info = perf;
                 state.canvas_rebuild_count += 1;
@@ -185,10 +186,7 @@ pub(crate) fn render_canvas(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme)
                 .last_eye_toggle
                 .map(|(i, h)| format!(" T:{i}{}", if h { "+" } else { "-" }))
                 .unwrap_or_default();
-            let overlay = format!(
-                "{}{} | {}",
-                hidden_diag, toggle_diag, state.perf_info
-            );
+            let overlay = format!("{}{} | {}", hidden_diag, toggle_diag, state.perf_info);
             render_debug_overlay(ui, &overlay);
         });
 }
@@ -242,6 +240,7 @@ fn build_and_cache_canvas(
     transfer_preview: Option<&TransferPreview>,
     tiles_dirty: bool,
     hidden_layers: &BTreeSet<usize>,
+    selected_object: Option<u32>,
 ) -> String {
     let scaled_w = map_px_w * zoom;
     let scaled_h = map_px_h * zoom;
@@ -316,9 +315,20 @@ fn build_and_cache_canvas(
             continue;
         }
         if let Some(obj_layer) = layer.as_object() {
+            let sel = if layer_idx == active_layer {
+                selected_object
+            } else {
+                None
+            };
             crate::canvas_objects::render_object_layer(
-                obj_layer, map, textures, tile_textures,
-                layer.opacity(), zoom, scaled_h,
+                obj_layer,
+                map,
+                textures,
+                tile_textures,
+                layer.opacity(),
+                zoom,
+                scaled_h,
+                sel,
             );
         }
     }

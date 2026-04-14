@@ -314,13 +314,14 @@ fn collect_capsule_ids(
     group: Node<'_, '_>,
     ids: &mut std::collections::BTreeSet<u32>,
 ) -> Result<()> {
-    for obj in group.children().filter(|n| n.is_element() && n.tag_name().name() == "object") {
+    for obj in group
+        .children()
+        .filter(|n| n.is_element() && n.tag_name().name() == "object")
+    {
         let has_capsule = obj
             .children()
             .any(|c| c.is_element() && c.tag_name().name() == "capsule");
-        if has_capsule
-            && let Some(id) = parse_optional_u32(obj, "id")?
-        {
+        if has_capsule && let Some(id) = parse_optional_u32(obj, "id")? {
             ids.insert(id);
         }
     }

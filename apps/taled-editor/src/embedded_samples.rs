@@ -106,30 +106,102 @@ pub(crate) fn embedded_sample_assets() -> [(&'static str, &'static [u8]); 42] {
             include_bytes!("../../../assets/samples/ruins/tiles/ruins.png"),
         ),
         // Collection-of-images tile PNGs for ruins_objects.tsx
-        ("ruins/tiles/objects/bigweb_0.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/bigweb_0.png")),
-        ("ruins/tiles/objects/brand.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/brand.png")),
-        ("ruins/tiles/objects/candydish_0.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/candydish_0.png")),
-        ("ruins/tiles/objects/candydish2_0.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/candydish2_0.png")),
-        ("ruins/tiles/objects/candydish2_1.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/candydish2_1.png")),
-        ("ruins/tiles/objects/candydish_bad_0.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/candydish_bad_0.png")),
-        ("ruins/tiles/objects/centeredhole_0.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/centeredhole_0.png")),
-        ("ruins/tiles/objects/cheesetable_0.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/cheesetable_0.png")),
-        ("ruins/tiles/objects/colorswitch_0.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/colorswitch_0.png")),
-        ("ruins/tiles/objects/colorswitch_1.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/colorswitch_1.png")),
-        ("ruins/tiles/objects/colorswitch_2.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/colorswitch_2.png")),
-        ("ruins/tiles/objects/faceswitch_0.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/faceswitch_0.png")),
-        ("ruins/tiles/objects/faceswitch_1.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/faceswitch_1.png")),
-        ("ruins/tiles/objects/groundswitch1_0.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/groundswitch1_0.png")),
-        ("ruins/tiles/objects/groundswitch1_1.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/groundswitch1_1.png")),
-        ("ruins/tiles/objects/hole_0.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/hole_0.png")),
-        ("ruins/tiles/objects/hole2_0.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/hole2_0.png")),
-        ("ruins/tiles/objects/ribbon_0.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/ribbon_0.png")),
-        ("ruins/tiles/objects/smallweb_0.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/smallweb_0.png")),
-        ("ruins/tiles/objects/spiketile_0.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/spiketile_0.png")),
-        ("ruins/tiles/objects/spiketile_1.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/spiketile_1.png")),
-        ("ruins/tiles/objects/switch_0.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/switch_0.png")),
-        ("ruins/tiles/objects/switch_1.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/switch_1.png")),
-        ("ruins/tiles/objects/tornote_0.png", include_bytes!("../../../assets/samples/ruins/tiles/objects/tornote_0.png")),
+        (
+            "ruins/tiles/objects/bigweb_0.png",
+            include_bytes!("../../../assets/samples/ruins/tiles/objects/bigweb_0.png"),
+        ),
+        (
+            "ruins/tiles/objects/brand.png",
+            include_bytes!("../../../assets/samples/ruins/tiles/objects/brand.png"),
+        ),
+        (
+            "ruins/tiles/objects/candydish_0.png",
+            include_bytes!("../../../assets/samples/ruins/tiles/objects/candydish_0.png"),
+        ),
+        (
+            "ruins/tiles/objects/candydish2_0.png",
+            include_bytes!("../../../assets/samples/ruins/tiles/objects/candydish2_0.png"),
+        ),
+        (
+            "ruins/tiles/objects/candydish2_1.png",
+            include_bytes!("../../../assets/samples/ruins/tiles/objects/candydish2_1.png"),
+        ),
+        (
+            "ruins/tiles/objects/candydish_bad_0.png",
+            include_bytes!("../../../assets/samples/ruins/tiles/objects/candydish_bad_0.png"),
+        ),
+        (
+            "ruins/tiles/objects/centeredhole_0.png",
+            include_bytes!("../../../assets/samples/ruins/tiles/objects/centeredhole_0.png"),
+        ),
+        (
+            "ruins/tiles/objects/cheesetable_0.png",
+            include_bytes!("../../../assets/samples/ruins/tiles/objects/cheesetable_0.png"),
+        ),
+        (
+            "ruins/tiles/objects/colorswitch_0.png",
+            include_bytes!("../../../assets/samples/ruins/tiles/objects/colorswitch_0.png"),
+        ),
+        (
+            "ruins/tiles/objects/colorswitch_1.png",
+            include_bytes!("../../../assets/samples/ruins/tiles/objects/colorswitch_1.png"),
+        ),
+        (
+            "ruins/tiles/objects/colorswitch_2.png",
+            include_bytes!("../../../assets/samples/ruins/tiles/objects/colorswitch_2.png"),
+        ),
+        (
+            "ruins/tiles/objects/faceswitch_0.png",
+            include_bytes!("../../../assets/samples/ruins/tiles/objects/faceswitch_0.png"),
+        ),
+        (
+            "ruins/tiles/objects/faceswitch_1.png",
+            include_bytes!("../../../assets/samples/ruins/tiles/objects/faceswitch_1.png"),
+        ),
+        (
+            "ruins/tiles/objects/groundswitch1_0.png",
+            include_bytes!("../../../assets/samples/ruins/tiles/objects/groundswitch1_0.png"),
+        ),
+        (
+            "ruins/tiles/objects/groundswitch1_1.png",
+            include_bytes!("../../../assets/samples/ruins/tiles/objects/groundswitch1_1.png"),
+        ),
+        (
+            "ruins/tiles/objects/hole_0.png",
+            include_bytes!("../../../assets/samples/ruins/tiles/objects/hole_0.png"),
+        ),
+        (
+            "ruins/tiles/objects/hole2_0.png",
+            include_bytes!("../../../assets/samples/ruins/tiles/objects/hole2_0.png"),
+        ),
+        (
+            "ruins/tiles/objects/ribbon_0.png",
+            include_bytes!("../../../assets/samples/ruins/tiles/objects/ribbon_0.png"),
+        ),
+        (
+            "ruins/tiles/objects/smallweb_0.png",
+            include_bytes!("../../../assets/samples/ruins/tiles/objects/smallweb_0.png"),
+        ),
+        (
+            "ruins/tiles/objects/spiketile_0.png",
+            include_bytes!("../../../assets/samples/ruins/tiles/objects/spiketile_0.png"),
+        ),
+        (
+            "ruins/tiles/objects/spiketile_1.png",
+            include_bytes!("../../../assets/samples/ruins/tiles/objects/spiketile_1.png"),
+        ),
+        (
+            "ruins/tiles/objects/switch_0.png",
+            include_bytes!("../../../assets/samples/ruins/tiles/objects/switch_0.png"),
+        ),
+        (
+            "ruins/tiles/objects/switch_1.png",
+            include_bytes!("../../../assets/samples/ruins/tiles/objects/switch_1.png"),
+        ),
+        (
+            "ruins/tiles/objects/tornote_0.png",
+            include_bytes!("../../../assets/samples/ruins/tiles/objects/tornote_0.png"),
+        ),
         (
             "maps/017-2.tmx",
             include_str!("../../../assets/samples/tmwa/maps/017-2.tmx").as_bytes(),

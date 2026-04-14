@@ -148,3 +148,4 @@ tool-insert-polygon = 插入多边形
 tool-insert-template = 插入模板
 tool-insert-text = 插入文本
 tool-status-not-implemented = { $tool } 暂未实现。
+obj-info-no-selection = 点击一个对象以选中它

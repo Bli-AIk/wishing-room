@@ -37,6 +37,7 @@ pub(crate) enum Tool {
     Select,
     MagicWand,
     SelectSameTile,
+    SelectObject,
     AddRectangle,
     AddPoint,
 }
@@ -227,6 +228,10 @@ pub(crate) struct AppState {
     pub(crate) selected_gid: u32,
     pub(crate) selected_cell: Option<(u32, u32)>,
     pub(crate) selected_object: Option<u32>,
+    /// World-space origin when an object drag started (for computing delta).
+    pub(crate) obj_drag_origin: Option<(f32, f32)>,
+    /// Original object position when drag started (for applying delta).
+    pub(crate) obj_drag_start_pos: Option<(f32, f32)>,
     pub(crate) shape_fill_preview: Option<ShapeFillPreview>,
     pub(crate) tile_clipboard: Option<TileClipboard>,
     pub(crate) tile_selection: Option<TileSelectionRegion>,
@@ -353,6 +358,8 @@ impl AppState {
             selected_gid: 0,
             selected_cell: None,
             selected_object: None,
+            obj_drag_origin: None,
+            obj_drag_start_pos: None,
             shape_fill_preview: None,
             tile_clipboard: None,
             tile_selection: None,
@@ -437,6 +444,14 @@ impl AppState {
 
     pub(crate) fn resolved_language(&self) -> SupportedLanguage {
         resolve_language(self.language_preference, &self.device_locale_tag)
+    }
+
+    /// Returns `true` when the currently active layer is an object layer.
+    pub(crate) fn active_layer_is_object(&self) -> bool {
+        self.session
+            .as_ref()
+            .and_then(|s| s.document().map.layer(self.active_layer))
+            .is_some_and(|l| l.as_object().is_some())
     }
 
     pub(crate) fn navigate(&mut self, screen: MobileScreen) {
@@ -528,6 +543,23 @@ impl AppState {
 #[allow(dead_code)]
 pub(crate) fn is_tile_selection_tool(tool: Tool) -> bool {
     matches!(tool, Tool::Select | Tool::MagicWand | Tool::SelectSameTile)
+}
+
+/// Returns `true` when the tool belongs to the object toolbar.
+#[allow(dead_code)]
+pub(crate) fn is_object_tool(tool: Tool) -> bool {
+    matches!(
+        tool,
+        Tool::Hand | Tool::SelectObject | Tool::AddRectangle | Tool::AddPoint
+    )
+}
+
+/// Returns `true` when the tool belongs to the tile toolbar.
+pub(crate) fn is_tile_tool(tool: Tool) -> bool {
+    !matches!(
+        tool,
+        Tool::SelectObject | Tool::AddRectangle | Tool::AddPoint
+    )
 }
 
 #[allow(dead_code)]

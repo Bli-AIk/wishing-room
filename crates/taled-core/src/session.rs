@@ -108,6 +108,11 @@ impl EditorSession {
         &self.document
     }
 
+    pub fn document_mut(&mut self) -> &mut EditorDocument {
+        self.dirty = true;
+        &mut self.document
+    }
+
     pub fn dirty(&self) -> bool {
         self.dirty
     }
@@ -276,11 +281,15 @@ impl EditorSession {
                     "unknown tileset index: {tileset_index}"
                 ))
             })?;
-        let tile_img = ts_ref.tileset.tile_images.get(&local_tile_id).ok_or_else(|| {
-            crate::error::EditorError::Invalid(format!(
-                "no tile image for tileset {tileset_index} tile {local_tile_id}"
-            ))
-        })?;
+        let tile_img = ts_ref
+            .tileset
+            .tile_images
+            .get(&local_tile_id)
+            .ok_or_else(|| {
+                crate::error::EditorError::Invalid(format!(
+                    "no tile image for tileset {tileset_index} tile {local_tile_id}"
+                ))
+            })?;
         let tsx_path = ts_ref.resolved_source_path(&self.document.file_path);
         let img_path = tsx_path
             .parent()

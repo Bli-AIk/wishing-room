@@ -90,15 +90,13 @@ fn convert_map(metadata: MapMetadata, raw_map: tiled::Map) -> Result<Map> {
                 (LayerKind::Tile, LayerType::Tiles(tile_layer)) => {
                     convert_tile_layer(&metadata.tilesets, layer, tile_layer, *layer_metadata)
                 }
-                (LayerKind::Object, LayerType::Objects(object_layer)) => {
-                    convert_object_layer(
-                        layer,
-                        object_layer,
-                        *layer_metadata,
-                        &metadata.tilesets,
-                        &metadata.capsule_ids,
-                    )
-                }
+                (LayerKind::Object, LayerType::Objects(object_layer)) => convert_object_layer(
+                    layer,
+                    object_layer,
+                    *layer_metadata,
+                    &metadata.tilesets,
+                    &metadata.capsule_ids,
+                ),
                 _ => Err(EditorError::Invalid(
                     "layer type changed between validation and official parsing".to_string(),
                 )),
@@ -182,11 +180,14 @@ fn convert_tileset(metadata: &TilesetMetadata, tileset: &TiledTileset) -> Result
         if let Some(img) = &tile.image {
             let w = u32::try_from(img.width).unwrap_or(0);
             let h = u32::try_from(img.height).unwrap_or(0);
-            tile_images.insert(tile_id, TilesetImage {
-                source: relativize_child_path(&tileset.source, &img.source),
-                width: w,
-                height: h,
-            });
+            tile_images.insert(
+                tile_id,
+                TilesetImage {
+                    source: relativize_child_path(&tileset.source, &img.source),
+                    width: w,
+                    height: h,
+                },
+            );
         }
     }
 
@@ -323,9 +324,7 @@ fn convert_object(
             }
         }
         TiledObjectShape::Point(_, _) => (ObjectShape::Point, 0.0, 0.0),
-        TiledObjectShape::Ellipse { width, height } => {
-            (ObjectShape::Ellipse, *width, *height)
-        }
+        TiledObjectShape::Ellipse { width, height } => (ObjectShape::Ellipse, *width, *height),
         TiledObjectShape::Polyline { .. } => {
             return Err(unsupported(
                 "object.polyline",
@@ -342,7 +341,11 @@ fn convert_object(
             (ObjectShape::Polygon { points: pts }, max_w, max_h)
         }
         TiledObjectShape::Text {
-            text, wrap, width, height, ..
+            text,
+            wrap,
+            width,
+            height,
+            ..
         } => {
             let shape = ObjectShape::Text {
                 text: text.clone(),

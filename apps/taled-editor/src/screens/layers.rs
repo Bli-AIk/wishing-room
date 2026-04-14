@@ -131,14 +131,13 @@ pub(crate) fn render(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
                             .on_press(move |_, _| {})
                             .children(|ui| {
                                 if ui.just_released() {
-                                    let now_hidden =
-                                        if state.hidden_layers.contains(&i) {
-                                            state.hidden_layers.remove(&i);
-                                            false
-                                        } else {
-                                            state.hidden_layers.insert(i);
-                                            true
-                                        };
+                                    let now_hidden = if state.hidden_layers.contains(&i) {
+                                        state.hidden_layers.remove(&i);
+                                        false
+                                    } else {
+                                        state.hidden_layers.insert(i);
+                                        true
+                                    };
                                     state.last_eye_toggle = Some((i, now_hidden));
                                     state.tiles_dirty = true;
                                     state.canvas_dirty = true;
@@ -146,7 +145,11 @@ pub(crate) fn render(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
                             });
 
                         // Lock icon (accent when locked)
-                        let lk_id = if *locked { IconId::Lock } else { IconId::Unlock };
+                        let lk_id = if *locked {
+                            IconId::Lock
+                        } else {
+                            IconId::Unlock
+                        };
                         let lk_c = if *locked {
                             theme.accent
                         } else {

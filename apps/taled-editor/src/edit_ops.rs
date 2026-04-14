@@ -68,6 +68,9 @@ pub(crate) fn apply_cell_tool(state: &mut AppState, x: u32, y: u32) {
         Tool::AddRectangle | Tool::AddPoint => {
             // Object creation not yet implemented in Ply
         }
+        Tool::SelectObject => {
+            // Object selection handled in touch_ops
+        }
     }
 }
 

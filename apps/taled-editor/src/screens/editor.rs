@@ -99,9 +99,11 @@ fn render_editor_header(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
 
 /// Tile strip shell — 114px, sits between header and canvas.
 /// Contains palette area (left) + side divider + tool panel (right).
+/// When the active layer is an object layer, the palette area shows object info instead.
 fn render_tile_strip_shell(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
     let strip_bg = theme.surface_elevated;
     let divider_color = Color::rgba(1.0, 1.0, 1.0, 0.10);
+    let is_obj_layer = state.active_layer_is_object();
 
     ui.element()
         .id("tile-strip-shell")
@@ -111,7 +113,7 @@ fn render_tile_strip_shell(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) 
         .border(|b| b.bottom(1).color(theme.border))
         .layout(|l| l.direction(LeftToRight))
         .children(|ui| {
-            // Left: 6×2 tile viewfinder
+            // Left: tile viewfinder OR object info panel
             ui.element()
                 .id("tile-palette")
                 .width(grow!())
@@ -119,7 +121,11 @@ fn render_tile_strip_shell(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) 
                 .overflow(|o| o.clip())
                 .on_press(move |_, _| {})
                 .children(|ui| {
-                    render_viewfinder(ui, state, theme);
+                    if is_obj_layer {
+                        render_object_info_panel(ui, state, theme);
+                    } else {
+                        render_viewfinder(ui, state, theme);
+                    }
                 });
 
             // Vertical divider
@@ -307,3 +313,46 @@ fn render_shape_fill_modes(
 }
 
 // Toolbar and floating controls extracted to editor_toolbar module.
+
+/// Panel shown in place of the tile viewfinder when the active layer is an object layer.
+/// Displays the selected object's name and position, or a hint when nothing is selected.
+fn render_object_info_panel(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
+    let lang = state.resolved_language();
+
+    // Gather selected object info while session borrow is short.
+    let obj_info: Option<(String, f32, f32, f32, f32)> = state.selected_object.and_then(|obj_id| {
+        let session = state.session.as_ref()?;
+        let layer = session.document().map.layer(state.active_layer)?;
+        let obj_layer = layer.as_object()?;
+        let obj = obj_layer.objects.iter().find(|o| o.id == obj_id)?;
+        let label = if obj.name.is_empty() {
+            format!("Object #{}", obj.id)
+        } else {
+            obj.name.clone()
+        };
+        Some((label, obj.x, obj.y, obj.width, obj.height))
+    });
+
+    ui.element()
+        .id("obj-info-panel")
+        .width(grow!())
+        .height(grow!())
+        .layout(|l| {
+            l.direction(TopToBottom)
+                .align(Left, CenterY)
+                .padding((12, 16, 12, 16))
+                .gap(6)
+        })
+        .children(|ui| {
+            if let Some((name, x, y, w, h)) = obj_info {
+                ui.text(&name, |t| t.font_size(15).color(theme.text));
+                let pos = format!("X: {x:.1}  Y: {y:.1}");
+                ui.text(&pos, |t| t.font_size(13).color(theme.muted_text));
+                let size = format!("W: {w:.1}  H: {h:.1}");
+                ui.text(&size, |t| t.font_size(13).color(theme.muted_text));
+            } else {
+                let hint = l10n::text(lang, "obj-info-no-selection");
+                ui.text(&hint, |t| t.font_size(13).color(theme.muted_text));
+            }
+        });
+}

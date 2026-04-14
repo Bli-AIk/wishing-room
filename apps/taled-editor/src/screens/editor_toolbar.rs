@@ -7,10 +7,15 @@ use crate::theme::PlyTheme;
 
 pub(crate) fn render_toolbar(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
     let lang = state.resolved_language();
+    let is_obj_layer = state.active_layer_is_object();
 
-    // Dioxus tile toolbar order: Hand (pinned) | Paint, TerrainBrush*, Fill,
-    // ShapeFill, Eraser, RectSelect, MagicWand, SameTile
-    // * = placeholder (unimplemented)
+    // When switching layer kind, reset tool if incompatible.
+    if is_obj_layer && crate::app_state::is_tile_tool(state.tool) && state.tool != Tool::Hand {
+        state.tool = Tool::SelectObject;
+    } else if !is_obj_layer && !crate::app_state::is_tile_tool(state.tool) {
+        state.tool = Tool::Paint;
+    }
+
     let toolbar_bg = theme.surface;
 
     ui.element()
@@ -35,7 +40,7 @@ pub(crate) fn render_toolbar(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme
                 .background_color(theme.border)
                 .empty();
 
-            // Scrollable tool row
+            // Scrollable tool row — content depends on layer type
             ui.element()
                 .id("tool-scroll-row")
                 .width(grow!())
@@ -48,40 +53,95 @@ pub(crate) fn render_toolbar(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme
                         .gap(3)
                 })
                 .children(|ui| {
-                    render_tool_item(ui, state, theme, lang, Tool::Paint, "tool-stamp", 1);
-                    render_placeholder_tool(ui, state, lang, "tool-terrain-brush", 2);
-                    render_tool_item(ui, state, theme, lang, Tool::Fill, "tool-fill", 3);
-                    render_tool_item(
-                        ui,
-                        state,
-                        theme,
-                        lang,
-                        Tool::ShapeFill,
-                        "tool-shape-fill",
-                        4,
-                    );
-                    render_tool_item(ui, state, theme, lang, Tool::Erase, "tool-eraser", 5);
-                    render_tool_item(ui, state, theme, lang, Tool::Select, "tool-rect-select", 6);
-                    render_tool_item(
-                        ui,
-                        state,
-                        theme,
-                        lang,
-                        Tool::MagicWand,
-                        "tool-magic-wand",
-                        7,
-                    );
-                    render_tool_item(
-                        ui,
-                        state,
-                        theme,
-                        lang,
-                        Tool::SelectSameTile,
-                        "tool-same-tile",
-                        8,
-                    );
+                    if is_obj_layer {
+                        render_object_tools(ui, state, theme, lang);
+                    } else {
+                        render_tile_tools(ui, state, theme, lang);
+                    }
                 });
         });
+}
+
+/// Tile-layer toolbar items.
+fn render_tile_tools(
+    ui: &mut Ui,
+    state: &mut AppState,
+    theme: &PlyTheme,
+    lang: l10n::SupportedLanguage,
+) {
+    render_tool_item(ui, state, theme, lang, Tool::Paint, "tool-stamp", 1);
+    render_placeholder_tool(ui, state, lang, "tool-terrain-brush", 2);
+    render_tool_item(ui, state, theme, lang, Tool::Fill, "tool-fill", 3);
+    render_tool_item(
+        ui,
+        state,
+        theme,
+        lang,
+        Tool::ShapeFill,
+        "tool-shape-fill",
+        4,
+    );
+    render_tool_item(ui, state, theme, lang, Tool::Erase, "tool-eraser", 5);
+    render_tool_item(ui, state, theme, lang, Tool::Select, "tool-rect-select", 6);
+    render_tool_item(
+        ui,
+        state,
+        theme,
+        lang,
+        Tool::MagicWand,
+        "tool-magic-wand",
+        7,
+    );
+    render_tool_item(
+        ui,
+        state,
+        theme,
+        lang,
+        Tool::SelectSameTile,
+        "tool-same-tile",
+        8,
+    );
+}
+
+/// Object-layer toolbar items.
+fn render_object_tools(
+    ui: &mut Ui,
+    state: &mut AppState,
+    theme: &PlyTheme,
+    lang: l10n::SupportedLanguage,
+) {
+    render_tool_item(
+        ui,
+        state,
+        theme,
+        lang,
+        Tool::SelectObject,
+        "tool-select-object",
+        1,
+    );
+    render_placeholder_tool(ui, state, lang, "tool-insert-tile", 2);
+    render_placeholder_tool(ui, state, lang, "tool-edit-polygon", 3);
+    render_placeholder_tool(ui, state, lang, "tool-insert-ellipse", 4);
+    render_placeholder_tool(ui, state, lang, "tool-insert-capsule", 5);
+    render_placeholder_tool(ui, state, lang, "tool-insert-polygon", 6);
+    render_tool_item(
+        ui,
+        state,
+        theme,
+        lang,
+        Tool::AddRectangle,
+        "tool-insert-rect",
+        7,
+    );
+    render_tool_item(
+        ui,
+        state,
+        theme,
+        lang,
+        Tool::AddPoint,
+        "tool-insert-point",
+        8,
+    );
 }
 
 /// Renders a real (functional) tool button.
