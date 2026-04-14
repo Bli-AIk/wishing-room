@@ -136,74 +136,83 @@ fn workspace_picker(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
 
 // ── Action buttons row (New + Import) ───────────────────────────────
 
-#[expect(clippy::excessive_nesting)] // reason: Ply UI button handlers with workspace logic
 fn action_buttons(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
     let lang = state.resolved_language();
     let new_label = l10n::text(lang, "dashboard-action-new");
     let import_label = l10n::text(lang, "dashboard-action-import");
+    let export_label = l10n::text(lang, "dashboard-action-export");
 
     ui.element()
         .width(grow!())
         .height(fixed!(56.0))
-        .layout(|l| l.direction(LeftToRight).gap(12))
+        .layout(|l| l.direction(LeftToRight).gap(10))
         .children(|ui| {
             // "New" button
-            ui.element()
-                .id("dash-btn-new")
-                .width(grow!())
-                .height(grow!())
-                .background_color(theme.surface)
-                .corner_radius(14.0)
-                .border(|b| b.all(1).color(theme.border))
-                .layout(|l| l.direction(LeftToRight).align(CenterX, CenterY).gap(8))
-                .on_press(move |_, _| {})
-                .children(|ui| {
-                    if ui.just_released() {
-                        // Create a new workspace with auto-generated name.
-                        let name = next_workspace_name(&state.workspace_list);
-                        if workspace::create_workspace(&name).is_some() {
-                            state.active_workspace = name;
-                            state.workspace_list = workspace::list_workspaces()
-                                .into_iter()
-                                .map(|w| w.name)
-                                .collect();
-                            state.status = l10n::text(lang, "dashboard-workspace-created");
-                        }
-                    }
-                    let plus_tex = state.icon_cache.get(IconId::Plus);
-                    ui.element()
-                        .width(fixed!(18.0))
-                        .height(fixed!(18.0))
-                        .background_color(theme.text)
-                        .image(plus_tex)
-                        .empty();
-                    ui.text(&new_label, |t| t.font_size(16).color(theme.text));
-                });
-
+            dash_action_btn(ui, state, theme, "dash-btn-new", IconId::Plus, &new_label, 0);
             // "Import" button
-            ui.element()
-                .id("dash-btn-import")
-                .width(grow!())
-                .height(grow!())
-                .background_color(theme.surface)
-                .corner_radius(14.0)
-                .border(|b| b.all(1).color(theme.border))
-                .layout(|l| l.direction(LeftToRight).align(CenterX, CenterY).gap(8))
-                .on_press(move |_, _| {})
-                .children(|ui| {
-                    if ui.just_released() {
-                        state.show_import_menu = !state.show_import_menu;
-                    }
-                    let import_tex = state.icon_cache.get(IconId::Import);
-                    ui.element()
-                        .width(fixed!(18.0))
-                        .height(fixed!(18.0))
-                        .background_color(theme.text)
-                        .image(import_tex)
-                        .empty();
-                    ui.text(&import_label, |t| t.font_size(16).color(theme.text));
-                });
+            dash_action_btn(ui, state, theme, "dash-btn-import", IconId::Import, &import_label, 1);
+            // "Export" button
+            dash_action_btn(ui, state, theme, "dash-btn-export", IconId::Export, &export_label, 2);
         });
+}
+
+fn dash_action_btn(
+    ui: &mut Ui,
+    state: &mut AppState,
+    theme: &PlyTheme,
+    id: &'static str,
+    icon_id: IconId,
+    label: &str,
+    action: u8,
+) {
+    let icon_tex = state.icon_cache.get(icon_id);
+    ui.element()
+        .id(id)
+        .width(grow!())
+        .height(grow!())
+        .background_color(theme.surface)
+        .corner_radius(14.0)
+        .border(|b| b.all(1).color(theme.border))
+        .layout(|l| l.direction(LeftToRight).align(CenterX, CenterY).gap(6))
+        .on_press(move |_, _| {})
+        .children(|ui| {
+            handle_dash_action(ui, state, action);
+            ui.element()
+                .width(fixed!(16.0))
+                .height(fixed!(16.0))
+                .background_color(theme.text)
+                .image(icon_tex)
+                .empty();
+            ui.text(label, |t| t.font_size(14).color(theme.text));
+        });
+}
+
+fn handle_dash_action(ui: &mut Ui, state: &mut AppState, action: u8) {
+    if !ui.just_released() {
+        return;
+    }
+    let lang = state.resolved_language();
+    match action {
+        0 => {
+            let name = next_workspace_name(&state.workspace_list);
+            if workspace::create_workspace(&name).is_some() {
+                state.active_workspace = name;
+                state.workspace_list =
+                    workspace::list_workspaces().into_iter().map(|w| w.name).collect();
+                state.status = l10n::text(lang, "dashboard-workspace-created");
+            }
+        }
+        1 => {
+            state.show_import_menu = !state.show_import_menu;
+        }
+        2 => {
+            if let Some(root) = workspace::workspaces_root() {
+                let ws_path = root.join(&state.active_workspace);
+                crate::platform::launch_export_zip(&ws_path.to_string_lossy());
+            }
+        }
+        _ => {}
+    }
 }
 
 // ── Project list (from workspace or embedded fallback) ──────────────

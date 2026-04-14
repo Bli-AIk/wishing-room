@@ -352,3 +352,47 @@ pub(crate) fn poll_import_result() -> Option<String> {
 pub(crate) fn poll_import_result() -> Option<String> {
     None
 }
+
+/// Launch zip export + SAF save-as dialog.
+#[cfg(target_os = "android")]
+pub(crate) fn launch_export_zip(workspace_path: &str) {
+    use std::ffi::CString;
+
+    let Ok(path_cstr) = CString::new(workspace_path) else {
+        return;
+    };
+
+    // SAFETY: All JNI pointers come from miniquad's verified Android runtime.
+    unsafe {
+        use macroquad::miniquad::native::android::{ACTIVITY, attach_jni_env};
+
+        let env = attach_jni_env();
+        if env.is_null() || ACTIVITY.is_null() {
+            return;
+        }
+
+        let new_string = (**env).NewStringUTF.unwrap();
+        let get_object_class = (**env).GetObjectClass.unwrap();
+        let get_method = (**env).GetMethodID.unwrap();
+        let call_void = (**env).CallVoidMethod.unwrap();
+
+        let cls = get_object_class(env, ACTIVITY);
+        let mid = get_method(
+            env,
+            cls,
+            c"launchExportZip".as_ptr(),
+            c"(Ljava/lang/String;)V".as_ptr(),
+        );
+        if mid.is_null() {
+            macroquad::prelude::warn!("launchExportZip method not found");
+            return;
+        }
+        let jpath = new_string(env, path_cstr.as_ptr());
+        call_void(env, ACTIVITY, mid, jpath);
+    }
+}
+
+#[cfg(not(target_os = "android"))]
+pub(crate) fn launch_export_zip(_workspace_path: &str) {
+    macroquad::prelude::info!("launch_export_zip: not supported on this platform");
+}

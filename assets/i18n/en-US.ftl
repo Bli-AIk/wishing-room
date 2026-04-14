@@ -14,6 +14,7 @@ dashboard-loading-status = Loading { $sample }...
 dashboard-workspace-builtin = Built-in Workspace
 dashboard-action-new = New
 dashboard-action-import = Import
+dashboard-action-export = Export
 dashboard-workspace-created = Workspace created
 dashboard-workspace-empty = No maps in this workspace
 dashboard-import-placeholder = Import not yet available

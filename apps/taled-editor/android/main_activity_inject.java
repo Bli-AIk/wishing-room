@@ -2,6 +2,10 @@
 import android.provider.DocumentsContract;
 import android.database.Cursor;
 import java.io.File;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.zip.ZipOutputStream;
+import java.util.zip.ZipEntry;
 //% END
 
 //% MAIN_ACTIVITY_BODY
@@ -118,9 +122,108 @@ private void handleImportDirectoryResult(Intent data) {
 	importReady = true;
 	Log.i("SAPP", "handleImportDirectoryResult: done, path=" + importResultPath);
 }
+
+private static final int EXPORT_SAVE_REQUEST_CODE = 0x657870;
+private static File exportZipFile = null;
+
+public void launchExportZip(String workspacePath) {
+	Log.i("SAPP", "launchExportZip: path=" + workspacePath);
+	final File wsDir = new File(workspacePath);
+	final String wsName = wsDir.getName();
+	runOnUiThread(new Runnable() {
+		@Override
+		public void run() {
+			try {
+				exportZipFile = new File(getCacheDir(), wsName + ".zip");
+				createZipFromDirectory(wsDir, exportZipFile);
+				Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+				intent.addCategory(Intent.CATEGORY_OPENABLE);
+				intent.setType("application/zip");
+				intent.putExtra(Intent.EXTRA_TITLE, wsName + ".zip");
+				startActivityForResult(intent, EXPORT_SAVE_REQUEST_CODE);
+			} catch (Exception e) {
+				Log.e("SAPP", "launchExportZip: failed", e);
+			}
+		}
+	});
+}
+
+private void createZipFromDirectory(File sourceDir, File zipFile) throws Exception {
+	ZipOutputStream zos = new ZipOutputStream(new java.io.FileOutputStream(zipFile));
+	try {
+		addDirToZip(zos, sourceDir, "");
+	} finally {
+		zos.close();
+	}
+}
+
+private void addDirToZip(ZipOutputStream zos, File dir, String prefix) throws Exception {
+	File[] files = dir.listFiles();
+	if (files == null) return;
+	byte[] buffer = new byte[8192];
+	for (File file : files) {
+		String entryName = prefix.isEmpty() ? file.getName() : prefix + "/" + file.getName();
+		if (file.isDirectory()) {
+			addDirToZip(zos, file, entryName);
+		} else {
+			zos.putNextEntry(new ZipEntry(entryName));
+			InputStream input = new java.io.FileInputStream(file);
+			try {
+				int len;
+				while ((len = input.read(buffer)) > 0) {
+					zos.write(buffer, 0, len);
+				}
+			} finally {
+				input.close();
+			}
+			zos.closeEntry();
+		}
+	}
+}
+
+private void handleExportSaveResult(Intent data) {
+	try {
+		android.net.Uri destUri = data.getData();
+		if (destUri == null || exportZipFile == null) return;
+		OutputStream output = getContentResolver().openOutputStream(destUri);
+		if (output == null) return;
+		InputStream input = new java.io.FileInputStream(exportZipFile);
+		byte[] buffer = new byte[8192];
+		int read;
+		while ((read = input.read(buffer)) != -1) {
+			output.write(buffer, 0, read);
+		}
+		input.close();
+		output.flush();
+		output.close();
+		Log.i("SAPP", "handleExportSaveResult: saved to " + destUri);
+	} catch (Exception e) {
+		Log.e("SAPP", "handleExportSaveResult: failed", e);
+	} finally {
+		if (exportZipFile != null) {
+			exportZipFile.delete();
+			exportZipFile = null;
+		}
+	}
+}
 //% END
 
 //% MAIN_ACTIVITY_ON_ACTIVITY_RESULT
+if (requestCode == EXPORT_SAVE_REQUEST_CODE) {
+	Log.i("SAPP", "onActivityResult: EXPORT_SAVE code=" + resultCode);
+	try {
+		if (resultCode == Activity.RESULT_OK && data != null) {
+			handleExportSaveResult(data);
+		}
+	} catch (Exception e) {
+		Log.e("SAPP", "exportSave: failed", e);
+	}
+	if (exportZipFile != null) {
+		exportZipFile.delete();
+		exportZipFile = null;
+	}
+	return;
+}
 if (requestCode == IMPORT_DIR_REQUEST_CODE) {
 	Log.i("SAPP", "onActivityResult: IMPORT_DIR code=" + resultCode);
 	try {

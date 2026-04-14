@@ -14,6 +14,7 @@ dashboard-loading-status = 正在加载 { $sample }…
 dashboard-workspace-builtin = 内置工作区
 dashboard-action-new = 新建
 dashboard-action-import = 导入
+dashboard-action-export = 导出
 dashboard-workspace-created = 工作区已创建
 dashboard-workspace-empty = 此工作区暂无地图
 dashboard-import-placeholder = 导入功能尚未开放
