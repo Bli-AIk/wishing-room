@@ -119,7 +119,15 @@ fn render_object_tools(
         "tool-select-object",
         1,
     );
-    render_placeholder_tool(ui, state, lang, "tool-insert-tile", 2);
+    render_tool_item(
+        ui,
+        state,
+        theme,
+        lang,
+        Tool::InsertTile,
+        "tool-insert-tile",
+        2,
+    );
     render_placeholder_tool(ui, state, lang, "tool-edit-polygon", 3);
     render_placeholder_tool(ui, state, lang, "tool-insert-ellipse", 4);
     render_placeholder_tool(ui, state, lang, "tool-insert-capsule", 5);

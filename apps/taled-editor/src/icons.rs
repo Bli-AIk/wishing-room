@@ -23,6 +23,7 @@ pub(crate) enum IconId {
     ToolTerrain,
     Undo,
     Redo,
+    #[expect(dead_code)]
     Plus,
     ChevronRight,
     EyeOn,
@@ -40,6 +41,9 @@ pub(crate) enum IconId {
     Export,
     LayerTypeTile,
     LayerTypeObject,
+    Trash,
+    SnapGrid,
+    SnapInt,
 }
 
 fn icon_bytes(id: IconId) -> &'static [u8] {
@@ -79,6 +83,9 @@ fn icon_bytes(id: IconId) -> &'static [u8] {
         IconId::Export => include_bytes!("../../../assets/icons/export.png"),
         IconId::LayerTypeTile => include_bytes!("../../../assets/icons/layer-type-tile.png"),
         IconId::LayerTypeObject => include_bytes!("../../../assets/icons/layer-type-object.png"),
+        IconId::Trash => include_bytes!("../../../assets/icons/trash.png"),
+        IconId::SnapGrid => include_bytes!("../../../assets/icons/snap-grid.png"),
+        IconId::SnapInt => include_bytes!("../../../assets/icons/snap-int.png"),
     }
 }
 

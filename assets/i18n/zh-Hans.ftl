@@ -169,3 +169,6 @@ layer-delete-title = 删除图层
 layer-delete-message = 确定要删除 "{ $name }" 吗？此操作无法撤销。
 layer-delete-confirm = 删除
 layer-delete-cancel = 取消
+
+tileset-new = + 新建瓦片集
+workspace-new = + 新建工作区

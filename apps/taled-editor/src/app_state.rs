@@ -38,6 +38,7 @@ pub(crate) enum Tool {
     MagicWand,
     SelectSameTile,
     SelectObject,
+    InsertTile,
     AddRectangle,
     AddPoint,
 }
@@ -234,6 +235,10 @@ pub(crate) struct AppState {
     pub(crate) obj_drag_origin: Option<(f32, f32)>,
     /// Original object position when drag started (for applying delta).
     pub(crate) obj_drag_start_pos: Option<(f32, f32)>,
+    /// When true, object positions snap to the map tile grid.
+    pub(crate) snap_to_grid: bool,
+    /// When true, object positions are rounded to integer values.
+    pub(crate) snap_to_int: bool,
     pub(crate) shape_fill_preview: Option<ShapeFillPreview>,
     pub(crate) tile_clipboard: Option<TileClipboard>,
     pub(crate) tile_selection: Option<TileSelectionRegion>,
@@ -332,13 +337,10 @@ pub(crate) struct AppState {
     pub(crate) active_workspace: String,
     /// Cached list of workspace directory names.
     pub(crate) workspace_list: Vec<String>,
-    /// Whether the workspace switcher popup is currently visible.
     pub(crate) show_workspace_picker: bool,
-    /// Whether the import action menu popup is currently visible.
     pub(crate) show_import_menu: bool,
-    /// Whether the unsaved-changes dialog is visible (shown on back navigation).
+    pub(crate) show_tileset_picker: bool,
     pub(crate) show_save_dialog: bool,
-    /// Whether we need to generate a thumbnail for the current map on next frame.
     pub(crate) thumb_pending: bool,
     pub(crate) delete_layer_pending: Option<usize>,
     pub(crate) layer_actions_row: Option<usize>,
@@ -371,6 +373,8 @@ impl AppState {
             obj_info_synced_for: None,
             obj_drag_origin: None,
             obj_drag_start_pos: None,
+            snap_to_grid: false,
+            snap_to_int: false,
             shape_fill_preview: None,
             tile_clipboard: None,
             tile_selection: None,
@@ -449,6 +453,7 @@ impl AppState {
             workspace_list: Vec::new(),
             show_workspace_picker: false,
             show_import_menu: false,
+            show_tileset_picker: false,
             show_save_dialog: false,
             thumb_pending: false,
             delete_layer_pending: None,
@@ -479,12 +484,8 @@ impl AppState {
         self.show_language_popup = false;
         self.show_workspace_picker = false;
         self.show_import_menu = false;
-        self.page_transition = Some(PageTransition {
-            from_screen: self.mobile_screen,
-            start_time: get_time(),
-            dir: TransitionDir::Forward,
-        });
-        self.mobile_screen = screen;
+        self.show_tileset_picker = false;
+        self.navigate_transition(screen, TransitionDir::Forward);
     }
 
     pub(crate) fn navigate_back_to(&mut self, screen: MobileScreen) {
@@ -569,18 +570,12 @@ pub(crate) fn is_tile_selection_tool(tool: Tool) -> bool {
 /// Returns `true` when the tool belongs to the object toolbar.
 #[allow(dead_code)]
 pub(crate) fn is_object_tool(tool: Tool) -> bool {
-    matches!(
-        tool,
-        Tool::Hand | Tool::SelectObject | Tool::AddRectangle | Tool::AddPoint
-    )
+    matches!(tool, Tool::Hand | Tool::SelectObject | Tool::InsertTile | Tool::AddRectangle | Tool::AddPoint)
 }
 
 /// Returns `true` when the tool belongs to the tile toolbar.
 pub(crate) fn is_tile_tool(tool: Tool) -> bool {
-    !matches!(
-        tool,
-        Tool::SelectObject | Tool::AddRectangle | Tool::AddPoint
-    )
+    !matches!(tool, Tool::SelectObject | Tool::InsertTile | Tool::AddRectangle | Tool::AddPoint)
 }
 
 #[allow(dead_code)]

@@ -65,8 +65,8 @@ pub(crate) fn apply_cell_tool(state: &mut AppState, x: u32, y: u32) {
         Tool::SelectSameTile => {
             apply_select_same_tile_selection(state, x, y);
         }
-        Tool::AddRectangle | Tool::AddPoint => {
-            // Object creation not yet implemented in Ply
+        Tool::AddRectangle | Tool::AddPoint | Tool::InsertTile => {
+            // Object tools handled in touch_ops
         }
         Tool::SelectObject => {
             // Object selection handled in touch_ops

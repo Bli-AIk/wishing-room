@@ -1,7 +1,10 @@
+use std::time::Instant;
+
 use taled_core::Layer;
 
 use crate::app_state::{
-    AppState, TileClipboard, TileSelectionTransfer, TileSelectionTransferMode, selection_bounds,
+    AppState, TileClipboard, TileSelectionTransfer, TileSelectionTransferMode,
+    TileSelectionMode, UndoActionKind, selection_bounds,
 };
 use crate::selection_transform::{
     apply_transfer_copy, capture_region_clipped, clear_region_tiles_masked,
@@ -353,4 +356,60 @@ fn clear_preview_state(state: &mut AppState) {
     state.tile_selection_closing_started_at = None;
     state.tile_selection_last_tap_at = None;
     state.canvas_dirty = true;
+}
+
+// ── Selection dismissal ─────────────────────────────────────────────
+
+/// Double-tap window for dismissing a selection.
+const DOUBLE_TAP_WINDOW: std::time::Duration = std::time::Duration::from_millis(320);
+
+/// Try to dismiss the current selection via double-tap or tap-outside.
+/// Returns `true` if the selection was dismissed (caller should skip normal tool action).
+pub(crate) fn try_dismiss_selection(state: &mut AppState, x: u32, y: u32) -> bool {
+    let has_selection = state.tile_selection_cells.is_some();
+    if !has_selection {
+        return false;
+    }
+    let cell_i32 = (x as i32, y as i32);
+    let inside = state
+        .tile_selection_cells
+        .as_ref()
+        .is_some_and(|cells| cells.contains(&cell_i32));
+
+    if inside {
+        if let Some(last_tap) = state.tile_selection_last_tap_at
+            && last_tap.elapsed() < DOUBLE_TAP_WINDOW
+        {
+            dismiss_selection(state);
+            return true;
+        }
+        state.tile_selection_last_tap_at = Some(Instant::now());
+        state.tile_selection_mode == TileSelectionMode::Replace
+    } else {
+        if state.tile_selection_mode == TileSelectionMode::Replace {
+            dismiss_selection(state);
+            return true;
+        }
+        false
+    }
+}
+
+pub(crate) fn dismiss_selection(state: &mut AppState) {
+    state
+        .selection_undo_stack
+        .push(state.tile_selection_cells.clone());
+    state.selection_redo_stack.clear();
+    state
+        .undo_action_order
+        .push(UndoActionKind::SelectionChange);
+    state.redo_action_order.clear();
+
+    state.tile_selection = None;
+    state.tile_selection_cells = None;
+    state.tile_selection_preview = None;
+    state.tile_selection_preview_cells = None;
+    state.tile_selection_last_tap_at = None;
+    state.tile_selection_transfer = None;
+    state.canvas_dirty = true;
+    state.status = "Selection cleared.".to_string();
 }

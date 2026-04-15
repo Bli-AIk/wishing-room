@@ -7,6 +7,7 @@ mod embedded_samples;
 mod icons;
 mod l10n;
 mod logging;
+mod obj_ops;
 mod platform;
 mod screens;
 mod selection_ops;

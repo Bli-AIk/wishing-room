@@ -169,3 +169,6 @@ layer-delete-title = Delete Layer
 layer-delete-message = Are you sure you want to delete "{ $name }"? This cannot be undone.
 layer-delete-confirm = Delete
 layer-delete-cancel = Cancel
+
+tileset-new = + New Tileset
+workspace-new = + New Workspace

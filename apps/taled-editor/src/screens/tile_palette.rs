@@ -26,7 +26,7 @@ fn vf_grid_size(level: u8) -> (i32, i32) {
 /// The parent element must have `on_press` and `overflow(clip)`.
 pub(crate) fn render_viewfinder(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
     let ts_info = active_tileset_info(state);
-    let Some((ts_cols, ts_rows, tile_count, first_gid, ts_idx)) = ts_info else {
+    let Some((ts_cols, ts_rows, tile_ids, first_gid, ts_idx)) = ts_info else {
         ui.text("No tileset", |t| t.font_size(12).color(theme.muted_text));
         return;
     };
@@ -47,7 +47,7 @@ pub(crate) fn render_viewfinder(ui: &mut Ui, state: &mut AppState, theme: &PlyTh
 
     // Touch handling (just_pressed / just_released from parent on_press).
     handle_viewfinder_touch(
-        ui, state, cell_w, cell_h, ts_cols, ts_rows, first_gid, tile_count, vf_cols, vf_rows,
+        ui, state, cell_w, cell_h, ts_cols, ts_rows, first_gid, &tile_ids, vf_cols, vf_rows,
     );
 
     // Clamp offset to valid range.
@@ -86,20 +86,8 @@ pub(crate) fn render_viewfinder(ui: &mut Ui, state: &mut AppState, theme: &PlyTh
         .children(|ui| {
             for r in 0..rrows {
                 render_viewfinder_row(
-                    ui,
-                    state,
-                    theme,
-                    base_col,
-                    base_row + r,
-                    rcols,
-                    ts_cols,
-                    ts_rows,
-                    tile_count,
-                    first_gid,
-                    ts_idx,
-                    grid_w,
-                    cell_w,
-                    cell_h,
+                    ui, state, theme, base_col, base_row + r, rcols, ts_cols, ts_rows,
+                    &tile_ids, first_gid, ts_idx, grid_w, cell_w, cell_h,
                 );
             }
         });
@@ -114,7 +102,7 @@ fn render_viewfinder_row(
     rcols: i32,
     ts_cols: i32,
     ts_rows: i32,
-    tile_count: u32,
+    tile_ids: &[u32],
     first_gid: u32,
     ts_idx: usize,
     row_w: f32,
@@ -128,18 +116,8 @@ fn render_viewfinder_row(
         .children(|ui| {
             for c in 0..rcols {
                 render_viewfinder_cell(
-                    ui,
-                    state,
-                    theme,
-                    base_col + c,
-                    row,
-                    ts_cols,
-                    ts_rows,
-                    tile_count,
-                    first_gid,
-                    ts_idx,
-                    cell_w,
-                    cell_h,
+                    ui, state, theme, base_col + c, row, ts_cols, ts_rows, tile_ids, first_gid,
+                    ts_idx, cell_w, cell_h,
                 );
             }
         });
@@ -155,35 +133,23 @@ fn render_viewfinder_cell(
     row: i32,
     ts_cols: i32,
     ts_rows: i32,
-    tile_count: u32,
+    tile_ids: &[u32],
     first_gid: u32,
     ts_idx: usize,
     cell_w: f32,
     cell_h: f32,
 ) {
-    // Out-of-bounds or past tile_count → empty spacer.
     let valid = col >= 0 && col < ts_cols && row >= 0 && row < ts_rows;
-    let local_id = if valid {
-        (row * ts_cols + col) as u32
-    } else {
-        u32::MAX
-    };
-    if !valid || local_id >= tile_count {
-        ui.element()
-            .width(fixed!(cell_w))
-            .height(fixed!(cell_h))
-            .empty();
+    let grid_idx = if valid { (row * ts_cols + col) as usize } else { usize::MAX };
+    let Some(&local_id) = tile_ids.get(grid_idx) else {
+        ui.element().width(fixed!(cell_w)).height(fixed!(cell_h)).empty();
         return;
-    }
+    };
 
     let gid = first_gid + local_id;
     let is_selected = state.selected_gid == gid;
 
-    let tile = PaletteTile {
-        gid,
-        tileset_index: ts_idx,
-        local_id,
-    };
+    let tile = PaletteTile { gid, tileset_index: ts_idx, local_id };
 
     // For the selected tile, use a chip with blue border baked into the texture
     // (render-to-texture path, proven to work on Android).
@@ -221,7 +187,7 @@ fn handle_viewfinder_touch(
     ts_cols: i32,
     ts_rows: i32,
     first_gid: u32,
-    tile_count: u32,
+    tile_ids: &[u32],
     vf_cols: i32,
     vf_rows: i32,
 ) {
@@ -274,9 +240,7 @@ fn handle_viewfinder_touch(
             });
         } else {
             // Tap — select tile under finger.
-            tap_select_tile(
-                state, cell_w, cell_h, ts_cols, ts_rows, first_gid, tile_count,
-            );
+            tap_select_tile(state, cell_w, cell_h, ts_cols, first_gid, tile_ids);
         }
         state.viewfinder_touch_active = false;
         state.viewfinder_dragging = false;
@@ -351,9 +315,8 @@ fn tap_select_tile(
     cell_w: f32,
     cell_h: f32,
     ts_cols: i32,
-    ts_rows: i32,
     first_gid: u32,
-    tile_count: u32,
+    tile_ids: &[u32],
 ) {
     let (mx, my) = mouse_position();
     let palette_y = state.safe_inset_top + 56.0;
@@ -365,11 +328,11 @@ fn tap_select_tile(
     let off = state.viewfinder_offset;
     let col = (local_x / cell_w + off.0).floor() as i32;
     let row = (local_y / cell_h + off.1).floor() as i32;
-    if col < 0 || col >= ts_cols || row < 0 || row >= ts_rows {
+    if col < 0 || col >= ts_cols || row < 0 {
         return;
     }
-    let lid = (row * ts_cols + col) as u32;
-    if lid < tile_count {
+    let idx = (row * ts_cols + col) as usize;
+    if let Some(&lid) = tile_ids.get(idx) {
         state.selected_gid = first_gid + lid;
     }
 }
@@ -378,13 +341,19 @@ fn ease_out_cubic(t: f32) -> f32 {
     1.0 - (1.0 - t).powi(3)
 }
 
-fn active_tileset_info(state: &AppState) -> Option<(i32, i32, u32, u32, usize)> {
+fn active_tileset_info(state: &AppState) -> Option<(i32, i32, Vec<u32>, u32, usize)> {
     let session = state.session.as_ref()?;
     let ts = session.document().map.tilesets.get(state.active_tileset)?;
-    let cols = ts.tileset.columns.max(1) as i32;
-    let count = ts.tileset.tile_count;
-    let rows = (count as i32 + cols - 1) / cols;
-    Some((cols, rows, count, ts.first_gid, state.active_tileset))
+    let coi = ts.tileset.columns == 0 && !ts.tileset.tile_images.is_empty();
+    let (cols, ids) = if coi {
+        let mut ids: Vec<u32> = ts.tileset.tile_images.keys().copied().collect();
+        ids.sort();
+        ((ids.len() as f32).sqrt().ceil().max(1.0) as i32, ids)
+    } else {
+        (ts.tileset.columns.max(1) as i32, (0..ts.tileset.tile_count).collect())
+    };
+    let rows = (ids.len() as i32 + cols - 1) / cols;
+    Some((cols, rows, ids, ts.first_gid, state.active_tileset))
 }
 
 // ── tile texture cropping (shared with tilesets.rs) ──────────────────────────
@@ -394,10 +363,44 @@ pub(crate) fn crop_tile_texture(state: &mut AppState, tile: &PaletteTile) -> Opt
         return Some(cached.texture.clone());
     }
     let session = state.session.as_ref()?;
-    let texture = state.tileset_textures.get(&tile.tileset_index)?;
     let tile_ref = session.document().map.tile_reference_for_gid(tile.gid)?;
-
     let ts = &tile_ref.tileset.tileset;
+
+    // Collection-of-images: each tile has its own texture
+    if let Some(ind_tex) = state.tile_textures.get(&(tile.tileset_index, tile.local_id)) {
+        let tw = ind_tex.width();
+        let th = ind_tex.height();
+        let chip_size = 40.0;
+        let scale = (chip_size / tw).min(chip_size / th);
+        let rw = tw * scale;
+        let rh = th * scale;
+        let ox = (chip_size - rw) / 2.0;
+        let oy = (chip_size - rh) / 2.0;
+        let rt = render_target(chip_size as u32, chip_size as u32);
+        rt.texture.set_filter(FilterMode::Nearest);
+        let mut cam = Camera2D::from_display_rect(Rect::new(0.0, 0.0, chip_size, chip_size));
+        cam.render_target = Some(rt.clone());
+        set_camera(&cam);
+        clear_background(MacroquadColor::from_rgba(0x10, 0x11, 0x13, 255));
+        draw_texture_ex(
+            ind_tex,
+            ox,
+            oy,
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(Vec2::new(rw, rh)),
+                flip_y: true,
+                ..Default::default()
+            },
+        );
+        set_default_camera();
+        let tex = rt.texture.clone();
+        state.tile_chip_cache.insert(tile.gid, rt);
+        return Some(tex);
+    }
+
+    // Standard sprite-sheet tileset
+    let texture = state.tileset_textures.get(&tile.tileset_index)?;
     let cols = ts.columns.max(1);
     let tw = ts.tile_width as f32;
     let th = ts.tile_height as f32;
@@ -449,15 +452,24 @@ fn selected_tile_texture(state: &mut AppState, tile: &PaletteTile) -> Option<Tex
     }
 
     let session = state.session.as_ref()?;
-    let texture = state.tileset_textures.get(&tile.tileset_index)?;
     let tile_ref = session.document().map.tile_reference_for_gid(tile.gid)?;
-
     let ts = &tile_ref.tileset.tileset;
-    let cols = ts.columns.max(1);
-    let tw = ts.tile_width as f32;
-    let th = ts.tile_height as f32;
-    let sx = (tile.local_id % cols) as f32 * tw;
-    let sy = (tile.local_id / cols) as f32 * th;
+
+    // Resolve texture source + crop rect
+    let (tw, th, draw_params) =
+        if let Some(ind) = state.tile_textures.get(&(tile.tileset_index, tile.local_id)) {
+            let w = ind.width();
+            let h = ind.height();
+            (w, h, (ind.clone(), None))
+        } else {
+            let texture = state.tileset_textures.get(&tile.tileset_index)?;
+            let cols = ts.columns.max(1);
+            let tw = ts.tile_width as f32;
+            let th = ts.tile_height as f32;
+            let sx = (tile.local_id % cols) as f32 * tw;
+            let sy = (tile.local_id / cols) as f32 * th;
+            (tw, th, (texture.clone(), Some(Rect::new(sx, sy, tw, th))))
+        };
 
     let chip_size = 40.0;
     let border = 3.0;
@@ -474,9 +486,7 @@ fn selected_tile_texture(state: &mut AppState, tile: &PaletteTile) -> Option<Tex
     cam.render_target = Some(rt.clone());
     set_camera(&cam);
 
-    // Blue background = border color; tile image is drawn inset so blue shows through.
     clear_background(MacroquadColor::from_rgba(10, 133, 255, 255));
-    // Dark inner background behind the tile.
     draw_rectangle(
         border,
         border,
@@ -485,12 +495,12 @@ fn selected_tile_texture(state: &mut AppState, tile: &PaletteTile) -> Option<Tex
         MacroquadColor::from_rgba(0x10, 0x11, 0x13, 255),
     );
     draw_texture_ex(
-        texture,
+        &draw_params.0,
         ox,
         oy,
         WHITE,
         DrawTextureParams {
-            source: Some(Rect::new(sx, sy, tw, th)),
+            source: draw_params.1,
             dest_size: Some(Vec2::new(rw, rh)),
             flip_y: true,
             ..Default::default()

@@ -5,15 +5,14 @@ use ply_engine::prelude::*;
 use crate::app_state::TileSelectionRegion;
 use crate::app_state::{AppState, PinchGesture, ShapeFillPreview, SingleTouchGesture, Tool};
 use crate::edit_ops::{self, selection_cells_from_region};
+use crate::obj_ops;
+use crate::selection_ops;
 
 /// Duration before a held touch starts continuous painting.
 const LONG_PRESS_DURATION: std::time::Duration = std::time::Duration::from_millis(120);
 
 /// Minimum finger distance to recognise a pinch gesture.
 const MIN_PINCH_DISTANCE: f64 = 12.0;
-
-/// Double-tap window for dismissing a selection.
-const DOUBLE_TAP_WINDOW: std::time::Duration = std::time::Duration::from_millis(320);
 
 /// Whether the current tool uses tile selection (Select, MagicWand, SelectSameTile).
 fn is_selection_tool(tool: Tool) -> bool {
@@ -212,7 +211,8 @@ fn start_single_gesture(state: &mut AppState, mx: f32, my: f32, canvas_origin_y:
         | Tool::MagicWand
         | Tool::SelectSameTile
         | Tool::AddRectangle
-        | Tool::AddPoint => {
+        | Tool::AddPoint
+        | Tool::InsertTile => {
             // These fire on release, not press
         }
         Tool::Select | Tool::ShapeFill => {
@@ -358,8 +358,7 @@ fn handle_object_drag(state: &mut AppState, mx: f32, my: f32, canvas_origin_y: f
     }
 
     if let Some((sx, sy)) = state.obj_drag_start_pos {
-        let new_x = sx + ddx;
-        let new_y = sy + ddy;
+        let (new_x, new_y) = crate::obj_ops::snap_position(state, sx + ddx, sy + ddy);
         if let Some(session) = state.session.as_mut()
             && let Some(layer) = session.document_mut().map.layer_mut(state.active_layer)
             && let Some(obj_layer) = layer.as_object_mut()
@@ -406,9 +405,9 @@ fn handle_release(state: &mut AppState, mx: f32, my: f32, canvas_origin_y: f32) 
                 .as_ref()
                 .is_some_and(|g| g.outside_existing_selection);
             if outside {
-                dismiss_selection(state);
+                selection_ops::dismiss_selection(state);
             } else if let Some((x, y)) = cell {
-                if try_dismiss_selection(state, x, y) {
+                if selection_ops::try_dismiss_selection(state, x, y) {
                     // Selection was dismissed via double-tap or tap-outside
                 } else {
                     edit_ops::apply_cell_tool(state, x, y);
@@ -425,7 +424,7 @@ fn handle_release(state: &mut AppState, mx: f32, my: f32, canvas_origin_y: f32) 
                 .as_ref()
                 .is_some_and(|g| g.outside_existing_selection);
             if outside {
-                dismiss_selection(state);
+                selection_ops::dismiss_selection(state);
             } else {
                 let was_drag = gesture.as_ref().is_some_and(|g| g.drag_active);
                 if was_drag
@@ -436,7 +435,7 @@ fn handle_release(state: &mut AppState, mx: f32, my: f32, canvas_origin_y: f32) 
                         signed_cell_from_screen(state, mx, my, canvas_origin_y).unwrap_or(anchor);
                     edit_ops::select_tile_region(state, anchor.0, anchor.1, end.0, end.1);
                 } else if let Some((x, y)) = cell
-                    && !try_dismiss_selection(state, x, y)
+                    && !selection_ops::try_dismiss_selection(state, x, y)
                 {
                     edit_ops::apply_cell_tool(state, x, y);
                 }
@@ -462,66 +461,18 @@ fn handle_release(state: &mut AppState, mx: f32, my: f32, canvas_origin_y: f32) 
             state.obj_drag_origin = None;
             state.obj_drag_start_pos = None;
         }
+        Tool::InsertTile => {
+            let was_drag = gesture.as_ref().is_some_and(|g| g.drag_active);
+            if !was_drag
+                && let Some((wx, wy)) = world_from_screen(state, mx, my, canvas_origin_y)
+            {
+                obj_ops::insert_tile_object(state, wx, wy);
+            }
+        }
         _ => {}
     }
 
     finish_touch_edit_batch(state);
-}
-
-/// Try to dismiss the current selection via double-tap or tap-outside.
-/// Returns `true` if the selection was dismissed (caller should skip normal tool action).
-fn try_dismiss_selection(state: &mut AppState, x: u32, y: u32) -> bool {
-    let has_selection = state.tile_selection_cells.is_some();
-    if !has_selection {
-        return false;
-    }
-    let cell_i32 = (x as i32, y as i32);
-    let inside = state
-        .tile_selection_cells
-        .as_ref()
-        .is_some_and(|cells| cells.contains(&cell_i32));
-
-    if inside {
-        // Double-tap inside to dismiss
-        if let Some(last_tap) = state.tile_selection_last_tap_at
-            && last_tap.elapsed() < DOUBLE_TAP_WINDOW
-        {
-            dismiss_selection(state);
-            return true;
-        }
-        state.tile_selection_last_tap_at = Some(Instant::now());
-        // In Replace mode, absorb the tap (avoid re-selecting same cell).
-        // In Add/Subtract/Intersect, let the tool apply so the mode takes effect.
-        state.tile_selection_mode == crate::app_state::TileSelectionMode::Replace
-    } else {
-        // Tap outside — dismiss in Replace mode, else ignore
-        if state.tile_selection_mode == crate::app_state::TileSelectionMode::Replace {
-            dismiss_selection(state);
-            return true;
-        }
-        false
-    }
-}
-
-fn dismiss_selection(state: &mut AppState) {
-    // Record previous selection for undo.
-    state
-        .selection_undo_stack
-        .push(state.tile_selection_cells.clone());
-    state.selection_redo_stack.clear();
-    state
-        .undo_action_order
-        .push(crate::app_state::UndoActionKind::SelectionChange);
-    state.redo_action_order.clear();
-
-    state.tile_selection = None;
-    state.tile_selection_cells = None;
-    state.tile_selection_preview = None;
-    state.tile_selection_preview_cells = None;
-    state.tile_selection_last_tap_at = None;
-    state.tile_selection_transfer = None;
-    state.canvas_dirty = true;
-    state.status = "Selection cleared.".to_string();
 }
 
 // ── Pinch zoom ──────────────────────────────────────────────────────
