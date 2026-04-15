@@ -7,7 +7,7 @@ use crate::app_state::{AppState, MobileScreen};
 
 pub(crate) enum DownloadMsg {
     Progress(String),
-    Done(PathBuf),
+    Downloaded(PathBuf),
     Error(String),
 }
 
@@ -30,17 +30,24 @@ pub(crate) fn start_room_download(
         return;
     }
 
+    let files_dir = match crate::platform::files_dir() {
+        Some(d) => d,
+        None => {
+            state.status = "Cannot determine app storage".to_string();
+            return;
+        }
+    };
+
     let (tx, rx) = mpsc::channel();
     let path = room_path.to_string();
     let repo = repo.to_string();
     let branch = branch.to_string();
-    let ws_name = state.active_workspace.clone();
 
     state.download_rx = Some(rx);
     state.download_status = Some(DownloadStatus::InProgress("Starting...".into()));
 
     std::thread::spawn(move || {
-        if let Err(e) = download_thread(&tx, &path, &repo, &branch, &ws_name) {
+        if let Err(e) = download_thread(&tx, &path, &repo, &branch, &files_dir) {
             let _ = tx.send(DownloadMsg::Error(e));
         }
     });
@@ -61,14 +68,7 @@ pub(crate) fn poll_download(state: &mut AppState) {
                 state.download_status = Some(DownloadStatus::InProgress(text.clone()));
                 state.status = text;
             }
-            DownloadMsg::Done(path) => {
-                state.download_rx = None;
-                state.download_status = None;
-                let path_str = path.to_string_lossy().to_string();
-                if crate::session_ops::load_filesystem_map(state, &path_str) {
-                    state.navigate(MobileScreen::Editor);
-                }
-            }
+            DownloadMsg::Downloaded(temp_dir) => handle_downloaded(state, &temp_dir),
             DownloadMsg::Error(err) => {
                 state.download_rx = None;
                 state.download_status = Some(DownloadStatus::Error(err.clone()));
@@ -78,6 +78,39 @@ pub(crate) fn poll_download(state: &mut AppState) {
     }
 }
 
+fn handle_downloaded(state: &mut AppState, temp_dir: &Path) {
+    state.download_rx = None;
+    let tmx = find_tmx_in_dir(temp_dir);
+    let imported = tmx.and_then(|t| {
+        crate::workspace::import_tmx_to_workspace(&t, &state.active_workspace)
+    });
+    let _ = std::fs::remove_dir_all(temp_dir);
+    match imported {
+        Some(dest) => {
+            state.download_status = None;
+            let path_str = dest.to_string_lossy().to_string();
+            if crate::session_ops::load_filesystem_map(state, &path_str) {
+                state.navigate(MobileScreen::Editor);
+            }
+        }
+        None => {
+            state.download_status =
+                Some(DownloadStatus::Error("Import failed".into()));
+        }
+    }
+}
+
+fn find_tmx_in_dir(dir: &Path) -> Option<PathBuf> {
+    let entries = std::fs::read_dir(dir).ok()?;
+    for entry in entries.flatten() {
+        let p = entry.path();
+        if p.extension().is_some_and(|e| e == "tmx") {
+            return Some(p);
+        }
+    }
+    None
+}
+
 // ── Download thread ────────────────────────────────────────────────
 
 fn download_thread(
@@ -85,7 +118,7 @@ fn download_thread(
     tmx_rel_path: &str,
     repo: &str,
     branch: &str,
-    workspace_name: &str,
+    files_dir: &str,
 ) -> Result<(), String> {
     let base_url = format!("https://raw.githubusercontent.com/{repo}/{branch}");
 
@@ -93,7 +126,7 @@ fn download_thread(
     let tmx_url = format!("{base_url}/{tmx_rel_path}");
     let tmx_content = fetch_text(&tmx_url)?;
 
-    let temp_dir = std::env::temp_dir().join("taled_utdr_import");
+    let temp_dir = Path::new(files_dir).join("utdr_import_tmp");
     let _ = std::fs::remove_dir_all(&temp_dir);
     std::fs::create_dir_all(&temp_dir).map_err(|e| e.to_string())?;
 
@@ -136,18 +169,8 @@ fn download_thread(
         }
     }
 
-    let _ = tx.send(DownloadMsg::Progress("Importing...".into()));
-    match crate::workspace::import_tmx_to_workspace(&tmx_local, workspace_name) {
-        Some(dest) => {
-            let _ = std::fs::remove_dir_all(&temp_dir);
-            let _ = tx.send(DownloadMsg::Done(dest));
-            Ok(())
-        }
-        None => {
-            let _ = std::fs::remove_dir_all(&temp_dir);
-            Err("Failed to import into workspace".into())
-        }
-    }
+    let _ = tx.send(DownloadMsg::Downloaded(temp_dir));
+    Ok(())
 }
 
 // ── Helpers ────────────────────────────────────────────────────────
