@@ -172,3 +172,14 @@ layer-delete-cancel = 取消
 
 tileset-new = + 新建瓦片集
 workspace-new = + 新建工作区
+
+workspace-delete-title = 删除工作区
+workspace-delete-message = 确定要删除 "{ $name }" 吗？该工作区中的所有地图将被永久删除。
+workspace-delete-confirm = 删除
+workspace-delete-cancel = 取消
+dashboard-workspace-deleted = 工作区已删除
+
+settings-other-caption = 其他
+settings-developer-mode = 开发者模式
+
+screen-not-implemented = 尚未实现

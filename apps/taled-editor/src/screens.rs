@@ -1,6 +1,7 @@
 pub(crate) mod about;
 pub(crate) mod dashboard;
 mod dashboard_import;
+mod dashboard_ws_dialog;
 pub(crate) mod editor;
 pub(crate) mod editor_controls;
 mod editor_obj_panel;

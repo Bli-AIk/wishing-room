@@ -117,11 +117,17 @@ fn workspace_picker(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
                 };
                 let text_color = if is_active { theme.accent } else { theme.text };
 
+                let is_builtin = ws_name == BUILTIN_WORKSPACE;
+
                 ui.element()
                     .id(("ws-item", i as u32))
                     .width(grow!())
                     .height(fixed!(44.0))
-                    .layout(|l| l.align(Left, CenterY).padding((14, 0, 14, 0)))
+                    .layout(|l| {
+                        l.direction(LeftToRight)
+                            .align(Left, CenterY)
+                            .padding((14, 0, 14, 0))
+                    })
                     .on_press(move |_, _| {})
                     .children(|ui| {
                         if ui.just_released() {
@@ -130,6 +136,10 @@ fn workspace_picker(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
                             crate::thumbnails::invalidate_cache();
                         }
                         ui.text(&display_name, |t| t.font_size(16).color(text_color));
+                        if !is_builtin {
+                            ui.element().width(grow!()).height(fixed!(1.0)).empty();
+                            super::dashboard_ws_dialog::ws_trash_btn(ui, state, theme, i);
+                        }
                     });
             }
             // "+ New Workspace" item
@@ -440,6 +450,9 @@ pub(crate) fn render(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
 
     // Import submenu overlay
     super::dashboard_import::import_menu_popup(ui, state, theme);
+
+    // Workspace delete confirmation dialog
+    super::dashboard_ws_dialog::ws_delete_dialog(ui, state, theme);
 
     let items = dashboard_nav_items();
     bottom_nav(ui, state, theme, &items, MobileScreen::Dashboard);

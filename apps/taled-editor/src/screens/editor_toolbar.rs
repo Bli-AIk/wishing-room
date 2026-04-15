@@ -132,24 +132,8 @@ fn render_object_tools(
     render_placeholder_tool(ui, state, lang, "tool-insert-ellipse", 4);
     render_placeholder_tool(ui, state, lang, "tool-insert-capsule", 5);
     render_placeholder_tool(ui, state, lang, "tool-insert-polygon", 6);
-    render_tool_item(
-        ui,
-        state,
-        theme,
-        lang,
-        Tool::AddRectangle,
-        "tool-insert-rect",
-        7,
-    );
-    render_tool_item(
-        ui,
-        state,
-        theme,
-        lang,
-        Tool::AddPoint,
-        "tool-insert-point",
-        8,
-    );
+    render_placeholder_tool(ui, state, lang, "tool-insert-rect", 7);
+    render_placeholder_tool(ui, state, lang, "tool-insert-point", 8);
 }
 
 /// Renders a real (functional) tool button.

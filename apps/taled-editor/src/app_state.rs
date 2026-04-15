@@ -90,10 +90,7 @@ impl MobileScreen {
     }
 
     pub(crate) fn is_editor_subtab(self) -> bool {
-        matches!(
-            self,
-            Self::Tilesets | Self::Layers | Self::Objects | Self::Properties
-        )
+        matches!(self, Self::Tilesets | Self::Layers | Self::Properties)
     }
 
     pub(crate) fn is_dashboard_tab(self) -> bool {
@@ -348,6 +345,8 @@ pub(crate) struct AppState {
     pub(crate) rename_synced: bool,
     pub(crate) rename_had_focus: bool,
     pub(crate) layer_swipe_start: Option<(usize, f32)>,
+    pub(crate) developer_mode: bool,
+    pub(crate) delete_workspace_pending: Option<usize>,
 }
 
 /// Which kind of import the user initiated.
@@ -462,6 +461,8 @@ impl AppState {
             rename_synced: false,
             rename_had_focus: false,
             layer_swipe_start: None,
+            developer_mode: false,
+            delete_workspace_pending: None,
         }
     }
 
@@ -572,8 +573,6 @@ pub(crate) fn is_tile_selection_tool(tool: Tool) -> bool {
 pub(crate) fn is_object_tool(tool: Tool) -> bool {
     matches!(tool, Tool::Hand | Tool::SelectObject | Tool::InsertTile | Tool::AddRectangle | Tool::AddPoint)
 }
-
-/// Returns `true` when the tool belongs to the tile toolbar.
 pub(crate) fn is_tile_tool(tool: Tool) -> bool {
     !matches!(tool, Tool::SelectObject | Tool::InsertTile | Tool::AddRectangle | Tool::AddPoint)
 }

@@ -106,6 +106,22 @@ pub(crate) fn create_workspace(name: &str) -> Option<PathBuf> {
     Some(ws_path)
 }
 
+/// Delete a workspace directory by name. Returns `true` on success.
+/// Refuses to delete the builtin workspace.
+pub(crate) fn delete_workspace(name: &str) -> bool {
+    if name == BUILTIN_WORKSPACE {
+        return false;
+    }
+    let Some(root) = workspaces_root() else {
+        return false;
+    };
+    let ws_path = root.join(name);
+    if !ws_path.is_dir() {
+        return false;
+    }
+    fs::remove_dir_all(&ws_path).is_ok()
+}
+
 fn count_tmx_files(dir: &Path) -> usize {
     let mut count = 0;
     if let Ok(entries) = fs::read_dir(dir) {

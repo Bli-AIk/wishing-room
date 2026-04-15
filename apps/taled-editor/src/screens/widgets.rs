@@ -174,7 +174,7 @@ pub(crate) fn dashboard_nav_items() -> [NavItem; 3] {
     ]
 }
 
-pub(crate) fn editor_nav_items() -> [NavItem; 4] {
+pub(crate) fn editor_nav_items() -> [NavItem; 3] {
     [
         NavItem {
             label_key: "nav-tilesets",
@@ -183,10 +183,6 @@ pub(crate) fn editor_nav_items() -> [NavItem; 4] {
         NavItem {
             label_key: "nav-layers",
             screen: MobileScreen::Layers,
-        },
-        NavItem {
-            label_key: "nav-objects",
-            screen: MobileScreen::Objects,
         },
         NavItem {
             label_key: "nav-properties",
@@ -225,12 +221,16 @@ pub(crate) fn bottom_nav(
                     false
                 };
                 let label = l10n::text(state.resolved_language(), item.label_key);
-                let color = if is_active {
+                let is_disabled = item.label_key == "nav-assets";
+                let color = if is_disabled {
+                    Color::u_rgb(0x6e, 0x6e, 0x73)
+                } else if is_active {
                     theme.accent
                 } else {
                     theme.muted_text
                 };
                 let target = item.screen;
+                let label_key = item.label_key;
                 ui.element()
                     .id(("nav-item", i as u32))
                     .width(grow!())
@@ -239,7 +239,14 @@ pub(crate) fn bottom_nav(
                     .on_press(move |_, _| {})
                     .children(|ui| {
                         if ui.just_released() {
-                            if active == MobileScreen::Editor {
+                            if is_disabled {
+                                let tool_label = l10n::text(state.resolved_language(), label_key);
+                                state.status = l10n::text_with_args(
+                                    state.resolved_language(),
+                                    "tool-status-not-implemented",
+                                    &[("tool", tool_label)],
+                                );
+                            } else if active == MobileScreen::Editor {
                                 state.navigate_up(target);
                             } else if (active.is_editor_subtab() && target.is_editor_subtab())
                                 || (active.is_dashboard_tab() && target.is_dashboard_tab())

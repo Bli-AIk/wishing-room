@@ -176,18 +176,19 @@ pub(crate) fn render_canvas(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme)
             }
 
             crate::screens::editor_toolbar::render_floating_controls(ui, state, theme);
-            // Build diagnostic overlay showing hidden_layers state
-            let hidden_diag = if state.hidden_layers.is_empty() {
-                "H:{}".to_string()
-            } else {
-                format!("H:{:?}", state.hidden_layers)
-            };
-            let toggle_diag = state
-                .last_eye_toggle
-                .map(|(i, h)| format!(" T:{i}{}", if h { "+" } else { "-" }))
-                .unwrap_or_default();
-            let overlay = format!("{}{} | {}", hidden_diag, toggle_diag, state.perf_info);
-            render_debug_overlay(ui, &overlay);
+            if state.developer_mode {
+                let hidden_diag = if state.hidden_layers.is_empty() {
+                    "H:{}".to_string()
+                } else {
+                    format!("H:{:?}", state.hidden_layers)
+                };
+                let toggle_diag = state
+                    .last_eye_toggle
+                    .map(|(i, h)| format!(" T:{i}{}", if h { "+" } else { "-" }))
+                    .unwrap_or_default();
+                let overlay = format!("{}{} | {}", hidden_diag, toggle_diag, state.perf_info);
+                render_debug_overlay(ui, &overlay);
+            }
         });
 }
 

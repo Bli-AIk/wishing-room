@@ -53,52 +53,30 @@ pub(crate) fn render(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
                 MobileScreen::Themes,
             );
 
-            // ── Diagnostics ──
-            section_label(
-                ui,
-                theme,
-                &l10n::text(state.resolved_language(), "settings-diagnostics-caption"),
-            );
-            info_note_card(
-                ui,
-                theme,
-                &[
-                    &l10n::text(state.resolved_language(), "settings-status-title"),
-                    &state.status.clone(),
-                ],
-            );
+            // ── Diagnostics (developer mode only) ──
+            if state.developer_mode {
+                section_label(
+                    ui,
+                    theme,
+                    &l10n::text(state.resolved_language(), "settings-diagnostics-caption"),
+                );
+                info_note_card(
+                    ui,
+                    theme,
+                    &[
+                        &l10n::text(state.resolved_language(), "settings-status-title"),
+                        &state.status.clone(),
+                    ],
+                );
+            }
 
-            // ── Export ──
+            // ── Other ──
             section_label(
                 ui,
                 theme,
-                &l10n::text(state.resolved_language(), "settings-export-caption"),
+                &l10n::text(state.resolved_language(), "settings-other-caption"),
             );
-            settings_card(ui, theme, |ui, theme| {
-                toggle_row(
-                    ui,
-                    theme,
-                    "exp-json",
-                    &l10n::text(state.resolved_language(), "settings-export-json"),
-                    true,
-                );
-                separator_row(ui, theme);
-                toggle_row(
-                    ui,
-                    theme,
-                    "exp-xml",
-                    &l10n::text(state.resolved_language(), "settings-export-xml"),
-                    true,
-                );
-                separator_row(ui, theme);
-                toggle_row(
-                    ui,
-                    theme,
-                    "exp-png",
-                    &l10n::text(state.resolved_language(), "settings-export-png"),
-                    true,
-                );
-            });
+            developer_mode_card(ui, state, theme);
 
             // ── About ──
             section_label(
@@ -251,46 +229,46 @@ fn info_note_card(ui: &mut Ui, theme: &PlyTheme, lines: &[&str]) {
         });
 }
 
-fn toggle_row(ui: &mut Ui, theme: &PlyTheme, id: &'static str, label: &str, enabled: bool) {
-    ui.element()
-        .id(id)
-        .width(grow!())
-        .height(fixed!(44.0))
-        .layout(|l| l.direction(LeftToRight).align(Left, CenterY))
-        .children(|ui| {
-            ui.text(label, |t| t.font_size(15).color(theme.text));
-            ui.element().width(grow!()).height(fixed!(1.0)).empty();
-            let bg = if enabled {
-                theme.accent
-            } else {
-                theme.border_strong
-            };
-            ui.element()
-                .width(fixed!(52.0))
-                .height(fixed!(32.0))
-                .background_color(bg)
-                .corner_radius(16.0)
-                .layout(|l| {
-                    let align_x = if enabled { Right } else { Left };
-                    l.align(align_x, CenterY).padding((0, 3, 0, 3))
-                })
-                .children(|ui| {
-                    ui.element()
-                        .width(fixed!(26.0))
-                        .height(fixed!(26.0))
-                        .background_color(theme.accent_text)
-                        .corner_radius(13.0)
-                        .empty();
-                });
-        });
+fn developer_mode_card(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
+    let enabled = state.developer_mode;
+    let label = l10n::text(state.resolved_language(), "settings-developer-mode");
+    settings_card(ui, theme, |ui, theme| {
+        ui.element()
+            .id("dev-mode-toggle")
+            .width(grow!())
+            .height(fixed!(44.0))
+            .layout(|l| l.direction(LeftToRight).align(Left, CenterY))
+            .on_press(move |_, _| {})
+            .children(|ui| {
+                if ui.just_released() {
+                    state.developer_mode = !state.developer_mode;
+                }
+                ui.text(&label, |t| t.font_size(15).color(theme.text));
+                ui.element().width(grow!()).height(fixed!(1.0)).empty();
+                toggle_indicator(ui, theme, enabled);
+            });
+    });
 }
 
-fn separator_row(ui: &mut Ui, theme: &PlyTheme) {
+fn toggle_indicator(ui: &mut Ui, theme: &PlyTheme, enabled: bool) {
+    let bg = if enabled { theme.accent } else { theme.border_strong };
     ui.element()
-        .width(grow!())
-        .height(fixed!(1.0))
-        .background_color(theme.border)
-        .empty();
+        .width(fixed!(52.0))
+        .height(fixed!(32.0))
+        .background_color(bg)
+        .corner_radius(16.0)
+        .layout(|l| {
+            let align_x = if enabled { Right } else { Left };
+            l.align(align_x, CenterY).padding((0, 3, 0, 3))
+        })
+        .children(|ui| {
+            ui.element()
+                .width(fixed!(26.0))
+                .height(fixed!(26.0))
+                .background_color(theme.accent_text)
+                .corner_radius(13.0)
+                .empty();
+        });
 }
 
 #[expect(clippy::excessive_nesting)] // reason: Ply UI requires nested closures for element builders

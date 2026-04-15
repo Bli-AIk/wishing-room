@@ -172,3 +172,14 @@ layer-delete-cancel = Cancel
 
 tileset-new = + New Tileset
 workspace-new = + New Workspace
+
+workspace-delete-title = Delete Workspace
+workspace-delete-message = Are you sure you want to delete "{ $name }"? All maps in this workspace will be permanently removed.
+workspace-delete-confirm = Delete
+workspace-delete-cancel = Cancel
+dashboard-workspace-deleted = Workspace deleted
+
+settings-other-caption = Other
+settings-developer-mode = Developer Mode
+
+screen-not-implemented = Not implemented yet
