@@ -183,3 +183,8 @@ settings-other-caption = Other
 settings-developer-mode = Developer Mode
 
 screen-not-implemented = Not implemented yet
+
+assets-title = Map Library
+assets-no-index = Map index not available
+assets-room-count = { $count } rooms — { $game }
+assets-room-tapped = { $room } (download not yet available)

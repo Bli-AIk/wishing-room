@@ -19,6 +19,7 @@ mod theme;
 mod thumbnails;
 mod touch_ops;
 mod ui;
+mod utdr_index;
 mod workspace;
 
 use ply_engine::prelude::*;

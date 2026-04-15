@@ -47,6 +47,7 @@ fn advance_transition(state: &mut AppState) -> Option<TransitionSlide> {
 fn render_screen(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme, screen: MobileScreen) {
     match screen {
         MobileScreen::Dashboard => screens::dashboard::render(ui, state, theme),
+        MobileScreen::Assets => screens::assets_browser::render(ui, state, theme),
         MobileScreen::Editor => screens::editor::render(ui, state, theme),
         MobileScreen::Tilesets => screens::tilesets::render(ui, state, theme),
         MobileScreen::Layers => screens::layers::render(ui, state, theme),

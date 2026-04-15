@@ -63,6 +63,7 @@ pub(crate) enum ShapeFillMode {
 #[allow(dead_code)]
 pub(crate) enum MobileScreen {
     Dashboard,
+    Assets,
     Editor,
     Tilesets,
     Layers,
@@ -85,6 +86,7 @@ impl MobileScreen {
             6 => Self::Settings,
             7 => Self::Themes,
             8 => Self::About,
+            9 => Self::Assets,
             _ => Self::Dashboard,
         }
     }
@@ -94,7 +96,7 @@ impl MobileScreen {
     }
 
     pub(crate) fn is_dashboard_tab(self) -> bool {
-        matches!(self, Self::Dashboard | Self::Settings)
+        matches!(self, Self::Dashboard | Self::Assets | Self::Settings)
     }
 }
 
@@ -347,6 +349,10 @@ pub(crate) struct AppState {
     pub(crate) layer_swipe_start: Option<(usize, f32)>,
     pub(crate) developer_mode: bool,
     pub(crate) delete_workspace_pending: Option<usize>,
+    /// Parsed UTDR map index (loaded once from embedded asset).
+    pub(crate) utdr_index: Option<crate::utdr_index::UtdrIndex>,
+    pub(crate) utdr_selected_game: String,
+    pub(crate) utdr_search: String,
 }
 
 /// Which kind of import the user initiated.
@@ -463,6 +469,9 @@ impl AppState {
             layer_swipe_start: None,
             developer_mode: false,
             delete_workspace_pending: None,
+            utdr_index: crate::utdr_index::load_embedded_index(),
+            utdr_selected_game: "undertale".to_string(),
+            utdr_search: String::new(),
         }
     }
 
@@ -479,9 +488,7 @@ impl AppState {
     }
 
     pub(crate) fn navigate(&mut self, screen: MobileScreen) {
-        if screen == self.mobile_screen {
-            return;
-        }
+        if screen == self.mobile_screen { return; }
         self.show_language_popup = false;
         self.show_workspace_picker = false;
         self.show_import_menu = false;
@@ -492,31 +499,24 @@ impl AppState {
     pub(crate) fn navigate_back_to(&mut self, screen: MobileScreen) {
         self.navigate_transition(screen, TransitionDir::Back);
     }
-
     pub(crate) fn navigate_up(&mut self, screen: MobileScreen) {
         self.navigate_transition(screen, TransitionDir::Up);
     }
-
     pub(crate) fn navigate_down(&mut self, screen: MobileScreen) {
         self.navigate_transition(screen, TransitionDir::Down);
     }
 
     fn navigate_transition(&mut self, screen: MobileScreen, dir: TransitionDir) {
-        if screen == self.mobile_screen {
-            return;
-        }
+        if screen == self.mobile_screen { return; }
         self.page_transition = Some(PageTransition {
-            from_screen: self.mobile_screen,
-            start_time: get_time(),
-            dir,
+            from_screen: self.mobile_screen, start_time: get_time(), dir,
         });
         self.mobile_screen = screen;
     }
 
     /// Switch tab instantly (no slide animation).
     pub(crate) fn navigate_tab(&mut self, screen: MobileScreen) {
-        self.page_transition = None;
-        self.mobile_screen = screen;
+        self.page_transition = None; self.mobile_screen = screen;
     }
 
     /// Navigate to the logical parent screen.
@@ -533,7 +533,8 @@ impl AppState {
             | MobileScreen::Layers
             | MobileScreen::Objects
             | MobileScreen::Properties => MobileScreen::Editor,
-            MobileScreen::Settings | MobileScreen::Dashboard | MobileScreen::Editor => {
+            MobileScreen::Settings | MobileScreen::Dashboard
+            | MobileScreen::Assets | MobileScreen::Editor => {
                 MobileScreen::Dashboard
             }
         };

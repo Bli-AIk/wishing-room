@@ -183,3 +183,8 @@ settings-other-caption = 其他
 settings-developer-mode = 开发者模式
 
 screen-not-implemented = 尚未实现
+
+assets-title = 地图库
+assets-no-index = 地图索引不可用
+assets-room-count = { $count } 个房间 — { $game }
+assets-room-tapped = { $room }（下载功能尚未实现）

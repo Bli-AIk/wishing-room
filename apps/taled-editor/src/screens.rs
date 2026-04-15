@@ -1,4 +1,5 @@
 pub(crate) mod about;
+pub(crate) mod assets_browser;
 pub(crate) mod dashboard;
 mod dashboard_import;
 mod dashboard_ws_dialog;
