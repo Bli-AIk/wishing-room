@@ -104,17 +104,17 @@ fn game_chip(
     let fg = if active { Color::u_rgb(0xff, 0xff, 0xff) } else { theme.muted_text };
     ui.element()
         .id(("chip", index))
-        .width(grow!())
+        .width(fit!())
         .height(fixed!(30.0))
         .background_color(bg)
         .corner_radius(15.0)
-        .layout(|l| l.align(CenterX, CenterY))
+        .layout(|l| l.align(CenterX, CenterY).padding((0, 14, 0, 14)))
         .on_press(move |_, _| {})
         .children(|ui| {
             if ui.just_released() {
                 state.utdr_selected_game = key.to_string();
             }
-            ui.text(label, |t| t.font_size(13).color(fg).alignment(CenterX));
+            ui.text(label, |t| t.font_size(13).color(fg));
         });
 }
 
@@ -155,7 +155,7 @@ fn room_list(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
         .height(grow!())
         .background_color(theme.background)
         .overflow(|o| {
-            o.scroll_y().scrollbar(|s| {
+            o.scroll_y().clip_x().scrollbar(|s| {
                 s.width(6.0)
                     .corner_radius(3.0)
                     .thumb_color(theme.border_strong)
