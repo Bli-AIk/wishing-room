@@ -349,10 +349,11 @@ pub(crate) struct AppState {
     pub(crate) layer_swipe_start: Option<(usize, f32)>,
     pub(crate) developer_mode: bool,
     pub(crate) delete_workspace_pending: Option<usize>,
-    /// Parsed UTDR map index (loaded once from embedded asset).
     pub(crate) utdr_index: Option<crate::utdr_index::UtdrIndex>,
     pub(crate) utdr_selected_game: String,
     pub(crate) utdr_search: String,
+    pub(crate) download_rx: Option<std::sync::mpsc::Receiver<crate::utdr_download::DownloadMsg>>,
+    pub(crate) download_status: Option<crate::utdr_download::DownloadStatus>,
 }
 
 /// Which kind of import the user initiated.
@@ -456,12 +457,9 @@ impl AppState {
             show_language_popup: false,
             active_workspace: crate::workspace::BUILTIN_WORKSPACE.to_string(),
             workspace_list: Vec::new(),
-            show_workspace_picker: false,
-            show_import_menu: false,
-            show_tileset_picker: false,
-            show_save_dialog: false,
-            thumb_pending: false,
-            delete_layer_pending: None,
+            show_workspace_picker: false, show_import_menu: false,
+            show_tileset_picker: false, show_save_dialog: false,
+            thumb_pending: false, delete_layer_pending: None,
             layer_actions_row: None,
             rename_layer_index: None,
             rename_synced: false,
@@ -472,6 +470,8 @@ impl AppState {
             utdr_index: crate::utdr_index::load_embedded_index(),
             utdr_selected_game: "undertale".to_string(),
             utdr_search: String::new(),
+            download_rx: None,
+            download_status: None,
         }
     }
 
@@ -514,12 +514,10 @@ impl AppState {
         self.mobile_screen = screen;
     }
 
-    /// Switch tab instantly (no slide animation).
     pub(crate) fn navigate_tab(&mut self, screen: MobileScreen) {
         self.page_transition = None; self.mobile_screen = screen;
     }
 
-    /// Navigate to the logical parent screen.
     pub(crate) fn navigate_back(&mut self) {
         // If the save dialog is open, dismiss it (treat hw back as "Later").
         if self.show_save_dialog {

@@ -7,6 +7,8 @@ static INDEX_JSON: &str = include_str!("../../../assets/utdr_index.json");
 pub(crate) struct UtdrIndex {
     #[allow(dead_code)]
     pub(crate) total_rooms: u32,
+    pub(crate) repo: String,
+    pub(crate) branch: String,
     pub(crate) games: std::collections::BTreeMap<String, UtdrGame>,
 }
 

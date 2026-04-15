@@ -19,6 +19,7 @@ mod theme;
 mod thumbnails;
 mod touch_ops;
 mod ui;
+mod utdr_download;
 mod utdr_index;
 mod workspace;
 
@@ -120,6 +121,8 @@ async fn main() {
             logging::append(&format!("SAF import result received: {result}"));
             workspace::handle_import_result(&mut state, &result);
         }
+
+        utdr_download::poll_download(&mut state);
 
         let mut ui = ply.begin();
 

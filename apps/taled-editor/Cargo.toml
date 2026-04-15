@@ -12,6 +12,9 @@ fullscreen = true
 min_sdk_version = 26
 android_version = 33
 
+[[package.metadata.android.permission]]
+name = "android.permission.INTERNET"
+
 [dependencies]
 fluent-bundle.workspace = true
 fontdb = { workspace = true, optional = true }
@@ -21,6 +24,7 @@ serde_json.workspace = true
 sys-locale.workspace = true
 taled-core = { path = "../../crates/taled-core" }
 unic-langid.workspace = true
+ureq.workspace = true
 
 [features]
 system-fonts = ["dep:fontdb"]

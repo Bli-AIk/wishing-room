@@ -27,6 +27,7 @@ pub(crate) fn render(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
         });
 
     search_bar(ui, state, theme);
+    download_banner(ui, state, theme);
     game_selector(ui, state, theme);
     room_list(ui, state, theme);
 
@@ -65,6 +66,34 @@ fn search_bar(ui: &mut Ui, state: &mut AppState, theme: &PlyTheme) {
                         .max_length(64)
                 })
                 .empty();
+        });
+}
+
+// ── Download progress banner ───────────────────────────────────────
+
+fn download_banner(ui: &mut Ui, state: &AppState, theme: &PlyTheme) {
+    let status = match &state.download_status {
+        Some(crate::utdr_download::DownloadStatus::InProgress(msg)) => msg.as_str(),
+        Some(crate::utdr_download::DownloadStatus::Error(msg)) => msg.as_str(),
+        None => return,
+    };
+    let is_err = matches!(
+        &state.download_status,
+        Some(crate::utdr_download::DownloadStatus::Error(_))
+    );
+    let bg = if is_err { theme.danger } else { theme.accent };
+    ui.element()
+        .id("download-banner")
+        .width(grow!())
+        .height(fixed!(28.0))
+        .background_color(bg)
+        .layout(|l| l.direction(TopToBottom).align(Left, CenterY).padding((0, 16, 0, 16)))
+        .children(|ui| {
+            ui.text(status, |t| {
+                t.font_size(12)
+                    .color(Color::u_rgb(0xff, 0xff, 0xff))
+                    .alignment(CenterX)
+            });
         });
 }
 
@@ -216,12 +245,17 @@ fn room_row(
         .border(|b| if is_first { b } else { b.top(1).color(theme.border) })
         .on_press(move |_, _| {})
         .children(|ui| {
-            if ui.just_released() {
-                let lang = state.resolved_language();
-                state.status = l10n::text_with_args(
-                    lang,
-                    "assets-room-tapped",
-                    &[("room", room.name.clone())],
+            if ui.just_released() && state.download_rx.is_none() {
+                let (repo, branch) = state
+                    .utdr_index
+                    .as_ref()
+                    .map(|idx| (idx.repo.clone(), idx.branch.clone()))
+                    .unwrap_or_else(|| {
+                        ("Bli-AIk/open-utdr-maps".into(), "main".into())
+                    });
+                let path = room.path.clone();
+                crate::utdr_download::start_room_download(
+                    state, &path, &repo, &branch,
                 );
             }
 

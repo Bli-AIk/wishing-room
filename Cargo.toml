@@ -19,3 +19,4 @@ thiserror = "2.0.17"
 tiled = "0.15.0"
 fontdb = { version = "0.23.0", default-features = false, features = ["fs", "std"] }
 unic-langid = { version = "0.9.6", features = ["macros"] }
+ureq = "2"
