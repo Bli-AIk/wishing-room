@@ -1,5 +1,5 @@
 # Generic Rust workspace tasks.
-# Dioxus-specific commands are included because this repo is likely to use Dioxus.
+# Ply-specific commands for building and running the editor.
 
 default: check
 
@@ -42,22 +42,22 @@ clean:
 run:
     cargo run
 
-dioxus-serve:
-    dx serve
+ply-serve:
+    plyx serve
 
 ssh-preview:
     ./scripts/ssh-preview.sh
 
-dioxus-build:
-    dx build
+ply-build:
+    plyx build
 
 android-build:
-    dx build --android --target aarch64-linux-android -r -p taled-editor
+    plyx apk -p taled-editor --release
     python3 ./scripts/patch_android_icons.py
     cd target/dx/taled-editor/release/android/app && ./gradlew :app:assembleDebug
 
-dioxus-bundle:
-    dx bundle
+ply-bundle:
+    plyx bundle
 
 ui-compare:
     ./scripts/ui_compare.sh
