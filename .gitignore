@@ -1,0 +1,58 @@
+/target
+
+# Local planning / scratch space
+dev/
+dev_review/
+logs/
+reports/
+
+# Agent-generated files
+AGENTS.md
+GEMINI.md
+agent_*.md
+check*.txt
+ai_check.sh
+
+# Rust / Cargo local overrides
+.cargo/*
+!.cargo/audit.toml
+!.cargo/config.toml
+
+# JetBrains Rider / IntelliJ IDEA
+*.sln.iml
+.idea/*
+!.idea/codeStyles/
+!.idea/inspectionProfiles/
+!.idea/runConfigurations/
+!.idea/vcs.xml
+!.idea/modules.xml
+!.idea/*.iml
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/usage.statistics.xml
+.idea/dictionaries/
+*.iws
+*.sln.DotSettings.user
+*.user
+
+# System
+.DS_Store
+Thumbs.db
+
+# JS / web tooling
+node_modules/
+dist/
+.dioxus/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Old Bevy renderer artifacts
+crates/taled-bevy-renderer/
+apps/taled-editor/public/bevy/
+apps/taled-editor/build/
+apps/taled-editor/index.html
+node_modules/
+package.json
+package-lock.json

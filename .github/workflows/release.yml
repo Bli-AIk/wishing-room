@@ -1,0 +1,58 @@
+name: Build and Upload Assets
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - 'taled-v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-upload:
+    name: Build and Upload Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            openjdk-17-jdk \
+            android-sdk \
+            android-sdk-platform-tools \
+            android-sdk-build-tools
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Android targets
+        run: rustup target add aarch64-linux-android
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "android-release"
+
+      - name: Install plyx
+        run: cargo install plyx
+
+      - name: Build Android APK (release)
+        run: plyx apk -p taled-editor --release
+
+      - name: Find APK
+        id: find-apk
+        run: |
+          find . -name "*.apk" -type f 2>/dev/null | head -1
+          echo "apk_path=$(find . -name "*.apk" -type f 2>/dev/null | head -1)" >> $GITHUB_OUTPUT
+
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.find-apk.outputs.apk_path }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

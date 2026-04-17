@@ -1,0 +1,23 @@
+[workspace]
+members = ["apps/taled-editor", "crates/taled-core"]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+version = "0.0.1"
+readme = "readme.md"
+
+[workspace.dependencies]
+base64 = "0.22.1"
+fluent-bundle = "0.16.0"
+ply-engine = { version = "1.1.0", features = ["storage"] }
+quick-xml = "0.38.4"
+roxmltree = "0.20.0"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
+sys-locale = "0.3.2"
+thiserror = "2.0.17"
+tiled = "0.15.0"
+fontdb = { version = "0.23.0", default-features = false, features = ["fs", "std"] }
+unic-langid = { version = "0.9.6", features = ["macros"] }
+ureq = "2"

@@ -1,0 +1,39 @@
+[package]
+name = "taled-editor"
+version = "0.0.1"
+edition = "2024"
+authors = ["Bli-AIk <haikun2333@gmail.com>"]
+license = "GPL-3.0-or-later"
+repository = "https://github.com/Bli-AIk/taled"
+homepage = "https://github.com/Bli-AIk/taled"
+description = "A tile map editor for Ply engine, running on Android, web and desktop."
+documentation = "https://docs.rs/taled-editor"
+readme = "../../readme.md"
+keywords = ["tile-map", "tmx", "editor", "ply", "android"]
+categories = ["game-development", "game-engines"]
+
+[package.metadata.android]
+assets = "../../assets"
+label = "Taled"
+icon = "@mipmap/ic_launcher"
+res = "android/app/src/main/res"
+fullscreen = true
+min_sdk_version = 26
+android_version = 33
+
+[[package.metadata.android.permission]]
+name = "android.permission.INTERNET"
+
+[dependencies]
+fluent-bundle.workspace = true
+fontdb = { workspace = true, optional = true }
+ply-engine.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sys-locale.workspace = true
+taled-core = { path = "../../crates/taled-core" }
+unic-langid.workspace = true
+ureq.workspace = true
+
+[features]
+system-fonts = ["dep:fontdb"]

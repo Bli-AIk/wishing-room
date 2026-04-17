@@ -1,0 +1,17 @@
+[application]
+out_dir = "../../dist/taled-editor"
+asset_dir = "../../assets"
+public_dir = ""
+android_main_activity = "android/MainActivity.kt"
+
+[web.app]
+title = "Taled"
+
+[bundle]
+identifier = "io.github.taled.editor"
+publisher = "taled"
+icon = ["icons/icon.png"]
+short_description = "Orthogonal TMX editor prototype."
+long_description = """
+Taled orthogonal TMX editor prototype for Android and web verification.
+"""

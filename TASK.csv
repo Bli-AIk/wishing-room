@@ -1,0 +1,147 @@
+group,id,term,zh,stage,state,priority
+formats,format.tmx,TMX,Tiled XML 地图格式,1,target,p0
+formats,format.tsx,TSX,Tiled XML 瓦片集格式,1,target,p0
+map,map,Map,地图,1,target,p0
+map,map.orthogonal,Orthogonal,正交,1,target,p0
+map,map.fixed_size,Fixed-Size Map,固定尺寸地图,1,target,p0
+map,map.tile_size,Tile Size,瓦片尺寸,1,target,p0
+map,map.render_order,Render Order,渲染顺序,1,target,p0
+tilesets,tileset.base,Tileset,瓦片集,1,target,p0
+tilesets,tileset.image_based,Based on Tileset Image,基于单张图集的瓦片集,1,target,p0
+tilesets,tileset.external,External Tileset,外部瓦片集,1,target,p0
+layers,layer.base,Layer,图层,1,target,p0
+layers,layer.order,Layer Order,图层顺序,1,target,p0
+layers,layer.visibility,Layer Visibility,图层显隐,1,target,p0
+layers,layer.lock,Layer Lock,图层锁定,1,target,p0
+layers,layer.name,Layer Name,图层命名,1,target,p0
+layers,layer.tile,Tile Layer,瓦片图层,1,target,p0
+layers,layer.object,Object Layer,对象图层,1,target,p0
+tile_tools,tool.stamp_brush,Stamp Brush,印章笔刷,1,target,p0
+tile_tools,tool.eraser,Eraser,橡皮擦,1,target,p0
+tile_tools,tool.rectangular_select,Rectangular Select,矩形选择,1,target,p0
+objects,object.rectangle,Rectangle Object,矩形对象,1,target,p0
+objects,object.point,Point Object,点对象,1,target,p0
+objects,object.select,Select Objects,选择对象,1,target,p0
+objects,object.move,Moving,移动,1,target,p0
+properties,properties.custom,Custom Properties,自定义属性,1,target,p0
+properties,properties.string,string,字符串,1,target,p0
+properties,properties.int,int,整数,1,target,p0
+properties,properties.float,float,浮点,1,target,p0
+properties,properties.bool,bool,布尔,1,target,p0
+formats,export.json,JSON,JSON 导出,2,later,p1
+formats,export.lua,Lua,Lua 导出,2,later,p1
+formats,export.csv,CSV,CSV 导出,2,later,p1
+formats,export.as_image,Export as Image,导出为图像,2,later,p1
+formats,export.options,Export Options,导出选项,2,later,p1
+map,map.parallax_origin,Parallax Origin,视差原点,2,later,p1
+map,map.background_color,Background Color,背景颜色,2,later,p1
+map,map.compression_level,Compression Level,压缩级别,2,later,p1
+tilesets,tileset.properties,Tileset Properties,瓦片集属性,2,later,p1
+tilesets,tile.properties,Tile Properties,瓦片属性,2,later,p1
+tilesets,tile.collision_editor,Tile Collision Editor,瓦片碰撞编辑器,2,later,p1
+tilesets,tile.animation_editor,Tile Animation Editor,瓦片动画编辑器,2,later,p1
+layers,layer.image,Image Layer,图像图层,2,later,p1
+layers,layer.group,Group Layer,组图层,2,later,p1
+layers,layer.opacity,Layer Opacity,图层不透明度,2,later,p1
+layers,layer.offset,Layer Offset,图层偏移,2,later,p1
+layers,layer.parallax_factor,Parallax Scrolling Factor,视差滚动系数,2,later,p1
+layers,layer.parallax_reference_point,Parallax Reference Point,视差参考点,2,later,p1
+layers,layer.tint,Tint Color,着色颜色,2,later,p1
+layers,layer.blend_mode,Blend Mode,混合模式,2,later,p1
+tile_tools,tool.magic_wand,Magic Wand,魔棒,2,later,p1
+tile_tools,tool.select_same_tile,Select Same Tile,选择相同瓦片,2,later,p1
+tile_tools,tool.bucket_fill,Bucket Fill Tool,油漆桶填充工具,2,later,p1
+tile_tools,tool.shape_fill,Shape Fill Tool,形状填充工具,2,later,p1
+tile_tools,tool.random_mode,Random Mode,随机模式,2,later,p1
+tile_tools,tool.terrain_fill_mode,Terrain Fill Mode,地形填充模式,2,later,p1
+tile_tools,tool.terrain_brush,Terrain Brush,地形笔刷,2,later,p1
+tile_tools,tool.tile_stamp_management,Managing Tile Stamps,管理瓦片印章,2,later,p1
+objects,object.ellipse,Ellipse Object,椭圆对象,2,later,p1
+objects,object.capsule,Capsule Object,胶囊对象,2,later,p1
+objects,object.polygon,Polygon Object,多边形对象,2,later,p1
+objects,object.polyline,Polyline Object,折线对象,2,later,p1
+objects,object.tile,Tile Object,瓦片对象,2,later,p1
+objects,object.template_instance,Template Instance,模板实例对象,2,later,p1
+objects,object.text,Text Object,文本对象,2,later,p1
+objects,object.resize,Resizing,缩放尺寸,2,later,p1
+objects,object.rotate,Rotating,旋转,2,later,p1
+objects,object.stacking_order,Changing Stacking Order,修改堆叠顺序,2,later,p1
+objects,object.flip,Flipping Objects,翻转对象,2,later,p1
+objects,object.edit_polygons,Edit Polygons,编辑多边形,2,later,p1
+objects,object.connect,Connecting Objects,连接对象,2,later,p1
+properties,properties.color,color,颜色,2,later,p1
+properties,properties.file,file,文件引用,2,later,p1
+properties,properties.object,object,对象引用,2,later,p1
+properties,properties.custom_enum,Custom Enum,自定义枚举,2,later,p1
+properties,properties.custom_class,Custom Class,自定义类,2,later,p1
+properties,properties.tile_inheritance,Tile Property Inheritance,瓦片属性继承,2,later,p1
+properties,properties.typed_tiles,Typed Tiles,类型化瓦片,2,later,p1
+preferences,prefs.user_preferences,User Preferences,用户偏好,2,later,p1
+preferences,prefs.saving_loading,Saving and Loading,保存与加载偏好,2,later,p1
+preferences,prefs.interface,Interface,界面偏好,2,later,p1
+preferences,prefs.keyboard,Keyboard,键盘偏好,2,later,p1
+preferences,prefs.theme,Theme,主题,2,later,p1
+templates,template.file,Template File,模板文件,2,later,p1
+templates,template.create,Creating Templates,创建模板,2,later,p1
+templates,template.instance,Creating Template Instances,创建模板实例,2,later,p1
+templates,template.edit,Editing Templates,编辑模板,2,later,p1
+templates,template.detach,Detaching Template Instances,分离模板实例,2,later,p1
+terrain,terrain.set,Terrain Set,地形集,2,later,p1
+terrain,terrain.corner_set,Corner Set,角点集,2,later,p1
+terrain,terrain.edge_set,Edge Set,边缘集,2,later,p1
+terrain,terrain.mixed_set,Mixed Set,混合集,2,later,p1
+terrain,terrain.add,Adding Terrains,添加地形,2,later,p1
+terrain,terrain.mark_tiles,Marking the Tiles,标记瓦片地形信息,2,later,p1
+terrain,terrain.patterns_view,Patterns View,模式视图,2,later,p1
+terrain,terrain.brush,Terrain Brush,地形笔刷,2,later,p1
+terrain,terrain.fill_mode,Terrain Fill Mode,地形填充模式,2,later,p1
+terrain,terrain.probability,Tile and Terrain Probability,瓦片与地形概率,2,later,p1
+terrain,terrain.transformations,Tile Transformations,瓦片变换,2,later,p1
+terrain,terrain.wang_tiles,Wang Tiles,王氏瓦片,2,later,p1
+worlds,world.base,World,世界,2,later,p1
+worlds,world.define,Defining a World,定义世界,2,later,p1
+worlds,world.edit,Editing Worlds,编辑世界,2,later,p1
+worlds,world.pattern_matching,Using Pattern Matching,使用模式匹配,2,later,p1
+worlds,world.direct_neighbors,Showing Only Direct Neighbors,仅显示直接邻居,2,later,p1
+formats,export.custom,Custom Export Formats,自定义导出格式,4,later,p2
+formats,export.python_scripts,Python Scripts,Python 脚本导出,4,later,p2
+preferences,prefs.plugins,Plugins,插件设置,4,later,p2
+automapping,automap.run,AutoMap,执行自动映射,4,later,p2
+automapping,automap.while_drawing,AutoMap While Drawing,绘制时自动映射,4,later,p2
+automapping,automap.rules_file,Rules File,规则文件,4,later,p2
+automapping,automap.rule_map,Rule Map,规则地图,4,later,p2
+automapping,automap.input_layer,Input Layer,输入图层,4,later,p2
+automapping,automap.output_layer,Output Layer,输出图层,4,later,p2
+automapping,automap.rules_tileset,Automapping Rules Tileset,自动映射规则瓦片集,4,later,p2
+automapping,automap.match_in_order,MatchInOrder,按顺序匹配,4,later,p2
+automapping,automap.no_overlapping_output,NoOverlappingOutput,禁止输出重叠,4,later,p2
+commands,command.button,Command Button,命令按钮,4,later,p2
+commands,command.shell,Shell Command,Shell 命令,4,later,p2
+commands,command.substituted_variables,Substituted Variables,替换变量,4,later,p2
+commands,command.examples,Example Commands,示例命令,4,later,p2
+scripting,scripting.javascript_extensions,JavaScript Extensions,JavaScript 扩展,4,later,p2
+scripting,scripting.console_view,Console View,控制台视图,4,later,p2
+scripting,scripting.command_line,Command Line,命令行脚本执行,4,later,p2
+scripting,scripting.register_action,registerAction,注册动作,4,later,p2
+scripting,scripting.extend_menu,extendMenu,扩展菜单,4,later,p2
+scripting,scripting.register_tool,registerTool,注册工具,4,later,p2
+scripting,scripting.register_map_format,registerMapFormat,注册地图格式,4,later,p2
+scripting,scripting.register_tileset_format,registerTilesetFormat,注册瓦片集格式,4,later,p2
+scripting,scripting.map_formats,mapFormats,地图格式列表,4,later,p2
+scripting,scripting.tileset_formats,tilesetFormats,瓦片集格式列表,4,later,p2
+scripting,scripting.worlds,worlds,世界列表,4,later,p2
+formats,format.json_map,JSON Map Format,JSON 地图格式,0,ref,p9
+formats,format.global_tile_ids,Global Tile IDs,全局瓦片 ID,0,ref,p9
+map,map.tile_layer_format,Tile Layer Format,瓦片图层存储格式,0,ref,p9
+map,map.isometric,Isometric,等角,0,no,p9
+map,map.isometric_staggered,Isometric (Staggered),交错等角,0,no,p9
+map,map.hexagonal_staggered,Hexagonal (Staggered),交错六边形,0,no,p9
+map,map.oblique,Oblique,斜投影,0,no,p9
+map,map.infinite,Infinite Map,无限地图,0,no,p9
+map,map.stagger_axis,Stagger Axis,交错轴,0,no,p9
+map,map.stagger_index,Stagger Index,交错索引,0,no,p9
+map,map.hex_side_length,Hex Side Length,六边形边长,0,no,p9
+map,map.skew,Skew,倾斜量,0,no,p9
+tilesets,tileset.collection_of_images,Collection of Images,图像集合瓦片集,0,no,p9
+tilesets,tileset.embedded,Embedded Tileset,内嵌瓦片集,0,no,p9
+preferences,prefs.keyboard_shortcuts,Keyboard Shortcuts,键盘快捷键,0,ref,p9

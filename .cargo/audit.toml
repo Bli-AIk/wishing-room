@@ -1,0 +1,5 @@
+# Cargo audit configuration
+# Keep ignores explicit and minimal. Start from a strict baseline.
+
+[advisories]
+ignore = []
